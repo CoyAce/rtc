@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"strings"
 )
 
 const (
@@ -23,11 +24,12 @@ const (
 )
 
 type SimpleMessage struct {
+	Sign    string
 	Payload []byte
 }
 
 func (m *SimpleMessage) Marshal() ([]byte, error) {
-	size := len(m.Payload)
+	size := len(m.Sign) + 1 + len(m.Payload)
 	if size+2 > BlockSize {
 		return nil, errors.New("packet is greater than BlockSize")
 	}
@@ -35,6 +37,16 @@ func (m *SimpleMessage) Marshal() ([]byte, error) {
 	b.Grow(size + 2)
 
 	err := binary.Write(b, binary.BigEndian, OpSimpleMSG) // write operation code
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = b.WriteString(m.Sign) // write Sign
+	if err != nil {
+		return nil, err
+	}
+
+	err = b.WriteByte(0) // write 0 byte
 	if err != nil {
 		return nil, err
 	}
@@ -47,13 +59,22 @@ func (m *SimpleMessage) Unmarshal(p []byte) error {
 	if l := len(p); l < 4 || l > DatagramSize {
 		return errors.New("invalid DATA")
 	}
+	r := bytes.NewBuffer(p)
 	var opcode OpCode
-	err := binary.Read(bytes.NewReader(p[:2]), binary.BigEndian, &opcode)
+	err := binary.Read(r, binary.BigEndian, &opcode)
 	if err != nil || opcode != OpSimpleMSG {
 		return errors.New("invalid DATA")
 	}
 
-	m.Payload = p[2:]
+	m.Sign, err = r.ReadString(0) // read sign
+	if err != nil {
+		return errors.New("invalid DATA")
+	}
+	m.Sign = strings.TrimRight((m.Sign), "\x00") // remove the 0-byte
+	if len(m.Sign) == 0 {
+		return errors.New("invalid DATA")
+	}
+	m.Payload = r.Bytes()
 	return nil
 }
 
