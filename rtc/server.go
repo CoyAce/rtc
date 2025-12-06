@@ -54,10 +54,24 @@ func (s *Server) Serve(conn net.PacketConn) error {
 		switch {
 		case sign.Unmarshal(buf) == nil:
 			s.SignMap[addr.String()] = sign
+			go s.ack(addr.String())
 		case msg.Unmarshal(buf) == nil:
 			go s.handle(addr.String(), msg.Sign, buf)
+			go s.ack(addr.String())
 		}
 	}
+}
+
+func (s *Server) ack(clientAddr string) {
+	conn, err := net.Dial("udp", clientAddr)
+	if err != nil {
+		log.Printf("[%s] dial failed: %v", clientAddr, err)
+		return
+	}
+	defer func() { _ = conn.Close() }()
+	ack := Ack(0)
+	bytes, err := ack.Marshal()
+	s.dispatch(clientAddr, conn, bytes)
 }
 
 func (s *Server) handle(clientAddr string, sign string, bytes []byte) {

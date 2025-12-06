@@ -13,7 +13,7 @@ type Client struct {
 	Timeout    time.Duration // the duration to wait for an acknowledgement
 }
 
-func (c *Client) changeSign(sign string) {
+func (c *Client) ChangeSign(sign string) {
 	c.Sign = Sign(sign)
 	bytes, err := c.Sign.Marshal()
 	if err != nil {
@@ -28,7 +28,7 @@ func (c *Client) changeSign(sign string) {
 	c.sendPacket(conn, bytes)
 }
 
-func (c *Client) sendText(text string) {
+func (c *Client) SendText(text string) {
 	conn, err := net.Dial("udp", c.ServerAddr)
 	if err != nil {
 		log.Printf("[%s] dial failed: %v", c.ServerAddr, err)
