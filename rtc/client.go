@@ -13,8 +13,19 @@ type Client struct {
 	Timeout    time.Duration // the duration to wait for an acknowledgement
 }
 
-func (c *Client) sign(sign string) {
+func (c *Client) changeSign(sign string) {
 	c.Sign = Sign(sign)
+	bytes, err := c.Sign.Marshal()
+	if err != nil {
+		log.Printf("[%s] marshal failed: %v", sign, err)
+	}
+
+	conn, err := net.Dial("udp", c.ServerAddr)
+	if err != nil {
+		log.Printf("[%s] dial failed: %v", c.ServerAddr, err)
+	}
+	defer func() { _ = conn.Close() }()
+	c.sendPacket(conn, bytes)
 }
 
 func (c *Client) sendText(text string) {
@@ -29,10 +40,14 @@ func (c *Client) sendText(text string) {
 		log.Printf("[%s] marshal failed: %v", text, err)
 	}
 
+	c.sendPacket(conn, bytes)
+}
+
+func (c *Client) sendPacket(conn net.Conn, bytes []byte) {
 	var ackPkt Ack
 	buf := make([]byte, DatagramSize)
 RETRY:
-	_, err = conn.Write(bytes)
+	_, err := conn.Write(bytes)
 	if err != nil {
 		log.Printf("[%s] write failed: %v", c.ServerAddr, err)
 	}
@@ -53,7 +68,6 @@ RETRY:
 				continue RETRY
 			}
 			log.Printf("[%s] waiting for ACK: %v", c.ServerAddr, err)
-			return
 		}
 
 		switch {
@@ -64,5 +78,4 @@ RETRY:
 		}
 	}
 	log.Printf("[%s] exhausted retries", c.ServerAddr)
-	return
 }
