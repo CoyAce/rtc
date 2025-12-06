@@ -47,13 +47,8 @@ func (c *Client) sendPacket(conn net.Conn, bytes []byte) {
 	var ackPkt Ack
 	buf := make([]byte, DatagramSize)
 RETRY:
-	_, err := conn.Write(bytes)
-	if err != nil {
-		log.Printf("[%s] write failed: %v", c.ServerAddr, err)
-	}
-
 	for i := c.Retries; i > 0; i-- {
-		_, err = conn.Write(bytes)
+		_, err := conn.Write(bytes)
 		if err != nil {
 			log.Printf("[%s] write failed: %v", c.ServerAddr, err)
 			return
