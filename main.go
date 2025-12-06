@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"live/rtc"
 	"log"
+	"os"
 	"time"
 )
 
@@ -26,10 +28,16 @@ func main() {
 		var sign string
 		fmt.Scanln(&sign)
 		c.ChangeSign(sign)
-		var text string
+		go func() {
+			for {
+				c.ReceiveText()
+			}
+		}()
+		reader := bufio.NewReader(os.Stdin)
 		for {
 			fmt.Println("input text:")
-			fmt.Scanln(&text)
+			text, _ := reader.ReadString('\n')
+			text = text[:len(text)-1]
 			c.SendText(text)
 		}
 	}
