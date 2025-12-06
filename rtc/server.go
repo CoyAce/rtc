@@ -46,19 +46,20 @@ func (s *Server) Serve(conn net.PacketConn) error {
 
 	for {
 		buf := make([]byte, DatagramSize)
-		_, addr, err := conn.ReadFrom(buf)
+		n, addr, err := conn.ReadFrom(buf)
 		if err != nil {
 			return err
 		}
 
+		bytes := buf[:n]
 		switch {
-		case sign.Unmarshal(buf) == nil:
+		case sign.Unmarshal(bytes) == nil:
 			s.SignMap[addr] = sign
 			log.Printf("[%s] set sign: [%s]", addr.String(), sign)
 			go s.ack(conn, addr)
-		case msg.Unmarshal(buf) == nil:
+		case msg.Unmarshal(bytes) == nil:
 			log.Printf("received msg [%s] from [%s]", string(msg.Payload), addr.String())
-			go s.handle(addr, msg.Sign, buf)
+			go s.handle(addr, msg.Sign, bytes)
 			go s.ack(conn, addr)
 		}
 	}
