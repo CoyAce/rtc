@@ -7,6 +7,7 @@ import (
 )
 
 type Client struct {
+	Conn       net.Conn
 	Sign       Sign
 	ServerAddr string
 	Retries    uint8         // the number of times to retry a failed transmission
@@ -19,13 +20,14 @@ func (c *Client) ChangeSign(sign string) {
 	if err != nil {
 		log.Printf("[%s] marshal failed: %v", sign, err)
 	}
-
-	conn, err := net.Dial("udp", c.ServerAddr)
-	if err != nil {
-		log.Printf("[%s] dial failed: %v", c.ServerAddr, err)
+	if c.Conn == nil {
+		conn, err := net.Dial("udp", c.ServerAddr)
+		if err != nil {
+			log.Printf("[%s] dial failed: %v", c.ServerAddr, err)
+		}
+		c.Conn = conn
 	}
-	defer func() { _ = conn.Close() }()
-	c.sendPacket(conn, bytes)
+	c.sendPacket(c.Conn, bytes)
 }
 
 func (c *Client) SendText(text string) {
@@ -43,20 +45,21 @@ func (c *Client) SendText(text string) {
 	c.sendPacket(conn, bytes)
 }
 
-func (c *Client) ReceiveText() string {
-	conn, err := net.Dial("udp", c.ServerAddr)
-	if err != nil {
-		log.Printf("[%s] dial failed: %v", c.ServerAddr, err)
-	}
-	defer func() { _ = conn.Close() }()
-
+func (c *Client) ReceiveText() {
 	var msg SignedMessage
 	buf := make([]byte, DatagramSize)
-	_, err = conn.Read(buf)
-	if msg.Unmarshal(buf) == nil {
-		return string(msg.Payload)
+	_ = c.Conn.SetReadDeadline(time.Now().Add(c.Timeout))
+	n, err := c.Conn.Read(buf)
+	if err != nil {
+		if nErr, ok := err.(net.Error); ok && nErr.Timeout() {
+			// log.Printf("receive text timeout")
+		}
+		//log.Printf("[%s] receive text: %v", c.ServerAddr, err)
 	}
-	return ""
+	if msg.Unmarshal(buf[:n]) == nil {
+		s := string(msg.Payload)
+		log.Printf("received text [%s]\n", s)
+	}
 }
 
 func (c *Client) sendPacket(conn net.Conn, bytes []byte) {
