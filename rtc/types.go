@@ -18,17 +18,62 @@ const (
 	OpRRQ OpCode = iota + 1
 	OpWRQ
 	OpData
-	OpSimpleMSG
+	OpSign
+	OpSignedMSG
 	OpAck
 	OpErr
 )
 
-type SimpleMessage struct {
+type Sign string
+
+func (sign *Sign) Marshal() ([]byte, error) {
+	b := new(bytes.Buffer)
+	b.Grow(len(*sign) + 2)
+
+	err := binary.Write(b, binary.BigEndian, OpSign) // write operation code
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = b.WriteString(string(*sign)) // write Sign
+	if err != nil {
+		return nil, err
+	}
+
+	err = b.WriteByte(0) // write 0 byte
+	if err != nil {
+		return nil, err
+	}
+
+	return b.Bytes(), nil
+}
+
+func (sign *Sign) Unmarshal(p []byte) error {
+	r := bytes.NewBuffer(p)
+	var opcode OpCode
+	err := binary.Read(r, binary.BigEndian, &opcode)
+	if err != nil || opcode != OpSign {
+		return errors.New("invalid DATA")
+	}
+
+	s, err := r.ReadString(0) // read sign
+	if err != nil {
+		return errors.New("invalid DATA")
+	}
+	s = strings.TrimRight((s), "\x00") // remove the 0-byte
+	if len(s) == 0 {
+		return errors.New("invalid DATA")
+	}
+	*sign = Sign(s)
+	return nil
+}
+
+type SignedMessage struct {
 	Sign    string
 	Payload []byte
 }
 
-func (m *SimpleMessage) Marshal() ([]byte, error) {
+func (m *SignedMessage) Marshal() ([]byte, error) {
 	size := len(m.Sign) + 1 + len(m.Payload)
 	if size+2 > BlockSize {
 		return nil, errors.New("packet is greater than BlockSize")
@@ -36,7 +81,7 @@ func (m *SimpleMessage) Marshal() ([]byte, error) {
 	b := new(bytes.Buffer)
 	b.Grow(size + 2)
 
-	err := binary.Write(b, binary.BigEndian, OpSimpleMSG) // write operation code
+	err := binary.Write(b, binary.BigEndian, OpSignedMSG) // write operation code
 	if err != nil {
 		return nil, err
 	}
@@ -55,14 +100,14 @@ func (m *SimpleMessage) Marshal() ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-func (m *SimpleMessage) Unmarshal(p []byte) error {
+func (m *SignedMessage) Unmarshal(p []byte) error {
 	if l := len(p); l < 4 || l > DatagramSize {
 		return errors.New("invalid DATA")
 	}
 	r := bytes.NewBuffer(p)
 	var opcode OpCode
 	err := binary.Read(r, binary.BigEndian, &opcode)
-	if err != nil || opcode != OpSimpleMSG {
+	if err != nil || opcode != OpSignedMSG {
 		return errors.New("invalid DATA")
 	}
 

@@ -36,25 +36,27 @@ func (s *Server) Serve(conn net.PacketConn) error {
 		s.Timeout = 6 * time.Second
 	}
 
-	var ssmg SimpleMessage
+	var msg SignedMessage
 
 	for {
 		buf := make([]byte, DatagramSize)
+		dup := make([]byte, DatagramSize)
 		_, addr, err := conn.ReadFrom(buf)
 		if err != nil {
 			return err
 		}
-		err = ssmg.Unmarshal(buf)
+		copy(dup, buf)
+		err = msg.Unmarshal(buf)
 		if err != nil {
 			log.Printf("[%s] bad request: %v", addr, err)
 			continue
 		}
 
-		go s.handle(addr.String(), ssmg)
+		go s.handle(addr.String(), msg.Sign, dup)
 	}
 }
 
-func (s *Server) handle(clientAddr string, ssmg SimpleMessage) {
+func (s *Server) handle(clientAddr string, sign string, bytes []byte) {
 	conn, err := net.Dial("udp", clientAddr)
 	if err != nil {
 		log.Printf("[%s] dial failed: %v", clientAddr, err)
@@ -62,4 +64,41 @@ func (s *Server) handle(clientAddr string, ssmg SimpleMessage) {
 	}
 	defer func() { _ = conn.Close() }()
 
+	s.dispatch(clientAddr, conn, bytes)
+}
+
+func (s *Server) dispatch(clientAddr string, conn net.Conn, bytes []byte) {
+	var (
+		ackPkt Ack
+	)
+	buf := make([]byte, DatagramSize)
+RETRY:
+	for i := s.Retries; i > 0; i-- {
+		_, err := conn.Write(bytes)
+		if err != nil {
+			log.Printf("[%s] write failed: %v", clientAddr, err)
+			return
+		}
+
+		// wait for the client's ACK packet
+		_ = conn.SetReadDeadline(time.Now().Add(s.Timeout))
+		_, err = conn.Read(buf)
+
+		if err != nil {
+			if nErr, ok := err.(net.Error); ok && nErr.Timeout() {
+				continue RETRY
+			}
+			log.Printf("[%s] waiting for ACK: %v", clientAddr, err)
+			return
+		}
+
+		switch {
+		case ackPkt.Unmarshal(buf) == nil:
+			return
+		default:
+			log.Printf("[%s] bad packet", clientAddr)
+		}
+	}
+	log.Printf("[%s] exhausted retries", clientAddr)
+	return
 }
