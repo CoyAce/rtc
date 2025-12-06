@@ -8,6 +8,7 @@ import (
 )
 
 type Server struct {
+	SignMap map[string]Sign
 	Retries uint8         // the number of times to retry a failed transmission
 	Timeout time.Duration // the duration to wait for an acknowledgement
 }
@@ -28,6 +29,8 @@ func (s *Server) Serve(conn net.PacketConn) error {
 		return errors.New("nil connection")
 	}
 
+	s.SignMap = make(map[string]Sign)
+
 	if s.Retries == 0 {
 		s.Retries = 10
 	}
@@ -36,35 +39,40 @@ func (s *Server) Serve(conn net.PacketConn) error {
 		s.Timeout = 6 * time.Second
 	}
 
-	var msg SignedMessage
+	var (
+		sign Sign
+		msg  SignedMessage
+	)
 
 	for {
 		buf := make([]byte, DatagramSize)
-		dup := make([]byte, DatagramSize)
 		_, addr, err := conn.ReadFrom(buf)
 		if err != nil {
 			return err
 		}
-		copy(dup, buf)
-		err = msg.Unmarshal(buf)
-		if err != nil {
-			log.Printf("[%s] bad request: %v", addr, err)
-			continue
-		}
 
-		go s.handle(addr.String(), msg.Sign, dup)
+		switch {
+		case sign.Unmarshal(buf) == nil:
+			s.SignMap[addr.String()] = sign
+		case msg.Unmarshal(buf) == nil:
+			go s.handle(addr.String(), msg.Sign, buf)
+		}
 	}
 }
 
 func (s *Server) handle(clientAddr string, sign string, bytes []byte) {
-	conn, err := net.Dial("udp", clientAddr)
-	if err != nil {
-		log.Printf("[%s] dial failed: %v", clientAddr, err)
-		return
-	}
-	defer func() { _ = conn.Close() }()
+	for k, v := range s.SignMap {
+		if v == Sign(sign) && k != clientAddr {
+			conn, err := net.Dial("udp", k)
+			if err != nil {
+				log.Printf("[%s] dial failed: %v", k, err)
+				return
+			}
+			defer func() { _ = conn.Close() }()
 
-	s.dispatch(clientAddr, conn, bytes)
+			s.dispatch(clientAddr, conn, bytes)
+		}
+	}
 }
 
 func (s *Server) dispatch(clientAddr string, conn net.Conn, bytes []byte) {
