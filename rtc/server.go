@@ -54,8 +54,10 @@ func (s *Server) Serve(conn net.PacketConn) error {
 		switch {
 		case sign.Unmarshal(buf) == nil:
 			s.SignMap[addr.String()] = sign
+			log.Printf("[%s] set sign: [%s]", addr.String(), sign)
 			go s.ack(addr.String())
 		case msg.Unmarshal(buf) == nil:
+			log.Printf("received msg [%s] from [%s]", string(msg.Payload), addr.String())
 			go s.handle(addr.String(), msg.Sign, buf)
 			go s.ack(addr.String())
 		}
@@ -71,7 +73,12 @@ func (s *Server) ack(clientAddr string) {
 	defer func() { _ = conn.Close() }()
 	ack := Ack(0)
 	bytes, err := ack.Marshal()
-	s.dispatch(clientAddr, conn, bytes)
+	_, err = conn.Write(bytes)
+	if err != nil {
+		log.Printf("[%s] write failed: %v", clientAddr, err)
+		return
+	}
+	log.Printf("[%s] write ack finished", clientAddr)
 }
 
 func (s *Server) handle(clientAddr string, sign string, bytes []byte) {

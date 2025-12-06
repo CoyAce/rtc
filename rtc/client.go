@@ -43,6 +43,22 @@ func (c *Client) SendText(text string) {
 	c.sendPacket(conn, bytes)
 }
 
+func (c *Client) ReceiveText() string {
+	conn, err := net.Dial("udp", c.ServerAddr)
+	if err != nil {
+		log.Printf("[%s] dial failed: %v", c.ServerAddr, err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	var msg SignedMessage
+	buf := make([]byte, DatagramSize)
+	_, err = conn.Read(buf)
+	if msg.Unmarshal(buf) == nil {
+		return string(msg.Payload)
+	}
+	return ""
+}
+
 func (c *Client) sendPacket(conn net.Conn, bytes []byte) {
 	var ackPkt Ack
 	buf := make([]byte, DatagramSize)
@@ -60,6 +76,7 @@ RETRY:
 
 		if err != nil {
 			if nErr, ok := err.(net.Error); ok && nErr.Timeout() {
+				log.Printf("waiting for ACK timeout")
 				continue RETRY
 			}
 			log.Printf("[%s] waiting for ACK: %v", c.ServerAddr, err)
