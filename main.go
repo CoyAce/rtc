@@ -16,5 +16,6 @@ var (
 func main() {
 	flag.Parse()
 	if *serverMode {
+
 	}
 }

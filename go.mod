@@ -1,3 +1,3 @@
-module awesomeProject
+module live
 
 go 1.24
