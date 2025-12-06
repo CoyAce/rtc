@@ -8,7 +8,7 @@ import (
 )
 
 type Server struct {
-	SignMap map[string]Sign
+	SignMap map[net.Addr]Sign
 	Retries uint8         // the number of times to retry a failed transmission
 	Timeout time.Duration // the duration to wait for an acknowledgement
 }
@@ -29,7 +29,7 @@ func (s *Server) Serve(conn net.PacketConn) error {
 		return errors.New("nil connection")
 	}
 
-	s.SignMap = make(map[string]Sign)
+	s.SignMap = make(map[net.Addr]Sign)
 
 	if s.Retries == 0 {
 		s.Retries = 10
@@ -53,50 +53,44 @@ func (s *Server) Serve(conn net.PacketConn) error {
 
 		switch {
 		case sign.Unmarshal(buf) == nil:
-			s.SignMap[addr.String()] = sign
+			s.SignMap[addr] = sign
 			log.Printf("[%s] set sign: [%s]", addr.String(), sign)
-			go s.ack(addr.String())
+			go s.ack(conn, addr)
 		case msg.Unmarshal(buf) == nil:
 			log.Printf("received msg [%s] from [%s]", string(msg.Payload), addr.String())
-			go s.handle(addr.String(), msg.Sign, buf)
-			go s.ack(addr.String())
+			go s.handle(addr, msg.Sign, buf)
+			go s.ack(conn, addr)
 		}
 	}
 }
 
-func (s *Server) ack(clientAddr string) {
-	conn, err := net.Dial("udp", clientAddr)
-	if err != nil {
-		log.Printf("[%s] dial failed: %v", clientAddr, err)
-		return
-	}
-	defer func() { _ = conn.Close() }()
+func (s *Server) ack(conn net.PacketConn, clientAddr net.Addr) {
 	ack := Ack(0)
 	bytes, err := ack.Marshal()
-	_, err = conn.Write(bytes)
+	_, err = conn.WriteTo(bytes, clientAddr)
 	if err != nil {
 		log.Printf("[%s] write failed: %v", clientAddr, err)
 		return
 	}
-	log.Printf("[%s] write ack finished", clientAddr)
+	log.Printf("[%s] write ack finished, soucre addr [%s]", clientAddr, conn.LocalAddr())
 }
 
-func (s *Server) handle(clientAddr string, sign string, bytes []byte) {
+func (s *Server) handle(clientAddr net.Addr, sign string, bytes []byte) {
 	for k, v := range s.SignMap {
 		if v == Sign(sign) && k != clientAddr {
-			conn, err := net.Dial("udp", k)
+			conn, err := net.Dial("udp", k.String())
 			if err != nil {
 				log.Printf("[%s] dial failed: %v", k, err)
 				return
 			}
 			defer func() { _ = conn.Close() }()
 
-			s.dispatch(clientAddr, conn, bytes)
+			s.dispatch(k, conn, bytes)
 		}
 	}
 }
 
-func (s *Server) dispatch(clientAddr string, conn net.Conn, bytes []byte) {
+func (s *Server) dispatch(clientAddr net.Addr, conn net.Conn, bytes []byte) {
 	var (
 		ackPkt Ack
 	)
