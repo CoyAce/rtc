@@ -7,23 +7,27 @@ import (
 )
 
 func TestListenPacketUDP(t *testing.T) {
-	s := Server{}
-	serverAddr := "127.0.0.1:52000"
-	go func() {
-		t.Error(s.ListenAndServe(serverAddr))
-	}()
+	// init data
+	ack := Ack(0)
+	ackBytes, err := ack.Marshal()
 
-	client, err := net.ListenPacket("udp", "127.0.0.1:")
-	if err != nil {
-		t.Fatal(err)
-	}
+	sign := Sign("test")
+	signBytes, _ := sign.Marshal()
+
+	uuid := "#00001"
+	text := "beautiful world"
+	msg := SignedMessage{Sign: string(sign), UUID: uuid, Payload: []byte(text)}
+	msgBytes, err := msg.Marshal()
+
+	serverAddr := setUpServer(t)
+	client, err := setUpClient(t)
 	defer func() { _ = client.Close() }()
 
 	// test send sign, server should ack
 	buf := make([]byte, DatagramSize)
-	testSign := Sign("test")
-	signBytes, _ := testSign.Marshal()
 	sAddr, _ := net.ResolveUDPAddr("udp", serverAddr)
+
+	// send sign
 	_, err = client.WriteTo(signBytes, sAddr)
 	if err != nil {
 		t.Fatal(err)
@@ -34,22 +38,18 @@ func TestListenPacketUDP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ack := Ack(0)
-	ackBytes, err := ack.Marshal()
 	if !bytes.Equal(ackBytes, buf[:n]) {
 		t.Errorf("expected reply %q; actual reply %q", ackBytes, buf[:n])
 	}
 
-	// test send text
-	clientA := Client{ServerAddr: serverAddr, UUID: "#00001", Sign: testSign}
+	// send text
+	clientA := Client{ServerAddr: serverAddr, UUID: uuid, Sign: sign}
 	go func() {
 		clientA.ListenAndServe("127.0.0.1:")
 	}()
-
-	text := "beautiful world"
 	clientA.SendText(text)
-	msg := SignedMessage{Sign: string(testSign), UUID: clientA.UUID, Payload: []byte(text)}
-	msgBytes, err := msg.Marshal()
+
+	// read text
 	n, _, err = client.ReadFrom(buf)
 	if err != nil {
 		t.Fatal(err)
@@ -57,6 +57,7 @@ func TestListenPacketUDP(t *testing.T) {
 	if !bytes.Equal(msgBytes, buf[:n]) {
 		t.Errorf("expected reply %q; actual reply %q", ackBytes, buf[:n])
 	}
+	// send ack
 	client.WriteTo(ackBytes, sAddr)
 
 	// test send text, server should ack
@@ -64,8 +65,26 @@ func TestListenPacketUDP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// read ack
 	n, _, err = client.ReadFrom(buf)
 	if !bytes.Equal(ackBytes, buf[:n]) {
 		t.Errorf("expected reply %q; actual reply %q", ackBytes, buf[:n])
 	}
+}
+
+func setUpClient(t *testing.T) (net.PacketConn, error) {
+	client, err := net.ListenPacket("udp", "127.0.0.1:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return client, err
+}
+
+func setUpServer(t *testing.T) string {
+	s := Server{}
+	serverAddr := "127.0.0.1:52000"
+	go func() {
+		t.Error(s.ListenAndServe(serverAddr))
+	}()
+	return serverAddr
 }
