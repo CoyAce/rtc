@@ -8,8 +8,7 @@ import (
 )
 
 const (
-	DatagramSize = 1024
-	BlockSize    = DatagramSize - 4 // the DatagramSize minus a 4-byte header
+	DatagramSize = 1280
 )
 
 type OpCode uint16
@@ -70,16 +69,17 @@ func (sign *Sign) Unmarshal(p []byte) error {
 
 type SignedMessage struct {
 	Sign    string
+	UUID    string
 	Payload []byte
 }
 
 func (m *SignedMessage) Marshal() ([]byte, error) {
-	size := len(m.Sign) + 1 + len(m.Payload)
-	if size+2 > BlockSize {
-		return nil, errors.New("packet is greater than BlockSize")
+	size := 2 + len(m.Sign) + 1 + len(m.UUID) + 1 + len(m.Payload)
+	if size > DatagramSize {
+		return nil, errors.New("packet is greater than DatagramSize")
 	}
 	b := new(bytes.Buffer)
-	b.Grow(size + 2)
+	b.Grow(size)
 
 	err := binary.Write(b, binary.BigEndian, OpSignedMSG) // write operation code
 	if err != nil {
@@ -87,6 +87,16 @@ func (m *SignedMessage) Marshal() ([]byte, error) {
 	}
 
 	_, err = b.WriteString(m.Sign) // write Sign
+	if err != nil {
+		return nil, err
+	}
+
+	err = b.WriteByte(0) // write 0 byte
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = b.WriteString(m.UUID) // write UUID
 	if err != nil {
 		return nil, err
 	}
@@ -119,6 +129,16 @@ func (m *SignedMessage) Unmarshal(p []byte) error {
 	if len(m.Sign) == 0 {
 		return errors.New("invalid DATA")
 	}
+
+	m.UUID, err = r.ReadString(0) // read sign
+	if err != nil {
+		return errors.New("invalid DATA")
+	}
+	m.UUID = strings.TrimRight((m.UUID), "\x00") // remove the 0-byte
+	if len(m.UUID) == 0 {
+		return errors.New("invalid DATA")
+	}
+
 	m.Payload = r.Bytes()
 	return nil
 }
