@@ -30,7 +30,7 @@ func main() {
 
 		uuid := "#" + strconv.Itoa(rand.Intn(90000)+10000)
 		log.Println("client uuid:", uuid)
-		c := core.Client{ServerAddr: *address, UUID: uuid, Sign: core.Sign(sign)}
+		c := core.Client{ServerAddr: *address, Status: make(chan struct{}), UUID: uuid, Sign: core.Sign(sign)}
 		go func() {
 			c.ListenAndServe("127.0.0.1:")
 		}()

@@ -8,7 +8,7 @@ import (
 
 type Client struct {
 	UUID       string
-	ready      chan struct{}
+	Status     chan struct{}
 	Conn       net.PacketConn
 	Sign       Sign
 	ServerAddr string
@@ -18,8 +18,8 @@ type Client struct {
 }
 
 func (c *Client) Ready() {
-	if c.ready != nil {
-		<-c.ready
+	if c.Status != nil {
+		<-c.Status
 	}
 }
 
@@ -46,8 +46,8 @@ func (c *Client) ListenAndServe(addr string) {
 	}
 	c.Conn = conn
 	defer func() { _ = conn.Close() }()
-	if c.ready != nil {
-		close(c.ready)
+	if c.Status != nil {
+		close(c.Status)
 	}
 
 	// init

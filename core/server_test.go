@@ -43,14 +43,14 @@ func TestListenPacketUDP(t *testing.T) {
 	}
 
 	// send text
-	clientA := Client{ServerAddr: serverAddr, UUID: uuid, Sign: sign}
+	clientA := Client{ServerAddr: serverAddr, Status: make(chan struct{}), UUID: uuid, Sign: sign}
 	go func() {
 		clientA.ListenAndServe("127.0.0.1:")
 	}()
+	clientA.Ready()
 	clientA.SendText(text)
 
 	// read text
-	clientA.Ready()
 	n, _, err = client.ReadFrom(buf)
 	if err != nil {
 		t.Fatal(err)
