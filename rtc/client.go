@@ -7,27 +7,11 @@ import (
 )
 
 type Client struct {
-	Conn       net.Conn
+	Conn       net.PacketConn
 	Sign       Sign
 	ServerAddr string
 	Retries    uint8         // the number of times to retry a failed transmission
 	Timeout    time.Duration // the duration to wait for an acknowledgement
-}
-
-func (c *Client) ChangeSign(sign string) {
-	c.Sign = Sign(sign)
-	bytes, err := c.Sign.Marshal()
-	if err != nil {
-		log.Printf("[%s] marshal failed: %v", sign, err)
-	}
-	if c.Conn == nil {
-		conn, err := net.Dial("udp", c.ServerAddr)
-		if err != nil {
-			log.Printf("[%s] dial failed: %v", c.ServerAddr, err)
-		}
-		c.Conn = conn
-	}
-	c.sendPacket(c.Conn, bytes)
 }
 
 func (c *Client) SendText(text string) {
@@ -36,6 +20,7 @@ func (c *Client) SendText(text string) {
 		log.Printf("[%s] dial failed: %v", c.ServerAddr, err)
 	}
 	defer func() { _ = conn.Close() }()
+
 	msg := SignedMessage{Sign: string(c.Sign), Payload: []byte(text)}
 	bytes, err := msg.Marshal()
 	if err != nil {
@@ -45,21 +30,100 @@ func (c *Client) SendText(text string) {
 	c.sendPacket(conn, bytes)
 }
 
-func (c *Client) ReceiveText() {
+func (c *Client) ListenAndServe(addr string) {
+	conn, err := net.ListenPacket("udp", addr)
+	if err != nil {
+		log.Printf("[%s] dial failed: %v", addr, err)
+	}
+	c.Conn = conn
+	defer func() { _ = conn.Close() }()
+
+	// init
+	c.sendSign()
+
+	log.Printf("Listening on %s ...\n", conn.LocalAddr())
+	c.Serve(conn)
+}
+
+func (c *Client) sendSign() {
+	bytes, err := c.Sign.Marshal()
+	if err != nil {
+		log.Printf("[%s] marshal failed: %v", c.Sign, err)
+	}
+
+	c.sendPacketWithPacketConn(bytes)
+}
+
+func (c *Client) Serve(conn net.PacketConn) {
 	var msg SignedMessage
 	buf := make([]byte, DatagramSize)
-	_ = c.Conn.SetReadDeadline(time.Now().Add(c.Timeout))
-	n, err := c.Conn.Read(buf)
-	if err != nil {
-		if nErr, ok := err.(net.Error); ok && nErr.Timeout() {
-			// log.Printf("receive text timeout")
+
+	for {
+		_ = conn.SetReadDeadline(time.Now().Add(c.Timeout))
+		n, addr, err := conn.ReadFrom(buf)
+		if err != nil {
+			if nErr, ok := err.(net.Error); ok && nErr.Timeout() {
+				//log.Printf("receive text timeout")
+			}
+			//log.Printf("[%s] receive text: %v", c.ServerAddr, err)
+			continue
 		}
-		//log.Printf("[%s] receive text: %v", c.ServerAddr, err)
+
+		if msg.Unmarshal(buf[:n]) == nil {
+			s := string(msg.Payload)
+			log.Printf("received text [%s]\n", s)
+			c.ack(conn, addr)
+		}
 	}
-	if msg.Unmarshal(buf[:n]) == nil {
-		s := string(msg.Payload)
-		log.Printf("received text [%s]\n", s)
+}
+
+func (c *Client) ack(conn net.PacketConn, clientAddr net.Addr) {
+	ack := Ack(0)
+	bytes, err := ack.Marshal()
+	_, err = conn.WriteTo(bytes, clientAddr)
+	if err != nil {
+		log.Printf("[%s] write failed: %v", clientAddr, err)
+		return
 	}
+	// log.Printf("[%s] write ack finished, soucre addr [%s]", clientAddr, conn.LocalAddr())
+}
+
+func (c *Client) sendPacketWithPacketConn(bytes []byte) {
+	var ackPkt Ack
+	buf := make([]byte, DatagramSize)
+	addr, _ := net.ResolveUDPAddr("udp", c.ServerAddr)
+RETRY:
+	for i := c.Retries; i > 0; i-- {
+		_, err := c.Conn.WriteTo(bytes, addr)
+		if err != nil {
+			log.Printf("[%s] write failed: %v", c.ServerAddr, err)
+			return
+		}
+
+		// wait for the Server's ACK packet
+		_ = c.Conn.SetReadDeadline(time.Now().Add(c.Timeout))
+		_, addr, err := c.Conn.ReadFrom(buf)
+
+		if err != nil {
+			if nErr, ok := err.(net.Error); ok && nErr.Timeout() {
+				log.Printf("waiting for ACK timeout")
+				continue RETRY
+			}
+			log.Printf("[%s] waiting for ACK: %v", c.ServerAddr, err)
+		}
+
+		if addr.String() != c.ServerAddr {
+			log.Fatalf("received reply from %q instead of %q", addr, c.ServerAddr)
+		}
+
+		switch {
+		case ackPkt.Unmarshal(buf) == nil:
+			return
+		default:
+			log.Printf("[%s] bad packet", c.ServerAddr)
+		}
+	}
+	log.Printf("[%s] exhausted retries", c.ServerAddr)
 }
 
 func (c *Client) sendPacket(conn net.Conn, bytes []byte) {

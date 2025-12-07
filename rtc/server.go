@@ -32,7 +32,7 @@ func (s *Server) Serve(conn net.PacketConn) error {
 	s.SignMap = make(map[net.Addr]Sign)
 
 	if s.Retries == 0 {
-		s.Retries = 10
+		s.Retries = 3
 	}
 
 	if s.Timeout == 0 {
@@ -59,7 +59,7 @@ func (s *Server) Serve(conn net.PacketConn) error {
 			go s.ack(conn, addr)
 		case msg.Unmarshal(bytes) == nil:
 			log.Printf("received msg [%s] from [%s]", string(msg.Payload), addr.String())
-			go s.handle(conn, msg.Sign, bytes)
+			go s.handle(msg.Sign, bytes)
 			go s.ack(conn, addr)
 		}
 	}
@@ -76,18 +76,54 @@ func (s *Server) ack(conn net.PacketConn, clientAddr net.Addr) {
 	// log.Printf("[%s] write ack finished, soucre addr [%s]", clientAddr, conn.LocalAddr())
 }
 
-func (s *Server) handle(conn net.PacketConn, sign string, bytes []byte) {
-	for k, v := range s.SignMap {
+func (s *Server) handle(sign string, bytes []byte) {
+	for addr, v := range s.SignMap {
 		if v == Sign(sign) {
-			s.dispatch(conn, k, bytes)
+			conn, err := net.Dial("udp", addr.String())
+			if err != nil {
+				log.Printf("[%s] dial failed: %v", addr, err)
+				delete(s.SignMap, addr)
+				continue
+			}
+			defer func() { _ = conn.Close() }()
+
+			s.dispatch(addr, conn, bytes)
 		}
 	}
 }
 
-func (s *Server) dispatch(conn net.PacketConn, clientAddr net.Addr, bytes []byte) {
-	_, err := conn.WriteTo(bytes, clientAddr)
-	if err != nil {
-		log.Printf("[%s] write failed: %v", clientAddr, err)
-		return
+func (s *Server) dispatch(clientAddr net.Addr, conn net.Conn, bytes []byte) {
+	var (
+		ackPkt Ack
+	)
+	buf := make([]byte, DatagramSize)
+RETRY:
+	for i := s.Retries; i > 0; i-- {
+		_, err := conn.Write(bytes)
+		if err != nil {
+			log.Printf("[%s] write failed: %v", clientAddr, err)
+			return
+		}
+
+		// wait for the client's ACK packet
+		_ = conn.SetReadDeadline(time.Now().Add(s.Timeout))
+		_, err = conn.Read(buf)
+
+		if err != nil {
+			if nErr, ok := err.(net.Error); ok && nErr.Timeout() {
+				continue RETRY
+			}
+			log.Printf("[%s] waiting for ACK: %v", clientAddr, err)
+			return
+		}
+
+		switch {
+		case ackPkt.Unmarshal(buf) == nil:
+			return
+		default:
+			log.Printf("[%s] bad packet", clientAddr)
+		}
 	}
+	log.Printf("[%s] exhausted retries", clientAddr)
+	return
 }
