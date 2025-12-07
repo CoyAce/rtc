@@ -34,6 +34,7 @@ func main() {
 		go func() {
 			c.ListenAndServe("127.0.0.1:")
 		}()
+		c.Ready()
 
 		reader := bufio.NewReader(os.Stdin)
 		for {

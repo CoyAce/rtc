@@ -8,12 +8,19 @@ import (
 
 type Client struct {
 	UUID       string
+	ready      chan struct{}
 	Conn       net.PacketConn
 	Sign       Sign
 	ServerAddr string
 	SAddr      net.Addr
 	Retries    uint8         // the number of times to retry a failed transmission
 	Timeout    time.Duration // the duration to wait for an acknowledgement
+}
+
+func (c *Client) Ready() {
+	if c.ready != nil {
+		<-c.ready
+	}
 }
 
 func (c *Client) SendText(text string) {
@@ -39,6 +46,9 @@ func (c *Client) ListenAndServe(addr string) {
 	}
 	c.Conn = conn
 	defer func() { _ = conn.Close() }()
+	if c.ready != nil {
+		close(c.ready)
+	}
 
 	// init
 	if c.Retries == 0 {

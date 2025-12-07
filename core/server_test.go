@@ -50,6 +50,7 @@ func TestListenPacketUDP(t *testing.T) {
 	clientA.SendText(text)
 
 	// read text
+	clientA.Ready()
 	n, _, err = client.ReadFrom(buf)
 	if err != nil {
 		t.Fatal(err)
