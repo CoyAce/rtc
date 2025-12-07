@@ -9,7 +9,6 @@ import (
 	"os"
 	"rtc/core"
 	"strconv"
-	"time"
 )
 
 var (
@@ -23,7 +22,7 @@ func main() {
 	if *serverMode {
 		fmt.Println("server mode")
 		s := core.Server{}
-		log.Fatal(s.ListenAndServe(*address))
+		s.ListenAndServe(*address)
 	} else {
 		fmt.Println("input sign:")
 		var sign string
@@ -31,7 +30,7 @@ func main() {
 
 		uuid := "#" + strconv.Itoa(rand.Intn(90000)+10000)
 		log.Println("client uuid:", uuid)
-		c := core.Client{ServerAddr: *address, UUID: uuid, Sign: core.Sign(sign), Retries: 3, Timeout: time.Second * 5}
+		c := core.Client{ServerAddr: *address, UUID: uuid, Sign: core.Sign(sign)}
 		go func() {
 			c.ListenAndServe("127.0.0.1:")
 		}()

@@ -41,6 +41,14 @@ func (c *Client) ListenAndServe(addr string) {
 	defer func() { _ = conn.Close() }()
 
 	// init
+	if c.Retries == 0 {
+		c.Retries = 3
+	}
+
+	if c.Timeout == 0 {
+		c.Timeout = 6 * time.Second
+	}
+
 	c.SAddr, err = net.ResolveUDPAddr("udp", c.ServerAddr)
 	c.sendSign()
 
