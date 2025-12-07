@@ -44,7 +44,7 @@ func (c *Client) ListenAndServe(addr string) {
 	c.sendSign()
 
 	log.Printf("Listening on %s ...\n", conn.LocalAddr())
-	c.Serve(conn)
+	c.serve(conn)
 }
 
 func (c *Client) sendSign() {
@@ -56,7 +56,7 @@ func (c *Client) sendSign() {
 	c.sendPacketWithPacketConn(bytes)
 }
 
-func (c *Client) Serve(conn net.PacketConn) {
+func (c *Client) serve(conn net.PacketConn) {
 	var msg SignedMessage
 	buf := make([]byte, DatagramSize)
 
