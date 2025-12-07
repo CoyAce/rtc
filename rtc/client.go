@@ -7,6 +7,7 @@ import (
 )
 
 type Client struct {
+	UUID       string
 	Conn       net.PacketConn
 	Sign       Sign
 	ServerAddr string
@@ -22,7 +23,7 @@ func (c *Client) SendText(text string) {
 	}
 	defer func() { _ = conn.Close() }()
 
-	msg := SignedMessage{Sign: string(c.Sign), Payload: []byte(text)}
+	msg := SignedMessage{Sign: string(c.Sign), UUID: c.UUID, Payload: []byte(text)}
 	bytes, err := msg.Marshal()
 	if err != nil {
 		log.Printf("[%s] marshal failed: %v", text, err)
@@ -73,7 +74,7 @@ func (c *Client) serve(conn net.PacketConn) {
 
 		if msg.Unmarshal(buf[:n]) == nil {
 			s := string(msg.Payload)
-			log.Printf("received text [%s]\n", s)
+			log.Printf("received text [%s] from [%s]\n", s, msg.UUID)
 			c.ack(conn, addr)
 		}
 	}
