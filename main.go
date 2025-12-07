@@ -4,10 +4,10 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"live/rtc"
 	"log"
 	"math/rand"
 	"os"
+	"rtc/core"
 	"strconv"
 	"time"
 )
@@ -22,7 +22,7 @@ func main() {
 	fmt.Println("address:", *address)
 	if *serverMode {
 		fmt.Println("server mode")
-		s := rtc.Server{}
+		s := core.Server{}
 		log.Fatal(s.ListenAndServe(*address))
 	} else {
 		fmt.Println("input sign:")
@@ -31,7 +31,7 @@ func main() {
 
 		uuid := "#" + strconv.Itoa(rand.Intn(90000)+10000)
 		log.Println("client uuid:", uuid)
-		c := rtc.Client{ServerAddr: *address, UUID: uuid, Sign: rtc.Sign(sign), Retries: 3, Timeout: time.Second * 5}
+		c := core.Client{ServerAddr: *address, UUID: uuid, Sign: core.Sign(sign), Retries: 3, Timeout: time.Second * 5}
 		go func() {
 			c.ListenAndServe("127.0.0.1:")
 		}()
