@@ -10,6 +10,7 @@ type Client struct {
 	Conn       net.PacketConn
 	Sign       Sign
 	ServerAddr string
+	SAddr      net.Addr
 	Retries    uint8         // the number of times to retry a failed transmission
 	Timeout    time.Duration // the duration to wait for an acknowledgement
 }
@@ -39,6 +40,7 @@ func (c *Client) ListenAndServe(addr string) {
 	defer func() { _ = conn.Close() }()
 
 	// init
+	c.SAddr, err = net.ResolveUDPAddr("udp", c.ServerAddr)
 	c.sendSign()
 
 	log.Printf("Listening on %s ...\n", conn.LocalAddr())
@@ -91,10 +93,9 @@ func (c *Client) ack(conn net.PacketConn, clientAddr net.Addr) {
 func (c *Client) sendPacketWithPacketConn(bytes []byte) {
 	var ackPkt Ack
 	buf := make([]byte, DatagramSize)
-	addr, _ := net.ResolveUDPAddr("udp", c.ServerAddr)
 RETRY:
 	for i := c.Retries; i > 0; i-- {
-		_, err := c.Conn.WriteTo(bytes, addr)
+		_, err := c.Conn.WriteTo(bytes, c.SAddr)
 		if err != nil {
 			log.Printf("[%s] write failed: %v", c.ServerAddr, err)
 			return
