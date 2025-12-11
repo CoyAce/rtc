@@ -8,7 +8,11 @@ import (
 	"math/rand"
 	"os"
 	"rtc/core"
+	"rtc/ui"
 	"strconv"
+
+	"gioui.org/app"
+	"gioui.org/unit"
 )
 
 var (
@@ -25,6 +29,17 @@ func main() {
 		log.Fatal(s.ListenAndServe(*address))
 		return
 	}
+
+	go func() {
+		w := new(app.Window)
+		w.Option(app.Title("rtc"))
+		w.Option(app.Size(unit.Dp(463), unit.Dp(750)))
+		if err := ui.Draw(w); err != nil {
+			log.Fatal(err)
+		}
+		os.Exit(0)
+	}()
+	app.Main()
 
 	// set sign
 	fmt.Println("input sign:")
