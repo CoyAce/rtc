@@ -16,14 +16,14 @@ import (
 	"golang.org/x/exp/shiny/materialdesign/icons"
 )
 
-func Layout(gtx C, msg string, theme *material.Theme) (d D) {
+func Layout(gtx layout.Context, msg string, theme *material.Theme) (d layout.Dimensions) {
 	if msg == "" {
 		return d
 	}
 
 	isMe := true
 	margins := layout.Inset{Top: unit.Dp(24), Bottom: unit.Dp(0), Right: unit.Dp(8)}
-	return margins.Layout(gtx, func(gtx C) D {
+	return margins.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
 		flex := layout.Flex{Axis: layout.Vertical}
 		if isMe {
@@ -32,7 +32,7 @@ func Layout(gtx C, msg string, theme *material.Theme) (d D) {
 			flex.Alignment = layout.Start
 		}
 		return flex.Layout(gtx,
-			layout.Rigid(func(gtx C) D {
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				timeVal := time.Now()
 				txtMsg := timeVal.Local().Format("Mon, Jan 2, 3:04 PM")
 				label := material.Label(theme, theme.TextSize*0.70, txtMsg)
@@ -41,7 +41,7 @@ func Layout(gtx C, msg string, theme *material.Theme) (d D) {
 				label.Font.Weight = font.Bold
 				label.Font.Style = font.Italic
 				margins = layout.Inset{Bottom: unit.Dp(8.0)}
-				d := margins.Layout(gtx, func(gtx C) D {
+				d := margins.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					flex := layout.Flex{}
 					if isMe {
 						flex.Spacing = layout.SpaceStart
@@ -49,7 +49,7 @@ func Layout(gtx C, msg string, theme *material.Theme) (d D) {
 						flex.Spacing = layout.SpaceEnd
 					}
 					return flex.Layout(gtx,
-						layout.Rigid(func(gtx C) D {
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							return component.TruncatingLabelStyle(label).Layout(gtx)
 						}))
 				})
@@ -75,17 +75,17 @@ func Layout(gtx C, msg string, theme *material.Theme) (d D) {
 							//}
 							return icon.Layout(gtx, iconColor)
 						}
-						return D{}
+						return layout.Dimensions{}
 					}),
-					layout.Rigid(func(gtx C) D {
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if msg != "" {
 							macro := op.Record(gtx.Ops)
 							inset := layout.UniformInset(unit.Dp(12))
-							d := inset.Layout(gtx, func(gtx C) D {
+							d := inset.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 								flex := layout.Flex{}
 								gtx.Constraints.Min.X = 0
 								return flex.Layout(gtx,
-									layout.Rigid(func(gtx C) D {
+									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 										gtx.Constraints.Max.X = int(float32(gtx.Constraints.Max.X) / 1.5)
 										bd := material.Body1(theme, msg)
 										return bd.Layout(gtx)
@@ -109,7 +109,7 @@ func Layout(gtx C, msg string, theme *material.Theme) (d D) {
 							clipOp.Pop()
 							return d
 						}
-						return D{}
+						return layout.Dimensions{}
 					}),
 				)
 			}),

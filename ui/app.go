@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"rtc/core"
+
 	"gioui.org/app"
 	"gioui.org/io/event"
 	"gioui.org/io/pointer"
@@ -13,10 +15,7 @@ import (
 	"golang.org/x/exp/shiny/materialdesign/icons"
 )
 
-type C = layout.Context
-type D = layout.Dimensions
-
-func Draw(window *app.Window) error {
+func Draw(window *app.Window, client core.Client) error {
 	// theme defines the material design style
 	theme := material.NewTheme()
 	// ops are the operations from the UI
@@ -75,7 +74,7 @@ func Draw(window *app.Window) error {
 
 			flex := layout.Flex{Axis: layout.Vertical, Spacing: layout.SpaceBetween}
 			flex.Layout(gtx,
-				layout.Flexed(1, func(gtx C) D {
+				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 					// Then we use scrollY to control the distance from the top of the screen to the first element.
 					// We visualize the text using a list where each paragraph is a separate item.
 					var vizList = layout.List{
@@ -84,7 +83,7 @@ func Draw(window *app.Window) error {
 							Offset: int(scrollY),
 						},
 					}
-					dimensions := vizList.Layout(gtx, len(msgs), func(gtx C, index int) D {
+					dimensions := vizList.Layout(gtx, len(msgs), func(gtx layout.Context, index int) layout.Dimensions {
 						return Layout(gtx, msgs[index], theme)
 					})
 					// ---------- REGISTERING EVENTS ----------
@@ -100,24 +99,24 @@ func Draw(window *app.Window) error {
 						Spacing: layout.SpaceStart,
 					}.Layout(gtx,
 						// Rigid to hold message input field and submit button
-						layout.Rigid(func(gtx C) D {
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							// Define margins around the flex item using layout.Inset
 							margins := layout.Inset{Left: unit.Dp(8.0), Right: unit.Dp(8)}
-							return margins.Layout(gtx, func(gtx C) D {
+							return margins.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 								return layout.Flex{
 									Axis:      layout.Horizontal,
 									Spacing:   layout.SpaceBetween,
 									Alignment: layout.End,
 								}.Layout(gtx,
 									// text input
-									layout.Flexed(1.0, func(gtx C) D {
+									layout.Flexed(1.0, func(gtx layout.Context) layout.Dimensions {
 										return inputField.Layout(gtx, theme, "Message")
 									}),
 									// submit button
-									layout.Rigid(func(gtx C) D {
+									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 										margins := layout.Inset{Left: unit.Dp(8.0)}
 										return margins.Layout(gtx,
-											func(gtx C) D {
+											func(gtx layout.Context) layout.Dimensions {
 												return material.IconButtonStyle{
 													Background: theme.ContrastBg,
 													Color:      theme.ContrastFg,
@@ -130,11 +129,11 @@ func Draw(window *app.Window) error {
 										)
 									}),
 									// expand button
-									layout.Rigid(func(gtx C) D {
+									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 										margins := layout.Inset{Left: unit.Dp(8.0)}
 										return margins.Layout(
 											gtx,
-											func(gtx C) D {
+											func(gtx layout.Context) layout.Dimensions {
 												return material.IconButtonStyle{
 													Background: theme.ContrastBg,
 													Color:      theme.ContrastFg,
