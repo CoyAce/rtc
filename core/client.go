@@ -8,6 +8,7 @@ import (
 
 type Client struct {
 	UUID       string
+	Msgs       chan string
 	Status     chan struct{}
 	Conn       net.PacketConn
 	Sign       Sign
@@ -59,6 +60,8 @@ func (c *Client) ListenAndServe(addr string) {
 		c.Timeout = 6 * time.Second
 	}
 
+	c.Msgs = make(chan string)
+
 	c.SAddr, err = net.ResolveUDPAddr("udp", c.ServerAddr)
 	c.sendSign()
 
@@ -93,6 +96,7 @@ func (c *Client) serve(conn net.PacketConn) {
 		if msg.Unmarshal(buf[:n]) == nil {
 			s := string(msg.Payload)
 			log.Printf("received text [%s] from [%s]\n", s, msg.UUID)
+			c.Msgs <- s
 			c.ack(conn, addr)
 		}
 	}

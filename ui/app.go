@@ -2,6 +2,7 @@ package ui
 
 import (
 	"rtc/core"
+	"strings"
 
 	"gioui.org/app"
 	"gioui.org/io/event"
@@ -24,9 +25,12 @@ func Draw(window *app.Window, client core.Client) error {
 	// Define a tag for input routing
 	var msgTag = "msgTag"
 	msgs := []string{"hello", "world", "hello beautiful world"}
-	for i := 1; i <= 20; i++ {
-		msgs = append(msgs, "dummy message")
-	}
+	// listen for events in the msgs channel
+	go func() {
+		for m := range client.Msgs {
+			msgs = append(msgs, m)
+		}
+	}()
 
 	// y-position for msg list
 	var scrollY unit.Dp = 0
@@ -70,6 +74,12 @@ func Draw(window *app.Window, client core.Client) error {
 				if scrollY < 0 {
 					scrollY = 0
 				}
+			}
+
+			if submitButton.Clicked(gtx) {
+				msg := strings.TrimSpace(inputField.Text())
+				client.SendText(msg)
+				inputField.Clear()
 			}
 
 			flex := layout.Flex{Axis: layout.Vertical, Spacing: layout.SpaceBetween}
@@ -161,5 +171,4 @@ func Draw(window *app.Window, client core.Client) error {
 			e.Frame(gtx.Ops)
 		}
 	}
-
 }
