@@ -79,7 +79,7 @@ func Draw(window *app.Window, client core.Client) error {
 				}
 			}
 
-			if submitButton.Clicked(gtx) {
+			if submitButton.Clicked(gtx) || submittedByCarriageReturn(&inputField, gtx) {
 				msg := strings.TrimSpace(inputField.Text())
 				client.SendText(msg)
 				inputField.Clear()
@@ -175,4 +175,17 @@ func Draw(window *app.Window, client core.Client) error {
 			e.Frame(gtx.Ops)
 		}
 	}
+}
+
+func submittedByCarriageReturn(editor *component.TextField, gtx layout.Context) (submit bool) {
+	for {
+		ev, ok := editor.Editor.Update(gtx)
+		if _, submit = ev.(widget.SubmitEvent); submit {
+			break
+		}
+		if !ok {
+			break
+		}
+	}
+	return submit
 }
