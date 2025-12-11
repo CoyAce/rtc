@@ -9,15 +9,16 @@ import (
 )
 
 type Client struct {
-	UUID       string
-	Msgs       chan string
-	Status     chan struct{}
-	Conn       net.PacketConn
-	Sign       Sign
-	ServerAddr string
-	SAddr      net.Addr
-	Retries    uint8         // the number of times to retry a failed transmission
-	Timeout    time.Duration // the duration to wait for an acknowledgement
+	UUID         string
+	Msgs         chan string
+	Status       chan struct{}
+	Conn         net.PacketConn
+	Disconnected bool
+	Sign         Sign
+	ServerAddr   string
+	SAddr        net.Addr
+	Retries      uint8         // the number of times to retry a failed transmission
+	Timeout      time.Duration // the duration to wait for an acknowledgement
 }
 
 func (c *Client) Ready() {
@@ -102,11 +103,13 @@ func (c *Client) serve(conn net.PacketConn) {
 				//log.Printf("receive text timeout")
 			}
 			if errors.Is(err, syscall.ECONNREFUSED) {
+				c.Disconnected = true
 				log.Printf("[%s] connection refused", c.ServerAddr)
 			}
 			//log.Printf("[%s] receive text: %v", c.ServerAddr, err)
 			continue
 		}
+		c.Disconnected = false
 
 		switch {
 		case ackPkt.Unmarshal(buf[:n]) == nil:
@@ -152,10 +155,13 @@ RETRY:
 				continue RETRY
 			}
 			if errors.Is(err, syscall.ECONNREFUSED) {
+				c.Disconnected = true
 				log.Printf("[%s] connection refused", c.ServerAddr)
 			}
 			log.Printf("[%s] waiting for ACK: %v", c.ServerAddr, err)
+			continue
 		}
+		c.Disconnected = false
 
 		switch {
 		case ackPkt.Unmarshal(buf) == nil:

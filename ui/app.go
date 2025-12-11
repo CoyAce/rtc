@@ -92,6 +92,9 @@ func Draw(window *app.Window, client core.Client) error {
 				msg := strings.TrimSpace(inputField.Text())
 				client.SendText(msg)
 				inputField.Clear()
+				if client.Disconnected {
+					msgs = append(msgs, msg)
+				}
 			}
 
 			flex := layout.Flex{Axis: layout.Vertical, Spacing: layout.SpaceBetween}
