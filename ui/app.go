@@ -31,11 +31,14 @@ func Draw(window *app.Window, client core.Client) error {
 		for m := range client.Msgs {
 			msgs = append(msgs, m)
 			scrollToEnd = true
+			window.Invalidate()
 		}
 	}()
 
 	// y-position for msg list
 	var scrollY unit.Dp = 0
+	var lastOffset unit.Dp = 0
+
 	// submitButton is a clickable widget
 	var submitButton widget.Clickable
 	var expandButton widget.Clickable
@@ -60,6 +63,7 @@ func Draw(window *app.Window, client core.Client) error {
 			// Time to deal with inputs since last frame.
 
 			// Scrolled a mouse wheel?
+			lastOffset = scrollY
 			for {
 				ev, ok := gtx.Event(
 					pointer.Filter{
@@ -100,6 +104,9 @@ func Draw(window *app.Window, client core.Client) error {
 					dimensions := vizList.Layout(gtx, len(msgs), func(gtx layout.Context, index int) layout.Dimensions {
 						return Layout(gtx, msgs[index], theme)
 					})
+					if !vizList.Position.BeforeEnd {
+						scrollY = lastOffset
+					}
 					// ---------- REGISTERING EVENTS ----------
 					event.Op(&ops, msgTag)
 					return dimensions
