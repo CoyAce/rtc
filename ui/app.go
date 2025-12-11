@@ -23,7 +23,7 @@ func Draw(window *app.Window) error {
 	var ops op.Ops
 
 	// Define a tag for input routing
-	var tag = "chat item"
+	var msgTag = "msgTag"
 	msgs := []string{"hello", "world", "hello beautiful world"}
 	for i := 1; i <= 20; i++ {
 		msgs = append(msgs, "dummy message")
@@ -58,7 +58,7 @@ func Draw(window *app.Window) error {
 			for {
 				ev, ok := gtx.Event(
 					pointer.Filter{
-						Target:  tag,
+						Target:  msgTag,
 						Kinds:   pointer.Scroll,
 						ScrollY: pointer.ScrollRange{Min: -1, Max: +1},
 					},
@@ -84,10 +84,12 @@ func Draw(window *app.Window) error {
 							Offset: int(scrollY),
 						},
 					}
-
-					return vizList.Layout(gtx, len(msgs), func(gtx C, index int) D {
+					dimensions := vizList.Layout(gtx, len(msgs), func(gtx C, index int) D {
 						return Layout(gtx, msgs[index], theme)
 					})
+					// ---------- REGISTERING EVENTS ----------
+					event.Op(&ops, msgTag)
+					return dimensions
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					// Render with flexbox layout:
@@ -155,10 +157,6 @@ func Draw(window *app.Window) error {
 					)
 				}),
 			)
-
-			// ---------- REGISTERING EVENTS ----------
-			// registering events here work
-			event.Op(&ops, tag)
 
 			// Pass the drawing operations to the GPU.
 			e.Frame(gtx.Ops)
