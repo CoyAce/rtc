@@ -25,10 +25,12 @@ func Draw(window *app.Window, client core.Client) error {
 	// Define a tag for input routing
 	var msgTag = "msgTag"
 	msgs := []string{"hello", "world", "hello beautiful world"}
+	var scrollToEnd = false
 	// listen for events in the msgs channel
 	go func() {
 		for m := range client.Msgs {
 			msgs = append(msgs, m)
+			scrollToEnd = true
 		}
 	}()
 
@@ -70,6 +72,7 @@ func Draw(window *app.Window, client core.Client) error {
 					break
 				}
 				//fmt.Printf("SCROLL: %+v\n", ev)
+				scrollToEnd = false
 				scrollY = scrollY + unit.Dp(ev.(pointer.Event).Scroll.Y*float32(theme.TextSize))*2
 				if scrollY < 0 {
 					scrollY = 0
@@ -92,6 +95,7 @@ func Draw(window *app.Window, client core.Client) error {
 						Position: layout.Position{
 							Offset: int(scrollY),
 						},
+						ScrollToEnd: scrollToEnd,
 					}
 					dimensions := vizList.Layout(gtx, len(msgs), func(gtx layout.Context, index int) layout.Dimensions {
 						return Layout(gtx, msgs[index], theme)
