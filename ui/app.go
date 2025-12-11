@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"math"
 	"rtc/core"
 	"strings"
 
@@ -25,19 +26,22 @@ func Draw(window *app.Window, client core.Client) error {
 	// Define a tag for input routing
 	var msgTag = "msgTag"
 	msgs := []string{"hello", "world", "hello beautiful world"}
+
 	var scrollToEnd = false
+	// y-position for msg list
+	var scrollY unit.Dp = 0
+	var maxOffset unit.Dp = 0
 	// listen for events in the msgs channel
 	go func() {
 		for m := range client.Msgs {
 			msgs = append(msgs, m)
 			scrollToEnd = true
+			// update scroll offset
+			maxOffset += unit.Dp(theme.TextSize) * 10.5
+			scrollY = maxOffset
 			window.Invalidate()
 		}
 	}()
-
-	// y-position for msg list
-	var scrollY unit.Dp = 0
-	var lastOffset unit.Dp = 0
 
 	// submitButton is a clickable widget
 	var submitButton widget.Clickable
@@ -63,7 +67,7 @@ func Draw(window *app.Window, client core.Client) error {
 			// Time to deal with inputs since last frame.
 
 			// Scrolled a mouse wheel?
-			lastOffset = scrollY
+			maxOffset = unit.Dp(math.Max(float64(scrollY), float64(maxOffset)))
 			for {
 				ev, ok := gtx.Event(
 					pointer.Filter{
@@ -104,8 +108,10 @@ func Draw(window *app.Window, client core.Client) error {
 					dimensions := vizList.Layout(gtx, len(msgs), func(gtx layout.Context, index int) layout.Dimensions {
 						return Layout(gtx, msgs[index], theme)
 					})
-					if !vizList.Position.BeforeEnd {
-						scrollY = lastOffset
+					// at end of list
+					if !vizList.Position.BeforeEnd && scrollY > maxOffset {
+						// scroll down invalid when at list end
+						scrollY = maxOffset
 					}
 					// ---------- REGISTERING EVENTS ----------
 					event.Op(&ops, msgTag)
