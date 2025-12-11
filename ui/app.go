@@ -29,15 +29,15 @@ func Draw(window *app.Window) error {
 		msgs = append(msgs, "dummy message")
 	}
 
-	// y-position for text
+	// y-position for msg list
 	var scrollY unit.Dp = 0
 	// submitButton is a clickable widget
 	var submitButton widget.Clickable
 	var expandButton widget.Clickable
 	inputField := component.TextField{Editor: widget.Editor{Submit: true}}
-	// sendMessage button icon
-	iconSendMessage, _ := widget.NewIcon(icons.ContentSend)
-	iconExpand, _ := widget.NewIcon(icons.NavigationUnfoldMore)
+	// icons
+	submitIcon, _ := widget.NewIcon(icons.ContentSend)
+	expandIcon, _ := widget.NewIcon(icons.NavigationUnfoldMore)
 	// listen for events in the window.
 	for {
 		// detect what type of event
@@ -121,7 +121,7 @@ func Draw(window *app.Window) error {
 												return material.IconButtonStyle{
 													Background: theme.ContrastBg,
 													Color:      theme.ContrastFg,
-													Icon:       iconSendMessage,
+													Icon:       submitIcon,
 													Size:       unit.Dp(24.0),
 													Button:     &submitButton,
 													Inset:      layout.UniformInset(unit.Dp(9)),
@@ -138,7 +138,7 @@ func Draw(window *app.Window) error {
 												return material.IconButtonStyle{
 													Background: theme.ContrastBg,
 													Color:      theme.ContrastFg,
-													Icon:       iconExpand,
+													Icon:       expandIcon,
 													Size:       unit.Dp(24.0),
 													Button:     &expandButton,
 													Inset:      layout.UniformInset(unit.Dp(9)),
