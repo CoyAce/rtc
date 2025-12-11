@@ -81,7 +81,7 @@ func Draw(window *app.Window, client core.Client) error {
 				}
 				//fmt.Printf("SCROLL: %+v\n", ev)
 				scrollToEnd = false
-				scrollY = scrollY + unit.Dp(ev.(pointer.Event).Scroll.Y*float32(theme.TextSize))*2
+				scrollY = scrollY + unit.Dp(ev.(pointer.Event).Scroll.Y*float32(theme.TextSize))*2.5
 				if scrollY < 0 {
 					scrollY = 0
 				}
