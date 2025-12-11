@@ -9,7 +9,7 @@ import (
 )
 
 type Server struct {
-	SignMap map[net.Addr]Sign
+	SignMap map[string]Sign
 	Retries uint8         // the number of times to retry a failed transmission
 	Timeout time.Duration // the duration to wait for an acknowledgement
 }
@@ -30,7 +30,7 @@ func (s *Server) Serve(conn net.PacketConn) error {
 		return errors.New("nil connection")
 	}
 
-	s.SignMap = make(map[net.Addr]Sign)
+	s.SignMap = make(map[string]Sign)
 
 	if s.Retries == 0 {
 		s.Retries = 3
@@ -55,7 +55,7 @@ func (s *Server) Serve(conn net.PacketConn) error {
 		bytes := buf[:n]
 		switch {
 		case sign.Unmarshal(bytes) == nil:
-			s.SignMap[addr] = sign
+			s.SignMap[addr.String()] = sign
 			log.Printf("[%s] set sign: [%s]", addr.String(), sign)
 			go s.ack(conn, addr)
 		case msg.Unmarshal(bytes) == nil:
@@ -80,7 +80,7 @@ func (s *Server) ack(conn net.PacketConn, clientAddr net.Addr) {
 func (s *Server) handle(sign string, bytes []byte) {
 	for addr, v := range s.SignMap {
 		if v == Sign(sign) {
-			conn, err := net.Dial("udp", addr.String())
+			conn, err := net.Dial("udp", addr)
 			if err != nil {
 				log.Printf("[%s] dial failed: %v", addr, err)
 				delete(s.SignMap, addr)
@@ -88,7 +88,8 @@ func (s *Server) handle(sign string, bytes []byte) {
 			}
 			defer func() { _ = conn.Close() }()
 
-			s.dispatch(addr, conn, bytes)
+			ad, _ := net.ResolveUDPAddr("udp", addr)
+			s.dispatch(ad, conn, bytes)
 		}
 	}
 }
@@ -111,11 +112,12 @@ RETRY:
 		_, err = conn.Read(buf)
 
 		if err != nil {
-			if nErr, ok := err.(net.Error); ok && nErr.Timeout() {
+			var nErr net.Error
+			if errors.As(err, &nErr) && nErr.Timeout() {
 				continue RETRY
 			}
-			if nErr, ok := err.(syscall.Errno); ok && nErr == syscall.ECONNREFUSED {
-				delete(s.SignMap, clientAddr)
+			if errors.Is(err, syscall.ECONNREFUSED) {
+				delete(s.SignMap, clientAddr.String())
 				log.Printf("[%s] connection refused", clientAddr)
 			}
 			log.Printf("[%s] waiting for ACK: %v", clientAddr, err)

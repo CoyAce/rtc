@@ -1,8 +1,10 @@
 package core
 
 import (
+	"errors"
 	"log"
 	"net"
+	"syscall"
 	"time"
 )
 
@@ -63,7 +65,13 @@ func (c *Client) ListenAndServe(addr string) {
 	c.Msgs = make(chan string)
 
 	c.SAddr, err = net.ResolveUDPAddr("udp", c.ServerAddr)
-	c.sendSign()
+	go func() {
+		// auto reconnect in case of server down
+		for {
+			c.sendSign()
+			time.Sleep(30 * time.Second)
+		}
+	}()
 
 	log.Printf("Listening on %s ...\n", conn.LocalAddr())
 	c.serve(conn)
@@ -74,26 +82,36 @@ func (c *Client) sendSign() {
 	if err != nil {
 		log.Printf("[%s] marshal failed: %v", c.Sign, err)
 	}
-
-	c.sendPacketWithPacketConn(bytes)
+	_, err = c.Conn.WriteTo(bytes, c.SAddr)
+	if err != nil {
+		log.Printf("[%s] write failed: %v", c.ServerAddr, err)
+		return
+	}
 }
 
 func (c *Client) serve(conn net.PacketConn) {
+	var ackPkt Ack
 	var msg SignedMessage
 	buf := make([]byte, DatagramSize)
 
 	for {
-		_ = conn.SetReadDeadline(time.Now().Add(c.Timeout))
 		n, addr, err := conn.ReadFrom(buf)
 		if err != nil {
-			if nErr, ok := err.(net.Error); ok && nErr.Timeout() {
+			var nErr net.Error
+			if errors.As(err, &nErr) && nErr.Timeout() {
 				//log.Printf("receive text timeout")
+			}
+			if errors.Is(err, syscall.ECONNREFUSED) {
+				log.Printf("[%s] connection refused", c.ServerAddr)
 			}
 			//log.Printf("[%s] receive text: %v", c.ServerAddr, err)
 			continue
 		}
 
-		if msg.Unmarshal(buf[:n]) == nil {
+		switch {
+		case ackPkt.Unmarshal(buf[:n]) == nil:
+			continue
+		case msg.Unmarshal(buf[:n]) == nil:
 			s := string(msg.Payload)
 			log.Printf("received text [%s] from [%s]\n", s, msg.UUID)
 			c.Msgs <- s
@@ -111,43 +129,6 @@ func (c *Client) ack(conn net.PacketConn, clientAddr net.Addr) {
 		return
 	}
 	// log.Printf("[%s] write ack finished, soucre addr [%s]", clientAddr, conn.LocalAddr())
-}
-
-func (c *Client) sendPacketWithPacketConn(bytes []byte) {
-	var ackPkt Ack
-	buf := make([]byte, DatagramSize)
-RETRY:
-	for i := c.Retries; i > 0; i-- {
-		_, err := c.Conn.WriteTo(bytes, c.SAddr)
-		if err != nil {
-			log.Printf("[%s] write failed: %v", c.ServerAddr, err)
-			return
-		}
-
-		// wait for the Server's ACK packet
-		_ = c.Conn.SetReadDeadline(time.Now().Add(c.Timeout))
-		_, addr, err := c.Conn.ReadFrom(buf)
-
-		if err != nil {
-			if nErr, ok := err.(net.Error); ok && nErr.Timeout() {
-				log.Printf("waiting for ACK timeout")
-				continue RETRY
-			}
-			log.Printf("[%s] waiting for ACK: %v", c.ServerAddr, err)
-		}
-
-		if addr.String() != c.ServerAddr {
-			log.Fatalf("received reply from %q instead of %q", addr, c.ServerAddr)
-		}
-
-		switch {
-		case ackPkt.Unmarshal(buf) == nil:
-			return
-		default:
-			log.Printf("[%s] bad packet", c.ServerAddr)
-		}
-	}
-	log.Printf("[%s] exhausted retries", c.ServerAddr)
 }
 
 func (c *Client) sendPacket(conn net.Conn, bytes []byte) {
@@ -169,6 +150,9 @@ RETRY:
 			if nErr, ok := err.(net.Error); ok && nErr.Timeout() {
 				log.Printf("waiting for ACK timeout")
 				continue RETRY
+			}
+			if errors.Is(err, syscall.ECONNREFUSED) {
+				log.Printf("[%s] connection refused", c.ServerAddr)
 			}
 			log.Printf("[%s] waiting for ACK: %v", c.ServerAddr, err)
 		}
