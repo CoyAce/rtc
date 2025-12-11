@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"net"
+	"syscall"
 	"time"
 )
 
@@ -112,6 +113,10 @@ RETRY:
 		if err != nil {
 			if nErr, ok := err.(net.Error); ok && nErr.Timeout() {
 				continue RETRY
+			}
+			if nErr, ok := err.(syscall.Errno); ok && nErr == syscall.ECONNREFUSED {
+				delete(s.SignMap, clientAddr)
+				log.Printf("[%s] connection refused", clientAddr)
 			}
 			log.Printf("[%s] waiting for ACK: %v", clientAddr, err)
 			return
