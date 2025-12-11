@@ -151,8 +151,8 @@ func Draw(window *app.Window) error {
 						}),
 						// ... then one to hold an empty spacer
 						layout.Rigid(
-							// The height of the spacer is 25 Device independent pixels
-							layout.Spacer{Height: unit.Dp(25)}.Layout,
+							// The height of the spacer is 15 Device independent pixels
+							layout.Spacer{Height: unit.Dp(15)}.Layout,
 						),
 					)
 				}),
