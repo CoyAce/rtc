@@ -25,9 +25,10 @@ func Draw(window *app.Window, client core.Client) error {
 
 	// Define a tag for input routing
 	var msgTag = "msgTag"
-	msgs := []string{"hello", "world", "hello beautiful world"}
+	var msgs []string
 
 	var scrollToEnd = false
+	var firstVisible = false
 	// y-position for msg list
 	var scrollY unit.Dp = 0
 	var maxOffset unit.Dp = 0
@@ -37,7 +38,7 @@ func Draw(window *app.Window, client core.Client) error {
 			msgs = append(msgs, m)
 			scrollToEnd = true
 			// update scroll offset
-			maxOffset += unit.Dp(theme.TextSize) * 10.5
+			maxOffset += unit.Dp(theme.TextSize) * 10
 			scrollY = maxOffset
 			window.Invalidate()
 		}
@@ -81,7 +82,7 @@ func Draw(window *app.Window, client core.Client) error {
 				}
 				//fmt.Printf("SCROLL: %+v\n", ev)
 				scrollToEnd = false
-				scrollY = scrollY + unit.Dp(ev.(pointer.Event).Scroll.Y*float32(theme.TextSize))*2.5
+				scrollY = scrollY + unit.Dp(ev.(pointer.Event).Scroll.Y*float32(theme.TextSize))*3
 				if scrollY < 0 {
 					scrollY = 0
 				}
@@ -103,15 +104,19 @@ func Draw(window *app.Window, client core.Client) error {
 						Position: layout.Position{
 							Offset: int(scrollY),
 						},
-						ScrollToEnd: scrollToEnd,
+						ScrollToEnd: firstVisible || scrollToEnd,
 					}
 					dimensions := vizList.Layout(gtx, len(msgs), func(gtx layout.Context, index int) layout.Dimensions {
 						return Layout(gtx, msgs[index], theme)
 					})
 					// at end of list
-					if !vizList.Position.BeforeEnd && scrollY > maxOffset {
+					if !vizList.Position.BeforeEnd {
 						// scroll down invalid when at list end
-						scrollY = maxOffset
+						if scrollY > maxOffset {
+							scrollY = maxOffset
+						}
+						// first item visible
+						firstVisible = vizList.Position.First == 0
 					}
 					// ---------- REGISTERING EVENTS ----------
 					event.Op(&ops, msgTag)
