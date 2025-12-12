@@ -52,7 +52,7 @@ func (m *Message) Layout(gtx layout.Context, theme *material.Theme) (d layout.Di
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				timeVal := m.CreatedAt
 				timeMsg := timeVal.Local().Format("Mon, Jan 2, 3:04 PM")
-				label := material.Label(theme, theme.TextSize*0.70, timeMsg)
+				label := material.Label(theme, theme.TextSize*0.70, timeMsg+" "+m.UUID)
 				label.Color = theme.ContrastBg
 				label.Color.A = uint8(int(math.Abs(float64(label.Color.A)-50)) % 256)
 				label.Font.Weight = font.Bold
