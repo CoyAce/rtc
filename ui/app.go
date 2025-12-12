@@ -1,13 +1,18 @@
 package ui
 
 import (
+	"image"
 	"rtc/core"
 	"strings"
 	"time"
 
 	"gioui.org/app"
+	"gioui.org/io/event"
+	"gioui.org/io/key"
+	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/op/clip"
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
@@ -80,6 +85,20 @@ func Draw(window *app.Window, client core.Client) error {
 			flex := layout.Flex{Axis: layout.Vertical, Spacing: layout.SpaceBetween}
 			flex.Layout(gtx,
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+					// Process events using the key, &messageList
+					for {
+						_, ok := gtx.Event(
+							pointer.Filter{
+								Target: &messageList,
+								Kinds:  pointer.Press,
+							},
+						)
+						if !ok {
+							break
+						}
+						// get focus from editor
+						gtx.Execute(key.FocusCmd{})
+					}
 					// We visualize the text using a list where each paragraph is a separate item.
 					messageList.ScrollToEnd = firstVisible || scrollToEnd
 					if messageList.ScrollToEnd {
@@ -97,6 +116,14 @@ func Draw(window *app.Window, client core.Client) error {
 					if scrollToEnd {
 						scrollToEnd = false
 					}
+					// Confine the area of interest
+					rectArea := clip.Rect(image.Rectangle{Max: dimensions.Size}).Push(gtx.Ops)
+					// Use pointer.PassOp to allow pointer events to pass through an input area to those underneath it.
+					pass := pointer.PassOp{}.Push(gtx.Ops)
+					// Declare `tag` as being one of the targets.
+					event.Op(gtx.Ops, &messageList)
+					pass.Pop()
+					rectArea.Pop()
 					return dimensions
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {

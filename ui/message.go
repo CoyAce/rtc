@@ -120,7 +120,7 @@ func (m *Message) Layout(gtx layout.Context, theme *material.Theme) (d layout.Di
 								nW = 0
 							}
 							clipOp := clip.RRect{Rect: image.Rectangle{
-								Max: image.Point{X: d.Size.X, Y: d.Size.Y},
+								Max: d.Size,
 							}, SE: sE, SW: sW, NW: nW, NE: nE}.Push(gtx.Ops)
 							component.Rect{Color: bgColor, Size: d.Size}.Layout(gtx)
 							call.Add(gtx.Ops)
