@@ -2,6 +2,7 @@ package ui
 
 import (
 	"image"
+	"rtc/assets/fonts"
 	"rtc/core"
 	"strings"
 	"time"
@@ -22,7 +23,7 @@ import (
 
 func Draw(window *app.Window, client core.Client) error {
 	// theme defines the material design style
-	theme := material.NewTheme()
+	theme := fonts.NewTheme()
 	// ops are the operations from the UI
 	var ops op.Ops
 
