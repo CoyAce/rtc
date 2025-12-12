@@ -100,6 +100,19 @@ func Draw(window *app.Window, client core.Client) error {
 						// get focus from editor
 						gtx.Execute(key.FocusCmd{})
 					}
+					for {
+						_, ok := gtx.Event(
+							pointer.Filter{
+								Target:  &messageList,
+								Kinds:   pointer.Scroll,
+								ScrollY: pointer.ScrollRange{Min: -1, Max: +1},
+							},
+						)
+						if !ok {
+							break
+						}
+						scrollToEnd = false
+					}
 					// We visualize the text using a list where each paragraph is a separate item.
 					messageList.ScrollToEnd = firstVisible || scrollToEnd
 					if messageList.ScrollToEnd {
@@ -112,10 +125,6 @@ func Draw(window *app.Window, client core.Client) error {
 					if !messageList.Position.BeforeEnd {
 						// if at end and first item visible, scroll to end
 						firstVisible = messageList.Position.First == 0
-					}
-					// trigger scroll to end once
-					if scrollToEnd {
-						scrollToEnd = false
 					}
 					// Confine the area of interest
 					rectArea := clip.Rect(image.Rectangle{Max: dimensions.Size}).Push(gtx.Ops)
