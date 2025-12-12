@@ -21,6 +21,12 @@ func Draw(window *app.Window, client core.Client) error {
 	// ops are the operations from the UI
 	var ops op.Ops
 
+	var animation = component.VisibilityAnimation{
+		Duration: time.Millisecond * 250,
+		State:    component.Invisible,
+		Started:  time.Time{},
+	}
+
 	var messages []Message
 	var scrollToEnd, firstVisible = false, false
 	// listen for events in the messages channel
@@ -40,10 +46,12 @@ func Draw(window *app.Window, client core.Client) error {
 	// submitButton is a clickable widget
 	var submitButton widget.Clickable
 	var expandButton widget.Clickable
+	var collapseButton widget.Clickable
 	inputField := component.TextField{Editor: widget.Editor{Submit: true}}
 	// icons
 	submitIcon, _ := widget.NewIcon(icons.ContentSend)
 	expandIcon, _ := widget.NewIcon(icons.NavigationUnfoldMore)
+	collapseIcon, _ := widget.NewIcon(icons.NavigationUnfoldLess)
 	// listen for events in the window.
 	for {
 		// detect what type of event
@@ -142,12 +150,24 @@ func Draw(window *app.Window, client core.Client) error {
 										return margins.Layout(
 											gtx,
 											func(gtx layout.Context) layout.Dimensions {
+												btn := &expandButton
+												icon := expandIcon
+												if collapseButton.Clicked(gtx) {
+													animation.Disappear(gtx.Now)
+												}
+												if expandButton.Clicked(gtx) {
+													animation.Appear(gtx.Now)
+												}
+												if animation.Revealed(gtx) != 0 {
+													btn = &collapseButton
+													icon = collapseIcon
+												}
 												return material.IconButtonStyle{
 													Background: theme.ContrastBg,
 													Color:      theme.ContrastFg,
-													Icon:       expandIcon,
+													Icon:       icon,
 													Size:       unit.Dp(24.0),
-													Button:     &expandButton,
+													Button:     btn,
 													Inset:      layout.UniformInset(unit.Dp(9)),
 												}.Layout(gtx)
 											},
