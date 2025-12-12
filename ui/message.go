@@ -2,6 +2,7 @@ package ui
 
 import (
 	"image"
+	"image/color"
 	"math"
 	"time"
 
@@ -16,13 +17,29 @@ import (
 	"golang.org/x/exp/shiny/materialdesign/icons"
 )
 
-func Layout(gtx layout.Context, msg string, theme *material.Theme) (d layout.Dimensions) {
-	if msg == "" {
+type State uint16
+
+const (
+	Stateless State = iota
+	Sent
+	Read
+)
+
+type Message struct {
+	State
+	UUID      string
+	Text      string
+	Sender    string
+	CreatedAt time.Time
+}
+
+func (m *Message) Layout(gtx layout.Context, theme *material.Theme) (d layout.Dimensions) {
+	if m.Text == "" {
 		return d
 	}
 
-	isMe := true
-	margins := layout.Inset{Top: unit.Dp(24), Bottom: unit.Dp(0), Right: unit.Dp(8)}
+	isMe := m.UUID == m.Sender
+	margins := layout.Inset{Top: unit.Dp(24), Bottom: unit.Dp(0), Left: unit.Dp(8), Right: unit.Dp(8)}
 	return margins.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
 		flex := layout.Flex{Axis: layout.Vertical}
@@ -33,9 +50,9 @@ func Layout(gtx layout.Context, msg string, theme *material.Theme) (d layout.Dim
 		}
 		return flex.Layout(gtx,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				timeVal := time.Now()
-				txtMsg := timeVal.Local().Format("Mon, Jan 2, 3:04 PM")
-				label := material.Label(theme, theme.TextSize*0.70, txtMsg)
+				timeVal := m.CreatedAt
+				timeMsg := timeVal.Local().Format("Mon, Jan 2, 3:04 PM")
+				label := material.Label(theme, theme.TextSize*0.70, timeMsg)
 				label.Color = theme.ContrastBg
 				label.Color.A = uint8(int(math.Abs(float64(label.Color.A)-50)) % 256)
 				label.Font.Weight = font.Bold
@@ -63,22 +80,23 @@ func Layout(gtx layout.Context, msg string, theme *material.Theme) (d layout.Dim
 				return flex.Layout(gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if isMe {
-							icon, _ := widget.NewIcon(icons.AlertErrorOutline)
 							iconColor := theme.ContrastBg
-							icon, _ = widget.NewIcon(icons.ActionDone)
-							//icon, _ = widget.NewIcon(icons.ActionDoneAll)
-							//switch p.Message.State {
-							//case chat.MessageStateReceived:
-							//	icon, _ = widget.NewIcon(icons.ActionDone)
-							//case chat.MessageStateRead:
-							//	icon, _ = widget.NewIcon(icons.ActionDoneAll)
-							//}
+							var icon *widget.Icon
+							switch m.State {
+							case Stateless:
+								icon, _ = widget.NewIcon(icons.AlertErrorOutline)
+								iconColor = color.NRGBA{R: 255, G: 48, B: 48, A: 255}
+							case Sent:
+								icon, _ = widget.NewIcon(icons.ActionDone)
+							case Read:
+								icon, _ = widget.NewIcon(icons.ActionDoneAll)
+							}
 							return icon.Layout(gtx, iconColor)
 						}
 						return layout.Dimensions{}
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						if msg != "" {
+						if m.Text != "" {
 							macro := op.Record(gtx.Ops)
 							inset := layout.UniformInset(unit.Dp(12))
 							d := inset.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -87,7 +105,7 @@ func Layout(gtx layout.Context, msg string, theme *material.Theme) (d layout.Dim
 								return flex.Layout(gtx,
 									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 										gtx.Constraints.Max.X = int(float32(gtx.Constraints.Max.X) / 1.5)
-										bd := material.Body1(theme, msg)
+										bd := material.Body1(theme, m.Text)
 										return bd.Layout(gtx)
 									}))
 							})

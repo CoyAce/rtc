@@ -9,16 +9,16 @@ import (
 )
 
 type Client struct {
-	UUID         string
-	Msgs         chan string
-	Status       chan struct{}
-	Conn         net.PacketConn
-	Disconnected bool
-	Sign         Sign
-	ServerAddr   string
-	SAddr        net.Addr
-	Retries      uint8         // the number of times to retry a failed transmission
-	Timeout      time.Duration // the duration to wait for an acknowledgement
+	UUID           string
+	SignedMessages chan SignedMessage
+	Status         chan struct{}
+	Conn           net.PacketConn
+	Disconnected   bool
+	Sign           Sign
+	ServerAddr     string
+	SAddr          net.Addr
+	Retries        uint8         // the number of times to retry a failed transmission
+	Timeout        time.Duration // the duration to wait for an acknowledgement
 }
 
 func (c *Client) Ready() {
@@ -63,7 +63,7 @@ func (c *Client) ListenAndServe(addr string) {
 		c.Timeout = 6 * time.Second
 	}
 
-	c.Msgs = make(chan string)
+	c.SignedMessages = make(chan SignedMessage)
 
 	c.SAddr, err = net.ResolveUDPAddr("udp", c.ServerAddr)
 	go func() {
@@ -117,7 +117,7 @@ func (c *Client) serve(conn net.PacketConn) {
 		case msg.Unmarshal(buf[:n]) == nil:
 			s := string(msg.Payload)
 			log.Printf("received text [%s] from [%s]\n", s, msg.UUID)
-			c.Msgs <- s
+			c.SignedMessages <- msg
 			c.ack(conn, addr)
 		}
 	}

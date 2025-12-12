@@ -4,6 +4,7 @@ import (
 	"math"
 	"rtc/core"
 	"strings"
+	"time"
 
 	"gioui.org/app"
 	"gioui.org/io/event"
@@ -25,7 +26,7 @@ func Draw(window *app.Window, client core.Client) error {
 
 	// Define a tag for input routing
 	var msgTag = "msgTag"
-	var msgs []string
+	var msgs []Message
 
 	var scrollToEnd = false
 	var firstVisible = false
@@ -34,8 +35,9 @@ func Draw(window *app.Window, client core.Client) error {
 	var maxOffset unit.Dp = 0
 	// listen for events in the msgs channel
 	go func() {
-		for m := range client.Msgs {
-			msgs = append(msgs, m)
+		for m := range client.SignedMessages {
+			message := Message{State: Sent, UUID: client.UUID, Sender: m.UUID, Text: string(m.Payload), CreatedAt: time.Now()}
+			msgs = append(msgs, message)
 			scrollToEnd = true
 			// update scroll offset
 			maxOffset += unit.Dp(theme.TextSize) * 10
@@ -93,7 +95,8 @@ func Draw(window *app.Window, client core.Client) error {
 				client.SendText(msg)
 				inputField.Clear()
 				if client.Disconnected {
-					msgs = append(msgs, msg)
+					message := Message{Sender: client.UUID, UUID: client.UUID, Text: msg, CreatedAt: time.Now(), State: Stateless}
+					msgs = append(msgs, message)
 				}
 			}
 
@@ -110,7 +113,7 @@ func Draw(window *app.Window, client core.Client) error {
 						ScrollToEnd: firstVisible || scrollToEnd,
 					}
 					dimensions := vizList.Layout(gtx, len(msgs), func(gtx layout.Context, index int) layout.Dimensions {
-						return Layout(gtx, msgs[index], theme)
+						return msgs[index].Layout(gtx, theme)
 					})
 					// at end of list
 					if !vizList.Position.BeforeEnd {
@@ -133,6 +136,10 @@ func Draw(window *app.Window, client core.Client) error {
 						// Empty space is left at the start, i.e. at the top
 						Spacing: layout.SpaceStart,
 					}.Layout(gtx,
+						layout.Rigid(
+							// The height of the spacer is 8 Device independent pixels
+							layout.Spacer{Height: unit.Dp(8)}.Layout,
+						),
 						// Rigid to hold message input field and submit button
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							// Define margins around the flex item using layout.Inset
@@ -165,6 +172,8 @@ func Draw(window *app.Window, client core.Client) error {
 									}),
 									// expand button
 									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+										// disable expand
+										return layout.Dimensions{}
 										margins := layout.Inset{Left: unit.Dp(8.0)}
 										return margins.Layout(
 											gtx,
