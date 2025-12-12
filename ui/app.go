@@ -1,14 +1,11 @@
 package ui
 
 import (
-	"math"
 	"rtc/core"
 	"strings"
 	"time"
 
 	"gioui.org/app"
-	"gioui.org/io/event"
-	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/unit"
@@ -24,28 +21,22 @@ func Draw(window *app.Window, client core.Client) error {
 	// ops are the operations from the UI
 	var ops op.Ops
 
-	// Define a tag for input routing
-	var msgTag = "msgTag"
-	var msgs []Message
-
-	var scrollToEnd = false
-	var firstVisible = false
-	// y-position for msg list
-	var scrollY unit.Dp = 0
-	var maxOffset unit.Dp = 0
-	// listen for events in the msgs channel
+	var messages []Message
+	var scrollToEnd, firstVisible = false, false
+	// listen for events in the messages channel
 	go func() {
 		for m := range client.SignedMessages {
 			message := Message{State: Sent, UUID: client.UUID, Sender: m.UUID, Text: string(m.Payload), CreatedAt: time.Now()}
-			msgs = append(msgs, message)
+			messages = append(messages, message)
 			scrollToEnd = true
-			// update scroll offset
-			maxOffset += unit.Dp(theme.TextSize) * 10
-			scrollY = maxOffset
 			window.Invalidate()
 		}
 	}()
 
+	// messageList
+	var messageList = layout.List{
+		Axis: layout.Vertical,
+	}
 	// submitButton is a clickable widget
 	var submitButton widget.Clickable
 	var expandButton widget.Clickable
@@ -67,36 +58,14 @@ func Draw(window *app.Window, client core.Client) error {
 			gtx := app.NewContext(&ops, e)
 
 			// ---------- Handle input ----------
-			// Time to deal with inputs since last frame.
-
-			// Scrolled a mouse wheel?
-			maxOffset = unit.Dp(math.Max(float64(scrollY), float64(maxOffset)))
-			for {
-				ev, ok := gtx.Event(
-					pointer.Filter{
-						Target:  msgTag,
-						Kinds:   pointer.Scroll,
-						ScrollY: pointer.ScrollRange{Min: -1, Max: +1},
-					},
-				)
-				if !ok {
-					break
-				}
-				//fmt.Printf("SCROLL: %+v\n", ev)
-				scrollToEnd = false
-				scrollY = scrollY + unit.Dp(ev.(pointer.Event).Scroll.Y*float32(theme.TextSize))*3
-				if scrollY < 0 {
-					scrollY = 0
-				}
-			}
-
 			if submitButton.Clicked(gtx) || submittedByCarriageReturn(&inputField, gtx) {
 				msg := strings.TrimSpace(inputField.Text())
 				client.SendText(msg)
 				inputField.Clear()
 				if client.Disconnected {
 					message := Message{Sender: client.UUID, UUID: client.UUID, Text: msg, CreatedAt: time.Now(), State: Stateless}
-					msgs = append(msgs, message)
+					messages = append(messages, message)
+					scrollToEnd = true
 				}
 			}
 
@@ -105,27 +74,22 @@ func Draw(window *app.Window, client core.Client) error {
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 					// Then we use scrollY to control the distance from the top of the screen to the first element.
 					// We visualize the text using a list where each paragraph is a separate item.
-					var vizList = layout.List{
-						Axis: layout.Vertical,
-						Position: layout.Position{
-							Offset: int(scrollY),
-						},
-						ScrollToEnd: firstVisible || scrollToEnd,
+					messageList.ScrollToEnd = firstVisible || scrollToEnd
+					if messageList.ScrollToEnd {
+						messageList.Position = layout.Position{BeforeEnd: false}
 					}
-					dimensions := vizList.Layout(gtx, len(msgs), func(gtx layout.Context, index int) layout.Dimensions {
-						return msgs[index].Layout(gtx, theme)
+					dimensions := messageList.Layout(gtx, len(messages), func(gtx layout.Context, index int) layout.Dimensions {
+						return messages[index].Layout(gtx, theme)
 					})
 					// at end of list
-					if !vizList.Position.BeforeEnd {
-						// scroll down invalid when at list end
-						if scrollY > maxOffset {
-							scrollY = maxOffset
-						}
-						// first item visible
-						firstVisible = vizList.Position.First == 0
+					if !messageList.Position.BeforeEnd {
+						// if at end and first item visible, scroll to end
+						firstVisible = messageList.Position.First == 0
 					}
-					// ---------- REGISTERING EVENTS ----------
-					event.Op(&ops, msgTag)
+					// trigger scroll to end once
+					if scrollToEnd {
+						scrollToEnd = false
+					}
 					return dimensions
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
