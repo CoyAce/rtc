@@ -33,6 +33,8 @@ type Message struct {
 	CreatedAt time.Time
 }
 
+var avatar Avatar
+
 func (m *Message) Layout(gtx layout.Context, theme *material.Theme) (d layout.Dimensions) {
 	if m.Text == "" {
 		return d
@@ -41,7 +43,28 @@ func (m *Message) Layout(gtx layout.Context, theme *material.Theme) (d layout.Di
 	margins := layout.Inset{Top: unit.Dp(24), Bottom: unit.Dp(0), Left: unit.Dp(8), Right: unit.Dp(8)}
 	return margins.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
-		return m.drawMessage(gtx, theme)
+		flex := layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Spacing: layout.SpaceEnd}
+		if m.isMe() {
+			flex.Spacing = layout.SpaceStart
+		}
+		return flex.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				if m.isMe() {
+					return layout.Dimensions{}
+				}
+				return avatar.Layout(gtx)
+			}),
+			layout.Rigid(layout.Spacer{Width: unit.Dp(2)}.Layout),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return m.drawMessage(gtx, theme)
+			}),
+			layout.Rigid(layout.Spacer{Width: unit.Dp(2)}.Layout),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				if m.isMe() {
+					return avatar.Layout(gtx)
+				}
+				return layout.Dimensions{}
+			}))
 	})
 }
 
@@ -50,7 +73,10 @@ func (m *Message) isMe() bool {
 }
 
 func (m *Message) drawMessage(gtx layout.Context, theme *material.Theme) layout.Dimensions {
-	flex := layout.Flex{Axis: layout.Vertical}
+	flex := layout.Flex{Axis: layout.Vertical, Alignment: layout.Start}
+	if m.isMe() {
+		flex.Alignment = layout.End
+	}
 	return flex.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return m.drawName(gtx, theme)
@@ -130,7 +156,13 @@ func (m *Message) drawState(gtx layout.Context, theme *material.Theme) layout.Di
 func (m *Message) drawName(gtx layout.Context, theme *material.Theme) layout.Dimensions {
 	timeVal := m.CreatedAt
 	timeMsg := timeVal.Local().Format("Mon, Jan 2, 3:04 PM")
-	label := material.Label(theme, theme.TextSize*0.70, timeMsg+" "+m.UUID)
+	var msg string
+	if m.isMe() {
+		msg = timeMsg + " " + m.Sender
+	} else {
+		msg = m.Sender + " " + timeMsg
+	}
+	label := material.Label(theme, theme.TextSize*0.70, msg)
 	label.MaxLines = 1
 	label.Color = theme.ContrastBg
 	label.Color.A = uint8(int(math.Abs(float64(label.Color.A)-50)) % 256)
