@@ -80,7 +80,6 @@ func Draw(window *app.Window, client core.Client) error {
 			flex := layout.Flex{Axis: layout.Vertical, Spacing: layout.SpaceBetween}
 			flex.Layout(gtx,
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-					// Then we use scrollY to control the distance from the top of the screen to the first element.
 					// We visualize the text using a list where each paragraph is a separate item.
 					messageList.ScrollToEnd = firstVisible || scrollToEnd
 					if messageList.ScrollToEnd {
@@ -108,14 +107,10 @@ func Draw(window *app.Window, client core.Client) error {
 						// Empty space is left at the start, i.e. at the top
 						Spacing: layout.SpaceStart,
 					}.Layout(gtx,
-						layout.Rigid(
-							// The height of the spacer is 8 Device independent pixels
-							layout.Spacer{Height: unit.Dp(8)}.Layout,
-						),
 						// Rigid to hold message input field and submit button
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							// Define margins around the flex item using layout.Inset
-							margins := layout.Inset{Left: unit.Dp(8.0), Right: unit.Dp(8)}
+							margins := layout.Inset{Top: unit.Dp(8.0), Left: unit.Dp(8.0), Right: unit.Dp(8), Bottom: unit.Dp(15)}
 							return margins.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 								return layout.Flex{
 									Axis:      layout.Horizontal,
@@ -176,11 +171,6 @@ func Draw(window *app.Window, client core.Client) error {
 								)
 							})
 						}),
-						// ... then one to hold an empty spacer
-						layout.Rigid(
-							// The height of the spacer is 15 Device independent pixels
-							layout.Spacer{Height: unit.Dp(15)}.Layout,
-						),
 					)
 				}),
 			)
