@@ -59,8 +59,7 @@ func Draw(window *app.Window, client *core.Client) error {
 				inputField.Clear()
 			}
 
-			flex := layout.Flex{Axis: layout.Vertical, Spacing: layout.SpaceBetween}
-			flex.Layout(gtx,
+			layout.Flex{Axis: layout.Vertical, Spacing: layout.SpaceBetween}.Layout(gtx,
 				layout.Flexed(1, messageList.Layout),
 				layout.Rigid(messageEditor.Layout),
 			)

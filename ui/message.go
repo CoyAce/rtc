@@ -67,6 +67,7 @@ var collapseIcon, _ = widget.NewIcon(icons.NavigationUnfoldLess)
 var voiceMessageIcon, _ = widget.NewIcon(icons.AVMic)
 var audioCallIcon, _ = widget.NewIcon(icons.CommunicationPhone)
 var videoCallIcon, _ = widget.NewIcon(icons.AVVideoCall)
+var settingsIcon, _ = widget.NewIcon(icons.ActionSettings)
 
 var animation = component.VisibilityAnimation{
 	Duration: time.Millisecond * 250,
@@ -77,7 +78,9 @@ var animation = component.VisibilityAnimation{
 var avatar Avatar
 
 func NewIconStack(theme *material.Theme) *IconStack {
-	return &IconStack{Theme: theme, Icons: []*widget.Icon{videoCallIcon, audioCallIcon, voiceMessageIcon}}
+	s := &IconStack{Theme: theme, Icons: []*widget.Icon{settingsIcon, videoCallIcon, audioCallIcon, voiceMessageIcon}}
+	s.init()
+	return s
 }
 
 func (m *Message) Layout(gtx layout.Context) (d layout.Dimensions) {
@@ -375,7 +378,7 @@ func (e *MessageEditor) submittedByCarriageReturn(gtx layout.Context) (submit bo
 func (s *IconStack) Layout(gtx layout.Context) layout.Dimensions {
 	layout.Stack{Alignment: layout.SE}.Layout(gtx,
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-			offset := image.Pt(-gtx.Dp(8), -gtx.Dp(64))
+			offset := image.Pt(-gtx.Dp(8), -gtx.Dp(57))
 			op.Offset(offset).Add(gtx.Ops)
 			progress := animation.Revealed(gtx)
 			macro := op.Record(gtx.Ops)
@@ -391,20 +394,20 @@ func (s *IconStack) Layout(gtx layout.Context) layout.Dimensions {
 	return layout.Dimensions{}
 }
 
-func (s *IconStack) drawIconsStackItems(gtx layout.Context) layout.Dimensions {
-	if s.buttons == nil {
-		s.buttons = make(map[*widget.Icon]*widget.Clickable)
+func (s *IconStack) init() {
+	s.buttons = make(map[*widget.Icon]*widget.Clickable)
+	for _, icon := range s.Icons {
+		s.buttons[icon] = &widget.Clickable{}
 	}
+}
+
+func (s *IconStack) drawIconsStackItems(gtx layout.Context) layout.Dimensions {
 	flex := layout.Flex{Axis: layout.Vertical}
 	var children []layout.FlexChild
 	for _, icon := range s.Icons {
-		if btn := s.buttons[icon]; btn == nil {
-			s.buttons[icon] = &widget.Clickable{}
-		}
 		children = append(children, layout.Rigid(s.drawIconButton(s.buttons[icon], icon)))
 		children = append(children, layout.Rigid(layout.Spacer{Height: unit.Dp(8)}.Layout))
 	}
-	children = children[:len(children)-1]
 	return flex.Layout(gtx, children...)
 }
 
