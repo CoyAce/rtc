@@ -1,0 +1,129 @@
+package ui
+
+import (
+	"image"
+	"image/color"
+	"time"
+
+	"gioui.org/io/pointer"
+	"gioui.org/layout"
+	"gioui.org/op"
+	"gioui.org/op/clip"
+	"gioui.org/widget"
+	"gioui.org/x/component"
+)
+
+type View interface {
+	Layout(gtx layout.Context) layout.Dimensions
+}
+type Modal interface {
+	Show(widget layout.Widget, onBackdropClickCallback func(), animation component.VisibilityAnimation)
+	Dismiss(afterDismiss func())
+	View
+}
+type appModal struct {
+	onBackdropClick func()
+	widget          layout.Widget
+	backdropButton  widget.Clickable
+	Animation       component.VisibilityAnimation
+	afterDismiss    func()
+}
+
+type modalsStack struct {
+	Modals []*appModal
+}
+
+func (s *modalsStack) Show(widget layout.Widget, onBackdropClick func(), animation component.VisibilityAnimation) {
+	if len(s.Modals) == 0 {
+		s.Modals = make([]*appModal, 0)
+	}
+	modal := appModal{
+		onBackdropClick: onBackdropClick,
+		widget:          widget,
+		Animation:       animation,
+	}
+	s.Modals = append(s.Modals, &modal)
+	modal.Show(widget)
+}
+
+func (s *modalsStack) Dismiss(afterDismiss func()) {
+	stackSize := len(s.Modals)
+	if stackSize > 0 {
+		s.Modals[stackSize-1].Dismiss(afterDismiss)
+	}
+}
+
+func (s *modalsStack) Layout(gtx layout.Context) layout.Dimensions {
+	for _, modal := range s.Modals {
+		modal.Layout(gtx)
+	}
+	return layout.Dimensions{Size: gtx.Constraints.Max}
+}
+
+func NewModalStack() Modal {
+	m := &modalsStack{}
+	m.Modals = make([]*appModal, 0)
+	return m
+}
+
+func (m *appModal) Show(widget layout.Widget) {
+	m.widget = widget
+	m.Animation.Appear(time.Now())
+}
+
+func (m *appModal) Layout(gtx layout.Context) layout.Dimensions {
+	if m.backdropButton.Clicked(gtx) {
+		if m.onBackdropClick != nil {
+			m.onBackdropClick()
+		} else {
+			m.Animation.Disappear(gtx.Now)
+		}
+	}
+	var finalPosY int
+	d := layout.Stack{Alignment: layout.N}.Layout(gtx,
+		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+			defer clip.Rect(image.Rectangle{Max: gtx.Constraints.Max}).Push(gtx.Ops).Pop()
+			defer pointer.PassOp{}.Push(gtx.Ops).Pop()
+			return m.backdropButton.Layout(gtx,
+				func(gtx layout.Context) layout.Dimensions {
+					if m.Animation.Revealed(gtx) == 0 || m.widget == nil {
+						return layout.Dimensions{Size: gtx.Constraints.Max}
+					}
+					return component.Rect{Size: gtx.Constraints.Max, Color: color.NRGBA{A: 200}}.Layout(gtx)
+				},
+			)
+		}),
+		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+			state := m.Animation.State
+			progress := m.Animation.Revealed(gtx)
+			switch {
+			case state == component.Invisible, progress == 0, m.widget == nil:
+				if m.afterDismiss != nil && !m.Animation.Animating() {
+					m.afterDismiss()
+					m.afterDismiss = nil
+				}
+				return layout.Dimensions{}
+			case state == component.Visible, state == component.Appearing, state == component.Disappearing:
+				// record Widget's dimension
+				macro := op.Record(gtx.Ops)
+				clickable := widget.Clickable{}
+				d := clickable.Layout(gtx, m.widget)
+				call := macro.Stop()
+				finalPosY = -d.Size.Y + int(float32((gtx.Constraints.Max.Y+d.Size.Y)/2)*progress)
+				op.Offset(image.Point{
+					X: 0,
+					Y: finalPosY,
+				}).Add(gtx.Ops)
+				call.Add(gtx.Ops)
+			}
+			d := m.widget(gtx)
+			return d
+		}),
+	)
+	return d
+}
+
+func (m *appModal) Dismiss(afterDismiss func()) {
+	m.Animation.Disappear(time.Now())
+	m.afterDismiss = afterDismiss
+}

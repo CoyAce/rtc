@@ -64,6 +64,7 @@ func Draw(window *app.Window, client *core.Client) error {
 				layout.Rigid(messageEditor.Layout),
 			)
 			iconStack.Layout(gtx)
+			modal.Layout(gtx)
 
 			// Pass the drawing operations to the GPU.
 			e.Frame(gtx.Ops)
