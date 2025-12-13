@@ -117,7 +117,7 @@ func (m *Message) drawContent(gtx layout.Context, theme *material.Theme) layout.
 		sE, sW, nW, nE := radius, radius, radius, radius
 		if m.isMe() {
 			nE = 0
-			bgColor.A = 150
+			bgColor.A = 128
 		} else {
 			nW = 0
 			bgColor.A = 50
