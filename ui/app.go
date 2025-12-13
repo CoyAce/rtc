@@ -74,13 +74,12 @@ func Draw(window *app.Window, client core.Client) error {
 			// ---------- Handle input ----------
 			if submitButton.Clicked(gtx) || submittedByCarriageReturn(&inputField, gtx) {
 				msg := strings.TrimSpace(inputField.Text())
-				client.SendText(msg)
-				inputField.Clear()
-				if client.Disconnected {
+				if client.SendText(msg) != nil || client.Disconnected {
 					message := Message{Sender: client.UUID, UUID: client.UUID, Text: msg, CreatedAt: time.Now(), State: Stateless}
 					messages = append(messages, message)
 					scrollToEnd = true
 				}
+				inputField.Clear()
 			}
 
 			flex := layout.Flex{Axis: layout.Vertical, Spacing: layout.SpaceBetween}

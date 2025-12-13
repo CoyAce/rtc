@@ -27,7 +27,7 @@ func (c *Client) Ready() {
 	}
 }
 
-func (c *Client) SendText(text string) {
+func (c *Client) SendText(text string) error {
 	conn, err := net.Dial("udp", c.ServerAddr)
 	if err != nil {
 		log.Printf("[%s] dial failed: %v", c.ServerAddr, err)
@@ -40,7 +40,7 @@ func (c *Client) SendText(text string) {
 		log.Printf("[%s] marshal failed: %v", text, err)
 	}
 
-	c.sendPacket(conn, bytes)
+	return c.sendPacket(conn, bytes)
 }
 
 func (c *Client) ListenAndServe(addr string) {
@@ -134,7 +134,7 @@ func (c *Client) ack(conn net.PacketConn, clientAddr net.Addr) {
 	// log.Printf("[%s] write ack finished, soucre addr [%s]", clientAddr, conn.LocalAddr())
 }
 
-func (c *Client) sendPacket(conn net.Conn, bytes []byte) {
+func (c *Client) sendPacket(conn net.Conn, bytes []byte) error {
 	var ackPkt Ack
 	buf := make([]byte, DatagramSize)
 RETRY:
@@ -142,7 +142,7 @@ RETRY:
 		_, err := conn.Write(bytes)
 		if err != nil {
 			log.Printf("[%s] write failed: %v", c.ServerAddr, err)
-			return
+			return err
 		}
 
 		// wait for the Server's ACK packet
@@ -165,10 +165,10 @@ RETRY:
 
 		switch {
 		case ackPkt.Unmarshal(buf) == nil:
-			return
+			return nil
 		default:
 			log.Printf("[%s] bad packet", c.ServerAddr)
 		}
 	}
-	log.Printf("[%s] exhausted retries", c.ServerAddr)
+	return errors.New("exhausted retries")
 }
