@@ -56,9 +56,15 @@ type MessageEditor struct {
 
 type IconStack struct {
 	*material.Theme
-	Icons   []*widget.Icon
+	IconButtons []*IconButton
+	button      widget.Clickable
+}
+
+type IconButton struct {
+	*material.Theme
+	Icon    *widget.Icon
+	Enabled bool
 	button  widget.Clickable
-	buttons map[*widget.Icon]*widget.Clickable
 }
 
 var submitIcon, _ = widget.NewIcon(icons.ContentSend)
@@ -78,9 +84,14 @@ var animation = component.VisibilityAnimation{
 var avatar Avatar
 
 func NewIconStack(theme *material.Theme) *IconStack {
-	s := &IconStack{Theme: theme, Icons: []*widget.Icon{settingsIcon, videoCallIcon, audioCallIcon, voiceMessageIcon}}
-	s.init()
-	return s
+	return &IconStack{Theme: theme,
+		IconButtons: []*IconButton{
+			{Theme: theme, Icon: settingsIcon, Enabled: true},
+			{Theme: theme, Icon: videoCallIcon},
+			{Theme: theme, Icon: audioCallIcon},
+			{Theme: theme, Icon: voiceMessageIcon},
+		},
+	}
 }
 
 func (m *Message) Layout(gtx layout.Context) (d layout.Dimensions) {
@@ -382,7 +393,7 @@ func (s *IconStack) Layout(gtx layout.Context) layout.Dimensions {
 			op.Offset(offset).Add(gtx.Ops)
 			progress := animation.Revealed(gtx)
 			macro := op.Record(gtx.Ops)
-			d := s.button.Layout(gtx, s.drawIconsStackItems)
+			d := s.button.Layout(gtx, s.drawIconStackItems)
 			call := macro.Stop()
 			d.Size.Y = int(float32(d.Size.Y) * progress)
 			component.Rect{Size: d.Size, Color: color.NRGBA{}}.Layout(gtx)
@@ -394,38 +405,33 @@ func (s *IconStack) Layout(gtx layout.Context) layout.Dimensions {
 	return layout.Dimensions{}
 }
 
-func (s *IconStack) init() {
-	s.buttons = make(map[*widget.Icon]*widget.Clickable)
-	for _, icon := range s.Icons {
-		s.buttons[icon] = &widget.Clickable{}
-	}
-}
-
-func (s *IconStack) drawIconsStackItems(gtx layout.Context) layout.Dimensions {
+func (s *IconStack) drawIconStackItems(gtx layout.Context) layout.Dimensions {
 	flex := layout.Flex{Axis: layout.Vertical}
 	var children []layout.FlexChild
-	for _, icon := range s.Icons {
-		children = append(children, layout.Rigid(s.drawIconButton(s.buttons[icon], icon)))
+	for _, button := range s.IconButtons {
+		children = append(children, layout.Rigid(button.Layout))
 		children = append(children, layout.Rigid(layout.Spacer{Height: unit.Dp(8)}.Layout))
 	}
 	return flex.Layout(gtx, children...)
 }
 
-func (s *IconStack) drawIconButton(btn *widget.Clickable, icon *widget.Icon) func(gtx layout.Context) layout.Dimensions {
-	return func(gtx layout.Context) layout.Dimensions {
-		inset := layout.Inset{Left: unit.Dp(8.0)}
-		return inset.Layout(
-			gtx,
-			func(gtx layout.Context) layout.Dimensions {
-				return material.IconButtonStyle{
-					Background: s.Theme.ContrastBg,
-					Color:      s.Theme.ContrastFg,
-					Icon:       icon,
-					Size:       unit.Dp(24.0),
-					Button:     btn,
-					Inset:      layout.UniformInset(unit.Dp(9)),
-				}.Layout(gtx)
-			},
-		)
-	}
+func (b *IconButton) Layout(gtx layout.Context) layout.Dimensions {
+	inset := layout.Inset{Left: unit.Dp(8.0)}
+	return inset.Layout(
+		gtx,
+		func(gtx layout.Context) layout.Dimensions {
+			bg := b.Theme.ContrastBg
+			if !b.Enabled {
+				bg = color.NRGBA(colornames.Grey500)
+			}
+			return material.IconButtonStyle{
+				Background: bg,
+				Color:      b.Theme.ContrastFg,
+				Icon:       b.Icon,
+				Size:       unit.Dp(24.0),
+				Button:     &b.button,
+				Inset:      layout.UniformInset(unit.Dp(9)),
+			}.Layout(gtx)
+		},
+	)
 }
