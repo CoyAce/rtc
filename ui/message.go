@@ -76,7 +76,7 @@ var videoCallIcon, _ = widget.NewIcon(icons.AVVideoCall)
 var settingsIcon, _ = widget.NewIcon(icons.ActionSettings)
 var accountsView = NewAccountFormView(material.NewTheme(), onAccountChange)
 
-var animation = component.VisibilityAnimation{
+var iconStackAnimation = component.VisibilityAnimation{
 	Duration: time.Millisecond * 250,
 	State:    component.Invisible,
 	Started:  time.Time{},
@@ -290,7 +290,7 @@ func (l *MessageList) processClick(gtx layout.Context) {
 		}
 		// get focus from editor
 		gtx.Execute(key.FocusCmd{})
-		animation.Disappear(gtx.Now)
+		iconStackAnimation.Disappear(gtx.Now)
 	}
 }
 
@@ -334,12 +334,12 @@ func (e *MessageEditor) drawExtraButton(gtx layout.Context) layout.Dimensions {
 			btn := &e.expandButton
 			icon := expandIcon
 			if e.collapseButton.Clicked(gtx) {
-				animation.Disappear(gtx.Now)
+				iconStackAnimation.Disappear(gtx.Now)
 			}
 			if e.expandButton.Clicked(gtx) {
-				animation.Appear(gtx.Now)
+				iconStackAnimation.Appear(gtx.Now)
 			}
-			if animation.Revealed(gtx) != 0 {
+			if iconStackAnimation.Revealed(gtx) != 0 {
 				btn = &e.collapseButton
 				icon = collapseIcon
 			}
@@ -393,7 +393,7 @@ func (s *IconStack) Layout(gtx layout.Context) layout.Dimensions {
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 			offset := image.Pt(-gtx.Dp(8), -gtx.Dp(57))
 			op.Offset(offset).Add(gtx.Ops)
-			progress := animation.Revealed(gtx)
+			progress := iconStackAnimation.Revealed(gtx)
 			macro := op.Record(gtx.Ops)
 			d := s.button.Layout(gtx, s.drawIconStackItems)
 			call := macro.Stop()
@@ -419,7 +419,7 @@ func (s *IconStack) drawIconStackItems(gtx layout.Context) layout.Dimensions {
 
 func (b *IconButton) Layout(gtx layout.Context) layout.Dimensions {
 	if b.Icon == settingsIcon && b.button.Clicked(gtx) {
-		animation.Disappear(gtx.Now)
+		iconStackAnimation.Disappear(gtx.Now)
 		modal.Show(b.drawShowAccountsModal, nil, component.VisibilityAnimation{
 			Duration: time.Millisecond * 250,
 			State:    component.Invisible,
