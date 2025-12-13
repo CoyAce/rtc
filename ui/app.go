@@ -33,6 +33,7 @@ func Draw(window *app.Window, client *core.Client) error {
 
 	inputField := component.TextField{Editor: widget.Editor{Submit: true}}
 	messageEditor := MessageEditor{InputField: &inputField, Theme: theme}
+	iconStack := NewIconStack(theme)
 	// listen for events in the window.
 	for {
 		// detect what type of event
@@ -63,6 +64,7 @@ func Draw(window *app.Window, client *core.Client) error {
 				layout.Flexed(1, messageList.Layout),
 				layout.Rigid(messageEditor.Layout),
 			)
+			iconStack.Layout(gtx)
 
 			// Pass the drawing operations to the GPU.
 			e.Frame(gtx.Ops)

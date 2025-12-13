@@ -17,6 +17,7 @@ import (
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"gioui.org/x/component"
+	"golang.org/x/exp/shiny/materialdesign/colornames"
 	"golang.org/x/exp/shiny/materialdesign/icons"
 )
 
@@ -48,14 +49,25 @@ type Message struct {
 type MessageEditor struct {
 	*material.Theme
 	InputField     *component.TextField
-	SubmitButton   widget.Clickable
-	ExpandButton   widget.Clickable
-	CollapseButton widget.Clickable
+	submitButton   widget.Clickable
+	expandButton   widget.Clickable
+	collapseButton widget.Clickable
+}
+
+type IconStack struct {
+	*material.Theme
+	Icons   []*widget.Icon
+	button  widget.Clickable
+	buttons map[*widget.Icon]*widget.Clickable
 }
 
 var submitIcon, _ = widget.NewIcon(icons.ContentSend)
 var expandIcon, _ = widget.NewIcon(icons.NavigationUnfoldMore)
 var collapseIcon, _ = widget.NewIcon(icons.NavigationUnfoldLess)
+var voiceMessageIcon, _ = widget.NewIcon(icons.AVMic)
+var audioCallIcon, _ = widget.NewIcon(icons.CommunicationPhone)
+var videoCallIcon, _ = widget.NewIcon(icons.AVVideoCall)
+
 var animation = component.VisibilityAnimation{
 	Duration: time.Millisecond * 250,
 	State:    component.Invisible,
@@ -63,6 +75,10 @@ var animation = component.VisibilityAnimation{
 }
 
 var avatar Avatar
+
+func NewIconStack(theme *material.Theme) *IconStack {
+	return &IconStack{Theme: theme, Icons: []*widget.Icon{videoCallIcon, audioCallIcon, voiceMessageIcon}}
+}
 
 func (m *Message) Layout(gtx layout.Context) (d layout.Dimensions) {
 	if m.Text == "" {
@@ -165,7 +181,7 @@ func (m *Message) drawState(gtx layout.Context) layout.Dimensions {
 		switch m.State {
 		case Stateless:
 			icon, _ = widget.NewIcon(icons.AlertErrorOutline)
-			iconColor = color.NRGBA{R: 255, G: 48, B: 48, A: 255}
+			iconColor = color.NRGBA(colornames.Red500)
 		case Sent:
 			icon, _ = widget.NewIcon(icons.ActionDone)
 		case Read:
@@ -299,16 +315,16 @@ func (e *MessageEditor) drawExtraButton(gtx layout.Context) layout.Dimensions {
 	return margins.Layout(
 		gtx,
 		func(gtx layout.Context) layout.Dimensions {
-			btn := &e.ExpandButton
+			btn := &e.expandButton
 			icon := expandIcon
-			if e.CollapseButton.Clicked(gtx) {
+			if e.collapseButton.Clicked(gtx) {
 				animation.Disappear(gtx.Now)
 			}
-			if e.ExpandButton.Clicked(gtx) {
+			if e.expandButton.Clicked(gtx) {
 				animation.Appear(gtx.Now)
 			}
 			if animation.Revealed(gtx) != 0 {
-				btn = &e.CollapseButton
+				btn = &e.collapseButton
 				icon = collapseIcon
 			}
 			return material.IconButtonStyle{
@@ -332,7 +348,7 @@ func (e *MessageEditor) drawSubmitButton(gtx layout.Context) layout.Dimensions {
 				Color:      e.Theme.ContrastFg,
 				Icon:       submitIcon,
 				Size:       unit.Dp(24.0),
-				Button:     &e.SubmitButton,
+				Button:     &e.submitButton,
 				Inset:      layout.UniformInset(unit.Dp(9)),
 			}.Layout(gtx)
 		},
@@ -340,7 +356,7 @@ func (e *MessageEditor) drawSubmitButton(gtx layout.Context) layout.Dimensions {
 }
 
 func (e *MessageEditor) Submitted(gtx layout.Context) bool {
-	return e.SubmitButton.Clicked(gtx) || e.submittedByCarriageReturn(gtx)
+	return e.submitButton.Clicked(gtx) || e.submittedByCarriageReturn(gtx)
 }
 
 func (e *MessageEditor) submittedByCarriageReturn(gtx layout.Context) (submit bool) {
@@ -354,4 +370,59 @@ func (e *MessageEditor) submittedByCarriageReturn(gtx layout.Context) (submit bo
 		}
 	}
 	return submit
+}
+
+func (s *IconStack) Layout(gtx layout.Context) layout.Dimensions {
+	layout.Stack{Alignment: layout.SE}.Layout(gtx,
+		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+			offset := image.Pt(-gtx.Dp(8), -gtx.Dp(64))
+			op.Offset(offset).Add(gtx.Ops)
+			progress := animation.Revealed(gtx)
+			macro := op.Record(gtx.Ops)
+			d := s.button.Layout(gtx, s.drawIconsStackItems)
+			call := macro.Stop()
+			d.Size.Y = int(float32(d.Size.Y) * progress)
+			component.Rect{Size: d.Size, Color: color.NRGBA{}}.Layout(gtx)
+			defer clip.Rect{Max: d.Size}.Push(gtx.Ops).Pop()
+			call.Add(gtx.Ops)
+			return d
+		}),
+	)
+	return layout.Dimensions{}
+}
+
+func (s *IconStack) drawIconsStackItems(gtx layout.Context) layout.Dimensions {
+	if s.buttons == nil {
+		s.buttons = make(map[*widget.Icon]*widget.Clickable)
+	}
+	flex := layout.Flex{Axis: layout.Vertical}
+	var children []layout.FlexChild
+	for _, icon := range s.Icons {
+		if btn := s.buttons[icon]; btn == nil {
+			s.buttons[icon] = &widget.Clickable{}
+		}
+		children = append(children, layout.Rigid(s.drawIconButton(s.buttons[icon], icon)))
+		children = append(children, layout.Rigid(layout.Spacer{Height: unit.Dp(8)}.Layout))
+	}
+	children = children[:len(children)-1]
+	return flex.Layout(gtx, children...)
+}
+
+func (s *IconStack) drawIconButton(btn *widget.Clickable, icon *widget.Icon) func(gtx layout.Context) layout.Dimensions {
+	return func(gtx layout.Context) layout.Dimensions {
+		inset := layout.Inset{Left: unit.Dp(8.0)}
+		return inset.Layout(
+			gtx,
+			func(gtx layout.Context) layout.Dimensions {
+				return material.IconButtonStyle{
+					Background: s.Theme.ContrastBg,
+					Color:      s.Theme.ContrastFg,
+					Icon:       icon,
+					Size:       unit.Dp(24.0),
+					Button:     btn,
+					Inset:      layout.UniformInset(unit.Dp(9)),
+				}.Layout(gtx)
+			},
+		)
+	}
 }
