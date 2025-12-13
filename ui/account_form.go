@@ -4,6 +4,7 @@ import (
 	"image"
 	"image/color"
 	"rtc/assets/fonts"
+	layout2 "rtc/ui/layout"
 	"strings"
 
 	"gioui.org/font"
@@ -38,7 +39,7 @@ type accountForm struct {
 	creatingNewID         bool
 	submittingImportedKey bool
 	OnSuccess             func()
-	*ModalContent
+	*layout2.ModalContent
 	Modal
 }
 
@@ -82,7 +83,7 @@ func NewAccountFormView(theme *material.Theme, onSuccess func()) View {
 			Text:  "Clear",
 		},
 	}
-	s.ModalContent = NewModalContent(func() {
+	s.ModalContent = layout2.NewModalContent(func() {
 		s.Modal.Dismiss(nil)
 		s.creatingNewID = false
 		s.submittingImportedKey = false

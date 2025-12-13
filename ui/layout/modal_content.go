@@ -1,8 +1,6 @@
-package ui
+package layout
 
 import (
-	ui "rtc/ui/layout"
-
 	"gioui.org/font"
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -70,7 +68,7 @@ func (m *ModalContent) DrawContent(gtx layout.Context, theme *material.Theme, co
 				)
 			})
 		}),
-		layout.Rigid(ui.Hr{Height: unit.Dp(1)}.Layout),
+		layout.Rigid(Hr{Height: unit.Dp(1)}.Layout),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return m.List.Layout(gtx, 1, func(gtx layout.Context, index int) layout.Dimensions {
 				return contentWidget(gtx)
