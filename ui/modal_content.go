@@ -1,8 +1,7 @@
 package ui
 
 import (
-	"image"
-	"image/color"
+	ui "rtc/ui/layout"
 
 	"gioui.org/font"
 	"gioui.org/layout"
@@ -11,7 +10,6 @@ import (
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"gioui.org/x/component"
-	"golang.org/x/exp/shiny/materialdesign/colornames"
 	"golang.org/x/exp/shiny/materialdesign/icons"
 )
 
@@ -85,13 +83,7 @@ func (m *ModalContent) DrawContent(gtx layout.Context, theme *material.Theme, co
 				)
 			})
 		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return component.Rect{
-				Color: color.NRGBA(colornames.Grey300),
-				Size:  image.Point{Y: gtx.Dp(1), X: gtx.Constraints.Max.X},
-				Radii: 0,
-			}.Layout(gtx)
-		}),
+		layout.Rigid(ui.Hr{Height: unit.Dp(1)}.Layout),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return m.List.Layout(gtx, 1, func(gtx layout.Context, index int) layout.Dimensions {
 				return contentWidget(gtx)
