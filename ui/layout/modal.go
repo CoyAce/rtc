@@ -81,22 +81,14 @@ func (m *appModal) Layout(gtx layout.Context) layout.Dimensions {
 		m.onBackdropClick()
 	}
 	var finalPosY int
-	d := layout.Stack{Alignment: layout.N}.Layout(gtx,
-		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-			defer clip.Rect(image.Rectangle{Max: gtx.Constraints.Max}).Push(gtx.Ops).Pop()
-			defer pointer.PassOp{}.Push(gtx.Ops).Pop()
-			return m.backdropButton.Layout(gtx,
-				func(gtx layout.Context) layout.Dimensions {
-					if m.Animation.Revealed(gtx) == 0 || m.widget == nil {
-						return layout.Dimensions{Size: gtx.Constraints.Max}
-					}
-					return component.Rect{Size: gtx.Constraints.Max, Color: color.NRGBA{A: 200}}.Layout(gtx)
-				},
-			)
-		}),
+	return layout.Stack{Alignment: layout.N}.Layout(gtx,
+		// backdrop button
+		layout.Stacked(m.drawBackdropButton),
+		// widget area
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 			state := m.Animation.State
 			progress := m.Animation.Revealed(gtx)
+			// invisible case
 			switch {
 			case state == component.Invisible, progress == 0, m.widget == nil:
 				if m.afterDismiss != nil && !m.Animation.Animating() {
@@ -104,24 +96,36 @@ func (m *appModal) Layout(gtx layout.Context) layout.Dimensions {
 					m.afterDismiss = nil
 				}
 				return layout.Dimensions{}
-			case state == component.Visible, state == component.Appearing, state == component.Disappearing:
-				// record Widget's dimension
-				macro := op.Record(gtx.Ops)
-				clickable := widget.Clickable{}
-				d := clickable.Layout(gtx, m.widget)
-				call := macro.Stop()
-				finalPosY = -d.Size.Y + int(float32((gtx.Constraints.Max.Y+d.Size.Y)/2)*progress)
-				op.Offset(image.Point{
-					X: 0,
-					Y: finalPosY,
-				}).Add(gtx.Ops)
-				call.Add(gtx.Ops)
 			}
-			d := m.widget(gtx)
+			// record Widget's dimension
+			macro := op.Record(gtx.Ops)
+			clickable := widget.Clickable{}
+			d := clickable.Layout(gtx, m.widget)
+			call := macro.Stop()
+
+			// float down animation
+			finalPosY = -d.Size.Y + int(float32((gtx.Constraints.Max.Y+d.Size.Y)/2)*progress)
+			op.Offset(image.Point{
+				X: 0,
+				Y: finalPosY,
+			}).Add(gtx.Ops)
+			call.Add(gtx.Ops)
 			return d
 		}),
 	)
-	return d
+}
+
+func (m *appModal) drawBackdropButton(gtx layout.Context) layout.Dimensions {
+	defer clip.Rect(image.Rectangle{Max: gtx.Constraints.Max}).Push(gtx.Ops).Pop()
+	defer pointer.PassOp{}.Push(gtx.Ops).Pop()
+	return m.backdropButton.Layout(gtx,
+		func(gtx layout.Context) layout.Dimensions {
+			if m.Animation.Revealed(gtx) == 0 || m.widget == nil {
+				return layout.Dimensions{Size: gtx.Constraints.Max}
+			}
+			return component.Rect{Size: gtx.Constraints.Max, Color: color.NRGBA{A: 200}}.Layout(gtx)
+		},
+	)
 }
 
 func (m *appModal) Dismiss(afterDismiss func()) {
