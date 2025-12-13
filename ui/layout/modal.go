@@ -1,4 +1,4 @@
-package ui
+package layout
 
 import (
 	"image"
@@ -17,7 +17,7 @@ type View interface {
 	Layout(gtx layout.Context) layout.Dimensions
 }
 type Modal interface {
-	Show(widget layout.Widget, onBackdropClickCallback func(), animation component.VisibilityAnimation)
+	Show(widget layout.Widget, onBackdropClick func(), animation component.VisibilityAnimation)
 	Dismiss(afterDismiss func())
 	View
 }
@@ -29,11 +29,12 @@ type appModal struct {
 	afterDismiss    func()
 }
 
-type modalsStack struct {
+type modalStack struct {
 	Modals []*appModal
 }
 
-func (s *modalsStack) Show(widget layout.Widget, onBackdropClick func(), animation component.VisibilityAnimation) {
+// Show add widget to modalStack, onBackdropClick called when click outside of modal
+func (s *modalStack) Show(widget layout.Widget, onBackdropClick func(), animation component.VisibilityAnimation) {
 	if len(s.Modals) == 0 {
 		s.Modals = make([]*appModal, 0)
 	}
@@ -46,14 +47,14 @@ func (s *modalsStack) Show(widget layout.Widget, onBackdropClick func(), animati
 	modal.Show(widget)
 }
 
-func (s *modalsStack) Dismiss(afterDismiss func()) {
+func (s *modalStack) Dismiss(afterDismiss func()) {
 	stackSize := len(s.Modals)
 	if stackSize > 0 {
 		s.Modals[stackSize-1].Dismiss(afterDismiss)
 	}
 }
 
-func (s *modalsStack) Layout(gtx layout.Context) layout.Dimensions {
+func (s *modalStack) Layout(gtx layout.Context) layout.Dimensions {
 	for _, modal := range s.Modals {
 		modal.Layout(gtx)
 	}
@@ -61,7 +62,7 @@ func (s *modalsStack) Layout(gtx layout.Context) layout.Dimensions {
 }
 
 func NewModalStack() Modal {
-	m := &modalsStack{}
+	m := &modalStack{}
 	m.Modals = make([]*appModal, 0)
 	return m
 }

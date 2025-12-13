@@ -3,6 +3,7 @@ package ui
 import (
 	"rtc/assets/fonts"
 	"rtc/core"
+	ui "rtc/ui/layout"
 	"strings"
 	"time"
 
@@ -71,3 +72,6 @@ func Draw(window *app.Window, client *core.Client) error {
 		}
 	}
 }
+
+var modal = ui.NewModalStack()
+var modalContent = ui.NewModalContent(func() { modal.Dismiss(nil) })

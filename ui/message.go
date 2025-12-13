@@ -4,7 +4,6 @@ import (
 	"image"
 	"image/color"
 	"math"
-	layout2 "rtc/ui/layout"
 	"time"
 
 	"gioui.org/font"
@@ -75,8 +74,6 @@ var voiceMessageIcon, _ = widget.NewIcon(icons.AVMic)
 var audioCallIcon, _ = widget.NewIcon(icons.CommunicationPhone)
 var videoCallIcon, _ = widget.NewIcon(icons.AVVideoCall)
 var settingsIcon, _ = widget.NewIcon(icons.ActionSettings)
-var modal = NewModalStack()
-var modalContent = layout2.NewModalContent(func() { modal.Dismiss(nil) })
 var accountsView = NewAccountFormView(material.NewTheme(), onAccountChange)
 
 var animation = component.VisibilityAnimation{
