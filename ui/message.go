@@ -45,6 +45,23 @@ type Message struct {
 	CreatedAt time.Time
 }
 
+type MessageEditor struct {
+	*material.Theme
+	InputField     *component.TextField
+	SubmitButton   widget.Clickable
+	ExpandButton   widget.Clickable
+	CollapseButton widget.Clickable
+}
+
+var submitIcon, _ = widget.NewIcon(icons.ContentSend)
+var expandIcon, _ = widget.NewIcon(icons.NavigationUnfoldMore)
+var collapseIcon, _ = widget.NewIcon(icons.NavigationUnfoldLess)
+var animation = component.VisibilityAnimation{
+	Duration: time.Millisecond * 250,
+	State:    component.Invisible,
+	Started:  time.Time{},
+}
+
 var avatar Avatar
 
 func (m *Message) Layout(gtx layout.Context) (d layout.Dimensions) {
@@ -243,4 +260,94 @@ func (l *MessageList) processClick(gtx layout.Context) {
 		// get focus from editor
 		gtx.Execute(key.FocusCmd{})
 	}
+}
+
+func (e *MessageEditor) Layout(gtx layout.Context) layout.Dimensions {
+	// Render with flexbox layout:
+	return layout.Flex{
+		// Vertical alignment, from top to bottom
+		Axis: layout.Vertical,
+		// Empty space is left at the start, i.e. at the top
+		Spacing: layout.SpaceStart,
+	}.Layout(gtx,
+		// Rigid to hold message input field and submit button
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			// Define margins around the flex item using layout.Inset
+			margins := layout.Inset{Top: unit.Dp(8.0), Left: unit.Dp(8.0), Right: unit.Dp(8), Bottom: unit.Dp(15)}
+			return margins.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{
+					Axis:      layout.Horizontal,
+					Spacing:   layout.SpaceBetween,
+					Alignment: layout.End,
+				}.Layout(gtx,
+					// text input
+					layout.Flexed(1.0, func(gtx layout.Context) layout.Dimensions {
+						return e.InputField.Layout(gtx, e.Theme, "Message")
+					}),
+					// submit button
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						margins := layout.Inset{Left: unit.Dp(8.0)}
+						return margins.Layout(gtx,
+							func(gtx layout.Context) layout.Dimensions {
+								return material.IconButtonStyle{
+									Background: e.Theme.ContrastBg,
+									Color:      e.Theme.ContrastFg,
+									Icon:       submitIcon,
+									Size:       unit.Dp(24.0),
+									Button:     &e.SubmitButton,
+									Inset:      layout.UniformInset(unit.Dp(9)),
+								}.Layout(gtx)
+							},
+						)
+					}),
+					// expand button
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						margins := layout.Inset{Left: unit.Dp(8.0)}
+						return margins.Layout(
+							gtx,
+							func(gtx layout.Context) layout.Dimensions {
+								btn := &e.ExpandButton
+								icon := expandIcon
+								if e.CollapseButton.Clicked(gtx) {
+									animation.Disappear(gtx.Now)
+								}
+								if e.ExpandButton.Clicked(gtx) {
+									animation.Appear(gtx.Now)
+								}
+								if animation.Revealed(gtx) != 0 {
+									btn = &e.CollapseButton
+									icon = collapseIcon
+								}
+								return material.IconButtonStyle{
+									Background: e.Theme.ContrastBg,
+									Color:      e.Theme.ContrastFg,
+									Icon:       icon,
+									Size:       unit.Dp(24.0),
+									Button:     btn,
+									Inset:      layout.UniformInset(unit.Dp(9)),
+								}.Layout(gtx)
+							},
+						)
+					}),
+				)
+			})
+		}),
+	)
+}
+
+func (e *MessageEditor) Submitted(gtx layout.Context) bool {
+	return e.SubmitButton.Clicked(gtx) || e.submittedByCarriageReturn(gtx)
+}
+
+func (e *MessageEditor) submittedByCarriageReturn(gtx layout.Context) (submit bool) {
+	for {
+		ev, ok := e.InputField.Editor.Update(gtx)
+		if _, submit = ev.(widget.SubmitEvent); submit {
+			break
+		}
+		if !ok {
+			break
+		}
+	}
+	return submit
 }
