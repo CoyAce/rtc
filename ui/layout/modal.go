@@ -33,15 +33,19 @@ type modalStack struct {
 	Modals []*appModal
 }
 
-// Show add widget to modalStack, onBackdropClick called when click outside of modal
+// Show add widget to modalStack
+// onBackdropClick called when click outside of modal
+// default behavior is close modal
 func (s *modalStack) Show(widget layout.Widget, onBackdropClick func(), animation component.VisibilityAnimation) {
-	if len(s.Modals) == 0 {
-		s.Modals = make([]*appModal, 0)
-	}
 	modal := appModal{
 		onBackdropClick: onBackdropClick,
 		widget:          widget,
 		Animation:       animation,
+	}
+	if onBackdropClick == nil {
+		modal.onBackdropClick = func() {
+			modal.Animation.Disappear(time.Now())
+		}
 	}
 	s.Modals = append(s.Modals, &modal)
 	modal.Show(widget)
@@ -74,11 +78,7 @@ func (m *appModal) Show(widget layout.Widget) {
 
 func (m *appModal) Layout(gtx layout.Context) layout.Dimensions {
 	if m.backdropButton.Clicked(gtx) {
-		if m.onBackdropClick != nil {
-			m.onBackdropClick()
-		} else {
-			m.Animation.Disappear(gtx.Now)
-		}
+		m.onBackdropClick()
 	}
 	var finalPosY int
 	d := layout.Stack{Alignment: layout.N}.Layout(gtx,
