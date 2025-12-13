@@ -7,6 +7,9 @@ import (
 	"time"
 
 	"gioui.org/font"
+	"gioui.org/io/event"
+	"gioui.org/io/key"
+	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
@@ -16,6 +19,14 @@ import (
 	"gioui.org/x/component"
 	"golang.org/x/exp/shiny/materialdesign/icons"
 )
+
+type MessageList struct {
+	layout.List
+	*material.Theme
+	Messages     []Message
+	ScrollToEnd  bool
+	FirstVisible bool
+}
 
 type State uint16
 
@@ -70,6 +81,10 @@ func (m *Message) Layout(gtx layout.Context, theme *material.Theme) (d layout.Di
 
 func (m *Message) isMe() bool {
 	return m.UUID == m.Sender
+}
+
+func (m *Message) AddTo(list *MessageList) {
+	list.Messages = append(list.Messages, *m)
 }
 
 func (m *Message) drawMessage(gtx layout.Context, theme *material.Theme) layout.Dimensions {
@@ -177,4 +192,54 @@ func (m *Message) drawName(gtx layout.Context, theme *material.Theme) layout.Dim
 				return label.Layout(gtx)
 			}))
 	})
+}
+
+func (l *MessageList) Layout(gtx layout.Context) layout.Dimensions {
+	// Process events using the key, &messageList
+	for {
+		_, ok := gtx.Event(
+			pointer.Filter{
+				Target: l,
+				Kinds:  pointer.Press,
+			},
+		)
+		if !ok {
+			break
+		}
+		// get focus from editor
+		gtx.Execute(key.FocusCmd{})
+	}
+	for {
+		_, ok := gtx.Event(
+			pointer.Filter{
+				Target:  l,
+				Kinds:   pointer.Scroll,
+				ScrollY: pointer.ScrollRange{Min: -1, Max: +1},
+			},
+		)
+		if !ok {
+			break
+		}
+		l.ScrollToEnd = false
+	}
+	// We visualize the text using a list where each paragraph is a separate item.
+	l.List.ScrollToEnd = l.FirstVisible || l.ScrollToEnd
+	if l.ScrollToEnd {
+		l.List.Position = layout.Position{BeforeEnd: false}
+	}
+	dimensions := l.List.Layout(gtx, len(l.Messages), func(gtx layout.Context, index int) layout.Dimensions {
+		return l.Messages[index].Layout(gtx, l.Theme)
+	})
+	// at end of list
+	if !l.List.Position.BeforeEnd {
+		// if at end and first item visible, scroll to end
+		l.FirstVisible = l.List.Position.First == 0
+	}
+	// Confine the area of interest
+	defer clip.Rect(image.Rectangle{Max: dimensions.Size}).Push(gtx.Ops).Pop()
+	// Use pointer.PassOp to allow pointer events to pass through an input area to those underneath it.
+	defer pointer.PassOp{}.Push(gtx.Ops).Pop()
+	// Declare `tag` as being one of the targets.
+	event.Op(gtx.Ops, l)
+	return dimensions
 }

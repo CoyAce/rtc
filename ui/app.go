@@ -1,19 +1,14 @@
 package ui
 
 import (
-	"image"
 	"rtc/assets/fonts"
 	"rtc/core"
 	"strings"
 	"time"
 
 	"gioui.org/app"
-	"gioui.org/io/event"
-	"gioui.org/io/key"
-	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
-	"gioui.org/op/clip"
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
@@ -33,22 +28,20 @@ func Draw(window *app.Window, client core.Client) error {
 		Started:  time.Time{},
 	}
 
-	var messages []Message
-	var scrollToEnd, firstVisible = false, false
+	//var messages []Message
+	var messageList = &MessageList{List: layout.List{Axis: layout.Vertical}, Theme: theme}
+	//var scrollToEnd, firstVisible = false, false
 	// listen for events in the messages channel
 	go func() {
 		for m := range client.SignedMessages {
 			message := Message{State: Sent, UUID: client.UUID, Sender: m.UUID, Text: string(m.Payload), CreatedAt: time.Now()}
-			messages = append(messages, message)
-			scrollToEnd = true
+			message.AddTo(messageList)
+			messageList.ScrollToEnd = true
 			window.Invalidate()
 		}
 	}()
 
 	// messageList
-	var messageList = layout.List{
-		Axis: layout.Vertical,
-	}
 	// submitButton is a clickable widget
 	var submitButton widget.Clickable
 	var expandButton widget.Clickable
@@ -76,63 +69,15 @@ func Draw(window *app.Window, client core.Client) error {
 				msg := strings.TrimSpace(inputField.Text())
 				if client.SendText(msg) != nil || client.Disconnected {
 					message := Message{Sender: client.UUID, UUID: client.UUID, Text: msg, CreatedAt: time.Now(), State: Stateless}
-					messages = append(messages, message)
-					scrollToEnd = true
+					message.AddTo(messageList)
+					messageList.ScrollToEnd = true
 				}
 				inputField.Clear()
 			}
 
 			flex := layout.Flex{Axis: layout.Vertical, Spacing: layout.SpaceBetween}
 			flex.Layout(gtx,
-				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-					// Process events using the key, &messageList
-					for {
-						_, ok := gtx.Event(
-							pointer.Filter{
-								Target: &messageList,
-								Kinds:  pointer.Press,
-							},
-						)
-						if !ok {
-							break
-						}
-						// get focus from editor
-						gtx.Execute(key.FocusCmd{})
-					}
-					for {
-						_, ok := gtx.Event(
-							pointer.Filter{
-								Target:  &messageList,
-								Kinds:   pointer.Scroll,
-								ScrollY: pointer.ScrollRange{Min: -1, Max: +1},
-							},
-						)
-						if !ok {
-							break
-						}
-						scrollToEnd = false
-					}
-					// We visualize the text using a list where each paragraph is a separate item.
-					messageList.ScrollToEnd = firstVisible || scrollToEnd
-					if messageList.ScrollToEnd {
-						messageList.Position = layout.Position{BeforeEnd: false}
-					}
-					dimensions := messageList.Layout(gtx, len(messages), func(gtx layout.Context, index int) layout.Dimensions {
-						return messages[index].Layout(gtx, theme)
-					})
-					// at end of list
-					if !messageList.Position.BeforeEnd {
-						// if at end and first item visible, scroll to end
-						firstVisible = messageList.Position.First == 0
-					}
-					// Confine the area of interest
-					defer clip.Rect(image.Rectangle{Max: dimensions.Size}).Push(gtx.Ops).Pop()
-					// Use pointer.PassOp to allow pointer events to pass through an input area to those underneath it.
-					defer pointer.PassOp{}.Push(gtx.Ops).Pop()
-					// Declare `tag` as being one of the targets.
-					event.Op(gtx.Ops, &messageList)
-					return dimensions
-				}),
+				layout.Flexed(1, messageList.Layout),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					// Render with flexbox layout:
 					return layout.Flex{
