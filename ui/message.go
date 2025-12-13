@@ -62,7 +62,7 @@ func (m *Message) Layout(gtx layout.Context) (d layout.Dimensions) {
 		return flex.Layout(gtx,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				if m.isMe() {
-					return layout.Dimensions{}
+					return d
 				}
 				return avatar.Layout(gtx)
 			}),
@@ -73,7 +73,7 @@ func (m *Message) Layout(gtx layout.Context) (d layout.Dimensions) {
 				if m.isMe() {
 					return avatar.Layout(gtx)
 				}
-				return layout.Dimensions{}
+				return d
 			}))
 	})
 }
@@ -189,32 +189,8 @@ func (m *Message) drawName(gtx layout.Context) layout.Dimensions {
 
 func (l *MessageList) Layout(gtx layout.Context) layout.Dimensions {
 	// Process events using the key, &messageList
-	for {
-		_, ok := gtx.Event(
-			pointer.Filter{
-				Target: l,
-				Kinds:  pointer.Press,
-			},
-		)
-		if !ok {
-			break
-		}
-		// get focus from editor
-		gtx.Execute(key.FocusCmd{})
-	}
-	for {
-		_, ok := gtx.Event(
-			pointer.Filter{
-				Target:  l,
-				Kinds:   pointer.Scroll,
-				ScrollY: pointer.ScrollRange{Min: -1, Max: +1},
-			},
-		)
-		if !ok {
-			break
-		}
-		l.ScrollToEnd = false
-	}
+	l.processClick(gtx)
+	l.processScroll(gtx)
 	// We visualize the text using a list where each paragraph is a separate item.
 	l.List.ScrollToEnd = l.FirstVisible || l.ScrollToEnd
 	if l.ScrollToEnd {
@@ -235,4 +211,36 @@ func (l *MessageList) Layout(gtx layout.Context) layout.Dimensions {
 	// Declare `tag` as being one of the targets.
 	event.Op(gtx.Ops, l)
 	return dimensions
+}
+
+func (l *MessageList) processScroll(gtx layout.Context) {
+	for {
+		_, ok := gtx.Event(
+			pointer.Filter{
+				Target:  l,
+				Kinds:   pointer.Scroll,
+				ScrollY: pointer.ScrollRange{Min: -1, Max: +1},
+			},
+		)
+		if !ok {
+			break
+		}
+		l.ScrollToEnd = false
+	}
+}
+
+func (l *MessageList) processClick(gtx layout.Context) {
+	for {
+		_, ok := gtx.Event(
+			pointer.Filter{
+				Target: l,
+				Kinds:  pointer.Press,
+			},
+		)
+		if !ok {
+			break
+		}
+		// get focus from editor
+		gtx.Execute(key.FocusCmd{})
+	}
 }
