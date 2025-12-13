@@ -64,6 +64,7 @@ type IconButton struct {
 	*material.Theme
 	Icon    *widget.Icon
 	Enabled bool
+	OnClick func(gtx layout.Context)
 	button  widget.Clickable
 }
 
@@ -87,7 +88,7 @@ var avatar Avatar
 func NewIconStack(theme *material.Theme) *IconStack {
 	return &IconStack{Theme: theme,
 		IconButtons: []*IconButton{
-			{Theme: theme, Icon: settingsIcon, Enabled: true},
+			{Theme: theme, Icon: settingsIcon, Enabled: true, OnClick: showSettings(theme)},
 			{Theme: theme, Icon: videoCallIcon},
 			{Theme: theme, Icon: audioCallIcon},
 			{Theme: theme, Icon: voiceMessageIcon},
@@ -418,13 +419,8 @@ func (s *IconStack) drawIconStackItems(gtx layout.Context) layout.Dimensions {
 }
 
 func (b *IconButton) Layout(gtx layout.Context) layout.Dimensions {
-	if b.Icon == settingsIcon && b.button.Clicked(gtx) {
-		iconStackAnimation.Disappear(gtx.Now)
-		modal.Show(b.drawShowAccountsModal, nil, component.VisibilityAnimation{
-			Duration: time.Millisecond * 250,
-			State:    component.Invisible,
-			Started:  time.Time{},
-		})
+	if b.button.Clicked(gtx) && b.OnClick != nil {
+		b.OnClick(gtx)
 	}
 	inset := layout.Inset{Left: unit.Dp(8.0)}
 	return inset.Layout(
@@ -446,10 +442,23 @@ func (b *IconButton) Layout(gtx layout.Context) layout.Dimensions {
 	)
 }
 
-func (b *IconButton) drawShowAccountsModal(gtx layout.Context) layout.Dimensions {
-	gtx.Constraints.Max.X = int(float32(gtx.Constraints.Max.X) * 0.85)
-	gtx.Constraints.Max.Y = int(float32(gtx.Constraints.Max.Y) * 0.85)
-	return modalContent.DrawContent(gtx, b.Theme, accountsView.Layout)
+func showSettings(theme *material.Theme) func(gtx layout.Context) {
+	return func(gtx layout.Context) {
+		iconStackAnimation.Disappear(gtx.Now)
+		modal.Show(drawShowAccountsModal(theme), nil, component.VisibilityAnimation{
+			Duration: time.Millisecond * 250,
+			State:    component.Invisible,
+			Started:  time.Time{},
+		})
+	}
+}
+
+func drawShowAccountsModal(theme *material.Theme) func(gtx layout.Context) layout.Dimensions {
+	return func(gtx layout.Context) layout.Dimensions {
+		gtx.Constraints.Max.X = int(float32(gtx.Constraints.Max.X) * 0.85)
+		gtx.Constraints.Max.Y = int(float32(gtx.Constraints.Max.Y) * 0.85)
+		return modalContent.DrawContent(gtx, theme, accountsView.Layout)
+	}
 }
 
 func onAccountChange() {
