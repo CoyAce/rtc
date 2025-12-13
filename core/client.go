@@ -13,7 +13,7 @@ type Client struct {
 	SignedMessages chan SignedMessage
 	Status         chan struct{}
 	Conn           net.PacketConn
-	Disconnected   bool
+	Connected      bool
 	Sign           Sign
 	ServerAddr     string
 	SAddr          net.Addr
@@ -103,28 +103,30 @@ func (c *Client) serve(conn net.PacketConn) {
 				//log.Printf("receive text timeout")
 			}
 			if errors.Is(err, syscall.ECONNREFUSED) {
-				c.Disconnected = true
+				c.Connected = false
 				log.Printf("[%s] connection refused", c.ServerAddr)
 			}
 			//log.Printf("[%s] receive text: %v", c.ServerAddr, err)
 			continue
 		}
-		c.Disconnected = false
 
 		switch {
 		case ackPkt.Unmarshal(buf[:n]) == nil:
+			if ackPkt.Op == OpSign {
+				c.Connected = true
+			}
 			continue
 		case msg.Unmarshal(buf[:n]) == nil:
 			s := string(msg.Payload)
 			log.Printf("received text [%s] from [%s]\n", s, msg.UUID)
 			c.SignedMessages <- msg
-			c.ack(conn, addr)
+			c.ack(conn, addr, OpSignedMSG)
 		}
 	}
 }
 
-func (c *Client) ack(conn net.PacketConn, clientAddr net.Addr) {
-	ack := Ack(0)
+func (c *Client) ack(conn net.PacketConn, clientAddr net.Addr, code OpCode) {
+	ack := Ack{Op: code, Block: 0}
 	bytes, err := ack.Marshal()
 	_, err = conn.WriteTo(bytes, clientAddr)
 	if err != nil {
@@ -155,13 +157,12 @@ RETRY:
 				continue RETRY
 			}
 			if errors.Is(err, syscall.ECONNREFUSED) {
-				c.Disconnected = true
+				c.Connected = false
 				log.Printf("[%s] connection refused", c.ServerAddr)
 			}
 			log.Printf("[%s] waiting for ACK: %v", c.ServerAddr, err)
 			continue
 		}
-		c.Disconnected = false
 
 		switch {
 		case ackPkt.Unmarshal(buf) == nil:

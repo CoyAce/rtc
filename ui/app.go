@@ -13,7 +13,7 @@ import (
 	"gioui.org/x/component"
 )
 
-func Draw(window *app.Window, client core.Client) error {
+func Draw(window *app.Window, client *core.Client) error {
 	// theme defines the material design style
 	theme := fonts.NewTheme()
 	// ops are the operations from the UI
@@ -49,7 +49,7 @@ func Draw(window *app.Window, client core.Client) error {
 			// ---------- Handle input ----------
 			if messageEditor.Submitted(gtx) {
 				msg := strings.TrimSpace(inputField.Text())
-				if client.SendText(msg) != nil || client.Disconnected {
+				if !client.Connected || client.SendText(msg) != nil {
 					message := Message{Theme: theme, Sender: client.UUID, UUID: client.UUID,
 						Text: msg, CreatedAt: time.Now(), State: Stateless}
 					message.AddTo(messageList)

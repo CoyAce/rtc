@@ -57,17 +57,17 @@ func (s *Server) Serve(conn net.PacketConn) error {
 		case sign.Unmarshal(bytes) == nil:
 			s.SignMap[addr.String()] = sign
 			log.Printf("[%s] set sign: [%s]", addr.String(), sign)
-			go s.ack(conn, addr)
+			go s.ack(conn, addr, OpSign)
 		case msg.Unmarshal(bytes) == nil:
 			log.Printf("received msg [%s] from [%s]", string(msg.Payload), addr.String())
 			go s.handle(msg.Sign, bytes)
-			go s.ack(conn, addr)
+			go s.ack(conn, addr, OpSignedMSG)
 		}
 	}
 }
 
-func (s *Server) ack(conn net.PacketConn, clientAddr net.Addr) {
-	ack := Ack(0)
+func (s *Server) ack(conn net.PacketConn, clientAddr net.Addr, code OpCode) {
+	ack := Ack{Op: code, Block: 0}
 	bytes, err := ack.Marshal()
 	_, err = conn.WriteTo(bytes, clientAddr)
 	if err != nil {
