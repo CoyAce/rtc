@@ -285,53 +285,57 @@ func (e *MessageEditor) Layout(gtx layout.Context) layout.Dimensions {
 						return e.InputField.Layout(gtx, e.Theme, "Message")
 					}),
 					// submit button
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						margins := layout.Inset{Left: unit.Dp(8.0)}
-						return margins.Layout(gtx,
-							func(gtx layout.Context) layout.Dimensions {
-								return material.IconButtonStyle{
-									Background: e.Theme.ContrastBg,
-									Color:      e.Theme.ContrastFg,
-									Icon:       submitIcon,
-									Size:       unit.Dp(24.0),
-									Button:     &e.SubmitButton,
-									Inset:      layout.UniformInset(unit.Dp(9)),
-								}.Layout(gtx)
-							},
-						)
-					}),
+					layout.Rigid(e.drawSubmitButton),
 					// expand button
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						margins := layout.Inset{Left: unit.Dp(8.0)}
-						return margins.Layout(
-							gtx,
-							func(gtx layout.Context) layout.Dimensions {
-								btn := &e.ExpandButton
-								icon := expandIcon
-								if e.CollapseButton.Clicked(gtx) {
-									animation.Disappear(gtx.Now)
-								}
-								if e.ExpandButton.Clicked(gtx) {
-									animation.Appear(gtx.Now)
-								}
-								if animation.Revealed(gtx) != 0 {
-									btn = &e.CollapseButton
-									icon = collapseIcon
-								}
-								return material.IconButtonStyle{
-									Background: e.Theme.ContrastBg,
-									Color:      e.Theme.ContrastFg,
-									Icon:       icon,
-									Size:       unit.Dp(24.0),
-									Button:     btn,
-									Inset:      layout.UniformInset(unit.Dp(9)),
-								}.Layout(gtx)
-							},
-						)
-					}),
+					layout.Rigid(e.drawExtraButton),
 				)
 			})
 		}),
+	)
+}
+
+func (e *MessageEditor) drawExtraButton(gtx layout.Context) layout.Dimensions {
+	margins := layout.Inset{Left: unit.Dp(8.0)}
+	return margins.Layout(
+		gtx,
+		func(gtx layout.Context) layout.Dimensions {
+			btn := &e.ExpandButton
+			icon := expandIcon
+			if e.CollapseButton.Clicked(gtx) {
+				animation.Disappear(gtx.Now)
+			}
+			if e.ExpandButton.Clicked(gtx) {
+				animation.Appear(gtx.Now)
+			}
+			if animation.Revealed(gtx) != 0 {
+				btn = &e.CollapseButton
+				icon = collapseIcon
+			}
+			return material.IconButtonStyle{
+				Background: e.Theme.ContrastBg,
+				Color:      e.Theme.ContrastFg,
+				Icon:       icon,
+				Size:       unit.Dp(24.0),
+				Button:     btn,
+				Inset:      layout.UniformInset(unit.Dp(9)),
+			}.Layout(gtx)
+		},
+	)
+}
+
+func (e *MessageEditor) drawSubmitButton(gtx layout.Context) layout.Dimensions {
+	margins := layout.Inset{Left: unit.Dp(8.0)}
+	return margins.Layout(gtx,
+		func(gtx layout.Context) layout.Dimensions {
+			return material.IconButtonStyle{
+				Background: e.Theme.ContrastBg,
+				Color:      e.Theme.ContrastFg,
+				Icon:       submitIcon,
+				Size:       unit.Dp(24.0),
+				Button:     &e.SubmitButton,
+				Inset:      layout.UniformInset(unit.Dp(9)),
+			}.Layout(gtx)
+		},
 	)
 }
 
