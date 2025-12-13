@@ -102,34 +102,32 @@ func (m *Message) drawMessage(gtx layout.Context, theme *material.Theme) layout.
 
 func (m *Message) drawContent(gtx layout.Context, theme *material.Theme) layout.Dimensions {
 	if m.Text != "" {
+		// calculate text size for later use
 		macro := op.Record(gtx.Ops)
-		inset := layout.UniformInset(unit.Dp(12))
-		d := inset.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			flex := layout.Flex{}
+		d := layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Min.X = 0
-			return flex.Layout(gtx,
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					gtx.Constraints.Max.X = int(float32(gtx.Constraints.Max.X) / 1.5)
-					bd := material.Body1(theme, m.Text)
-					return bd.Layout(gtx)
-				}))
+			gtx.Constraints.Max.X = int(float32(gtx.Constraints.Max.X) / 1.5)
+			bd := material.Body1(theme, m.Text)
+			return bd.Layout(gtx)
 		})
 		call := macro.Stop()
+		// draw border
 		bgColor := theme.ContrastBg
-		bgColor.A = 50
 		radius := gtx.Dp(16)
 		sE, sW, nW, nE := radius, radius, radius, radius
 		if m.isMe() {
 			nE = 0
+			bgColor.A = 150
 		} else {
 			nW = 0
+			bgColor.A = 50
 		}
-		clipOp := clip.RRect{Rect: image.Rectangle{
+		defer clip.RRect{Rect: image.Rectangle{
 			Max: d.Size,
-		}, SE: sE, SW: sW, NW: nW, NE: nE}.Push(gtx.Ops)
+		}, SE: sE, SW: sW, NW: nW, NE: nE}.Push(gtx.Ops).Pop()
 		component.Rect{Color: bgColor, Size: d.Size}.Layout(gtx)
+		// draw text
 		call.Add(gtx.Ops)
-		clipOp.Pop()
 		return d
 	}
 	return layout.Dimensions{}
