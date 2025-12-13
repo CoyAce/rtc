@@ -34,7 +34,7 @@ func Draw(window *app.Window, client core.Client) error {
 	// listen for events in the messages channel
 	go func() {
 		for m := range client.SignedMessages {
-			message := Message{State: Sent, UUID: client.UUID, Sender: m.UUID, Text: string(m.Payload), CreatedAt: time.Now()}
+			message := Message{Theme: theme, State: Sent, UUID: client.UUID, Sender: m.UUID, Text: string(m.Payload), CreatedAt: time.Now()}
 			message.AddTo(messageList)
 			messageList.ScrollToEnd = true
 			window.Invalidate()
@@ -68,7 +68,7 @@ func Draw(window *app.Window, client core.Client) error {
 			if submitButton.Clicked(gtx) || submittedByCarriageReturn(&inputField, gtx) {
 				msg := strings.TrimSpace(inputField.Text())
 				if client.SendText(msg) != nil || client.Disconnected {
-					message := Message{Sender: client.UUID, UUID: client.UUID, Text: msg, CreatedAt: time.Now(), State: Stateless}
+					message := Message{Theme: theme, Sender: client.UUID, UUID: client.UUID, Text: msg, CreatedAt: time.Now(), State: Stateless}
 					message.AddTo(messageList)
 					messageList.ScrollToEnd = true
 				}

@@ -38,6 +38,7 @@ const (
 
 type Message struct {
 	State
+	*material.Theme
 	UUID      string
 	Text      string
 	Sender    string
@@ -46,7 +47,7 @@ type Message struct {
 
 var avatar Avatar
 
-func (m *Message) Layout(gtx layout.Context, theme *material.Theme) (d layout.Dimensions) {
+func (m *Message) Layout(gtx layout.Context) (d layout.Dimensions) {
 	if m.Text == "" {
 		return d
 	}
@@ -66,9 +67,7 @@ func (m *Message) Layout(gtx layout.Context, theme *material.Theme) (d layout.Di
 				return avatar.Layout(gtx)
 			}),
 			layout.Rigid(layout.Spacer{Width: unit.Dp(2)}.Layout),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return m.drawMessage(gtx, theme)
-			}),
+			layout.Rigid(m.drawMessage),
 			layout.Rigid(layout.Spacer{Width: unit.Dp(2)}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				if m.isMe() {
@@ -87,15 +86,13 @@ func (m *Message) AddTo(list *MessageList) {
 	list.Messages = append(list.Messages, *m)
 }
 
-func (m *Message) drawMessage(gtx layout.Context, theme *material.Theme) layout.Dimensions {
+func (m *Message) drawMessage(gtx layout.Context) layout.Dimensions {
 	flex := layout.Flex{Axis: layout.Vertical, Alignment: layout.Start}
 	if m.isMe() {
 		flex.Alignment = layout.End
 	}
 	return flex.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return m.drawName(gtx, theme)
-		}),
+		layout.Rigid(m.drawName),
 		// state and message
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			flex := layout.Flex{Spacing: layout.SpaceEnd, Alignment: layout.Middle}
@@ -103,31 +100,27 @@ func (m *Message) drawMessage(gtx layout.Context, theme *material.Theme) layout.
 				flex.Spacing = layout.SpaceStart
 			}
 			return flex.Layout(gtx,
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return m.drawState(gtx, theme)
-				}),
+				layout.Rigid(m.drawState),
 				layout.Rigid(layout.Spacer{Width: unit.Dp(2)}.Layout),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return m.drawContent(gtx, theme)
-				}),
+				layout.Rigid(m.drawContent),
 			)
 		}),
 	)
 }
 
-func (m *Message) drawContent(gtx layout.Context, theme *material.Theme) layout.Dimensions {
+func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
 	if m.Text != "" {
 		// calculate text size for later use
 		macro := op.Record(gtx.Ops)
 		d := layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Min.X = 0
 			gtx.Constraints.Max.X = int(float32(gtx.Constraints.Max.X) / 1.5)
-			bd := material.Body1(theme, m.Text)
+			bd := material.Body1(m.Theme, m.Text)
 			return bd.Layout(gtx)
 		})
 		call := macro.Stop()
 		// draw border
-		bgColor := theme.ContrastBg
+		bgColor := m.Theme.ContrastBg
 		radius := gtx.Dp(16)
 		sE, sW, nW, nE := radius, radius, radius, radius
 		if m.isMe() {
@@ -148,9 +141,9 @@ func (m *Message) drawContent(gtx layout.Context, theme *material.Theme) layout.
 	return layout.Dimensions{}
 }
 
-func (m *Message) drawState(gtx layout.Context, theme *material.Theme) layout.Dimensions {
+func (m *Message) drawState(gtx layout.Context) layout.Dimensions {
 	if m.isMe() {
-		iconColor := theme.ContrastBg
+		iconColor := m.Theme.ContrastBg
 		var icon *widget.Icon
 		switch m.State {
 		case Stateless:
@@ -166,7 +159,7 @@ func (m *Message) drawState(gtx layout.Context, theme *material.Theme) layout.Di
 	return layout.Dimensions{}
 }
 
-func (m *Message) drawName(gtx layout.Context, theme *material.Theme) layout.Dimensions {
+func (m *Message) drawName(gtx layout.Context) layout.Dimensions {
 	timeVal := m.CreatedAt
 	timeMsg := timeVal.Local().Format("Mon, Jan 2, 3:04 PM")
 	var msg string
@@ -175,9 +168,9 @@ func (m *Message) drawName(gtx layout.Context, theme *material.Theme) layout.Dim
 	} else {
 		msg = m.Sender + " " + timeMsg
 	}
-	label := material.Label(theme, theme.TextSize*0.70, msg)
+	label := material.Label(m.Theme, m.Theme.TextSize*0.70, msg)
 	label.MaxLines = 1
-	label.Color = theme.ContrastBg
+	label.Color = m.Theme.ContrastBg
 	label.Color.A = uint8(int(math.Abs(float64(label.Color.A)-50)) % 256)
 	label.Font.Weight = font.Bold
 	label.Font.Style = font.Italic
@@ -228,7 +221,7 @@ func (l *MessageList) Layout(gtx layout.Context) layout.Dimensions {
 		l.List.Position = layout.Position{BeforeEnd: false}
 	}
 	dimensions := l.List.Layout(gtx, len(l.Messages), func(gtx layout.Context, index int) layout.Dimensions {
-		return l.Messages[index].Layout(gtx, l.Theme)
+		return l.Messages[index].Layout(gtx)
 	})
 	// at end of list
 	if !l.List.Position.BeforeEnd {
