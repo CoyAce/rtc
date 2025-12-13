@@ -10,51 +10,51 @@ import (
 	"gioui.org/widget/material"
 )
 
-//go:embed custom-black.ttf
+//go:embed black.ttf
 
 var customBlack []byte
 
-//go:embed custom-black-italic.ttf
+//go:embed black-italic.ttf
 
 var customBlackItalic []byte
 
-//go:embed custom-bold.ttf
+//go:embed bold.ttf
 
 var customBold []byte
 
-//go:embed custom-bold-italic.ttf
+//go:embed bold-italic.ttf
 
 var customBoldItalic []byte
 
-//go:embed custom-light.ttf
+//go:embed light.ttf
 
 var customLight []byte
 
-//go:embed custom-light-italic.ttf
+//go:embed light-italic.ttf
 
 var customLightItalic []byte
 
-//go:embed custom-medium.ttf
+//go:embed medium.ttf
 
 var customMedium []byte
 
-//go:embed custom-medium-italic.ttf
+//go:embed medium-italic.ttf
 
 var customMediumItalic []byte
 
-//go:embed custom-regular.ttf
+//go:embed regular.ttf
 
 var customRegular []byte
 
-//go:embed custom-regular-italic.ttf
+//go:embed regular-italic.ttf
 
 var customRegularItalic []byte
 
-//go:embed custom-thin.ttf
+//go:embed thin.ttf
 
 var customThin []byte
 
-//go:embed custom-thin-italic.ttf
+//go:embed thin-italic.ttf
 
 var customThinItalic []byte
 
