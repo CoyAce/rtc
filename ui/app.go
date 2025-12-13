@@ -127,13 +127,11 @@ func Draw(window *app.Window, client core.Client) error {
 						firstVisible = messageList.Position.First == 0
 					}
 					// Confine the area of interest
-					rectArea := clip.Rect(image.Rectangle{Max: dimensions.Size}).Push(gtx.Ops)
+					defer clip.Rect(image.Rectangle{Max: dimensions.Size}).Push(gtx.Ops).Pop()
 					// Use pointer.PassOp to allow pointer events to pass through an input area to those underneath it.
-					pass := pointer.PassOp{}.Push(gtx.Ops)
+					defer pointer.PassOp{}.Push(gtx.Ops).Pop()
 					// Declare `tag` as being one of the targets.
 					event.Op(gtx.Ops, &messageList)
-					pass.Pop()
-					rectArea.Pop()
 					return dimensions
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
