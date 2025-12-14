@@ -25,6 +25,7 @@ type appModal struct {
 	onBackdropClick func()
 	widget          layout.Widget
 	backdropButton  widget.Clickable
+	innerButton     widget.Clickable
 	Animation       component.VisibilityAnimation
 	afterDismiss    func()
 }
@@ -99,8 +100,7 @@ func (m *appModal) Layout(gtx layout.Context) layout.Dimensions {
 			}
 			// record Widget's dimension
 			macro := op.Record(gtx.Ops)
-			clickable := widget.Clickable{}
-			d := clickable.Layout(gtx, m.widget)
+			d := m.innerButton.Layout(gtx, m.widget)
 			call := macro.Stop()
 
 			// float down animation

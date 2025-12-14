@@ -445,7 +445,7 @@ func (b *IconButton) Layout(gtx layout.Context) layout.Dimensions {
 func showSettings(theme *material.Theme) func(gtx layout.Context) {
 	return func(gtx layout.Context) {
 		iconStackAnimation.Disappear(gtx.Now)
-		modal.Show(drawShowAccountsModal(theme), nil, component.VisibilityAnimation{
+		modal.Show(settingsModal(theme), nil, component.VisibilityAnimation{
 			Duration: time.Millisecond * 250,
 			State:    component.Invisible,
 			Started:  time.Time{},
@@ -453,7 +453,7 @@ func showSettings(theme *material.Theme) func(gtx layout.Context) {
 	}
 }
 
-func drawShowAccountsModal(theme *material.Theme) func(gtx layout.Context) layout.Dimensions {
+func settingsModal(theme *material.Theme) func(gtx layout.Context) layout.Dimensions {
 	return func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Max.X = int(float32(gtx.Constraints.Max.X) * 0.85)
 		gtx.Constraints.Max.Y = int(float32(gtx.Constraints.Max.Y) * 0.85)

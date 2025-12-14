@@ -1,57 +1,101 @@
 package ui
 
 import (
+	"image"
 	ui "rtc/ui/layout"
 
+	"gioui.org/io/event"
+	"gioui.org/io/key"
+	"gioui.org/io/pointer"
 	"gioui.org/layout"
+	"gioui.org/op/clip"
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+	"gioui.org/x/component"
 	"golang.org/x/exp/shiny/materialdesign/icons"
 )
 
 type settingsForm struct {
 	*material.Theme
-	submitIcon   *widget.Icon
-	submitButton widget.Clickable
+	nicknameEditor *component.TextField
+	signEditor     *component.TextField
+	submitButton   IconButton
 }
 
 func NewSettingsForm(theme *material.Theme) ui.View {
 	submitIcon, _ := widget.NewIcon(icons.ActionDone)
 	return &settingsForm{
-		Theme:      theme,
-		submitIcon: submitIcon,
+		Theme:          theme,
+		nicknameEditor: &component.TextField{Editor: widget.Editor{}},
+		signEditor:     &component.TextField{Editor: widget.Editor{}},
+		submitButton:   IconButton{Theme: theme, Icon: submitIcon, Enabled: true},
 	}
 }
 
 func (s *settingsForm) Layout(gtx layout.Context) layout.Dimensions {
 	gtx.Constraints.Min.X = gtx.Constraints.Max.X
-	return layout.Flex{Spacing: layout.SpaceSides}.Layout(gtx,
+	s.processClick(gtx)
+
+	dimensions := layout.Flex{Spacing: layout.SpaceSides}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical, Alignment: layout.Middle}.Layout(gtx,
 				layout.Rigid(layout.Spacer{Height: unit.Dp(25)}.Layout),
 				layout.Rigid(avatar.Layout),
 				layout.Rigid(layout.Spacer{Height: unit.Dp(15)}.Layout),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return material.Label(s.Theme, s.TextSize, "Nickname:").Layout(gtx)
-				}),
+				layout.Rigid(s.drawInputArea("Nickname:", func(gtx layout.Context) layout.Dimensions {
+					return s.nicknameEditor.Layout(gtx, s.Theme, "")
+				})),
 				layout.Rigid(layout.Spacer{Height: unit.Dp(15)}.Layout),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return material.Label(s.Theme, s.TextSize, "Sign:").Layout(gtx)
-				}),
+				layout.Rigid(s.drawInputArea("Chat Sign:", func(gtx layout.Context) layout.Dimensions {
+					return s.signEditor.Layout(gtx, s.Theme, "")
+				})),
 				layout.Rigid(layout.Spacer{Height: unit.Dp(15)}.Layout),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return material.IconButtonStyle{
-						Background: s.Theme.ContrastBg,
-						Color:      s.Theme.ContrastFg,
-						Icon:       s.submitIcon,
-						Size:       unit.Dp(24.0),
-						Button:     &s.submitButton,
-						Inset:      layout.UniformInset(unit.Dp(9)),
-					}.Layout(gtx)
-				}),
+				layout.Rigid(s.submitButton.Layout),
 				layout.Rigid(layout.Spacer{Height: unit.Dp(30)}.Layout),
 			)
 		}),
 	)
+	defer clip.Rect(image.Rectangle{Max: dimensions.Size}).Push(gtx.Ops).Pop()
+	defer pointer.PassOp{}.Push(gtx.Ops).Pop()
+	event.Op(gtx.Ops, s)
+	return dimensions
+}
+
+func (s *settingsForm) processClick(gtx layout.Context) {
+	for {
+		_, ok := gtx.Event(
+			pointer.Filter{
+				Target: s,
+				Kinds:  pointer.Press,
+			},
+		)
+		if !ok {
+			break
+		}
+		// get focus from editor
+		gtx.Execute(key.FocusCmd{})
+	}
+}
+
+func (s *settingsForm) drawInputArea(label string, widget layout.Widget) func(gtx layout.Context) layout.Dimensions {
+	return func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+			layout.Flexed(0.4, func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Spacing: layout.SpaceStart}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return material.Label(s.Theme, s.TextSize, label).Layout(gtx)
+					}),
+				)
+			}),
+			layout.Rigid(layout.Spacer{Width: unit.Dp(8)}.Layout),
+			layout.Flexed(0.6, func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Spacing: layout.SpaceEnd}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						gtx.Constraints.Max.X = gtx.Dp(unit.Dp(160))
+						return widget(gtx)
+					}),
+				)
+			}))
+	}
 }
