@@ -10,6 +10,7 @@ import (
 
 type Client struct {
 	UUID           string
+	Nickname       string
 	SignedMessages chan SignedMessage
 	Status         chan struct{}
 	Conn           net.PacketConn
@@ -34,13 +35,17 @@ func (c *Client) SendText(text string) error {
 	}
 	defer func() { _ = conn.Close() }()
 
-	msg := SignedMessage{Sign: string(c.Sign), UUID: c.UUID, Payload: []byte(text)}
+	msg := SignedMessage{Sign: string(c.Sign), UUID: c.FullID(), Payload: []byte(text)}
 	bytes, err := msg.Marshal()
 	if err != nil {
 		log.Printf("[%s] marshal failed: %v", text, err)
 	}
 
 	return c.sendPacket(conn, bytes)
+}
+
+func (c *Client) FullID() string {
+	return c.Nickname + c.UUID
 }
 
 func (c *Client) ListenAndServe(addr string) {
@@ -69,7 +74,7 @@ func (c *Client) ListenAndServe(addr string) {
 	go func() {
 		// auto reconnect in case of server down
 		for {
-			c.sendSign()
+			c.SendSign()
 			time.Sleep(30 * time.Second)
 		}
 	}()
@@ -78,7 +83,7 @@ func (c *Client) ListenAndServe(addr string) {
 	c.serve(conn)
 }
 
-func (c *Client) sendSign() {
+func (c *Client) SendSign() {
 	bytes, err := c.Sign.Marshal()
 	if err != nil {
 		log.Printf("[%s] marshal failed: %v", c.Sign, err)

@@ -11,6 +11,7 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/widget"
+	"gioui.org/widget/material"
 	"gioui.org/x/component"
 )
 
@@ -24,7 +25,7 @@ func Draw(window *app.Window, client *core.Client) error {
 	// listen for events in the messages channel
 	go func() {
 		for m := range client.SignedMessages {
-			message := Message{Theme: theme, State: Sent, UUID: client.UUID, Sender: m.UUID,
+			message := Message{Theme: theme, State: Sent, UUID: client.FullID(), Sender: m.UUID,
 				Text: string(m.Payload), CreatedAt: time.Now()}
 			message.AddTo(messageList)
 			messageList.ScrollToEnd = true
@@ -34,7 +35,10 @@ func Draw(window *app.Window, client *core.Client) error {
 
 	inputField := component.TextField{Editor: widget.Editor{Submit: true}}
 	messageEditor := MessageEditor{InputField: &inputField, Theme: theme}
-	iconStack := NewIconStack(theme)
+	settings := NewSettingsForm(material.NewTheme(), client, func(gtx layout.Context) {
+		modal.Dismiss(nil)
+	})
+	iconStack := NewIconStack(theme, settings)
 	// listen for events in the window.
 	for {
 		// detect what type of event
@@ -52,7 +56,7 @@ func Draw(window *app.Window, client *core.Client) error {
 			if messageEditor.Submitted(gtx) {
 				msg := strings.TrimSpace(inputField.Text())
 				if !client.Connected || client.SendText(msg) != nil {
-					message := Message{Theme: theme, Sender: client.UUID, UUID: client.UUID,
+					message := Message{Theme: theme, Sender: client.FullID(), UUID: client.FullID(),
 						Text: msg, CreatedAt: time.Now(), State: Stateless}
 					message.AddTo(messageList)
 					messageList.ScrollToEnd = true

@@ -8,8 +8,10 @@ import (
 
 func TestListenPacketUDP(t *testing.T) {
 	// init data
-	ack := Ack(0)
-	ackBytes, err := ack.Marshal()
+	signAck := Ack{Op: OpSign, Block: 0}
+	signAckBytes, err := signAck.Marshal()
+	msgAck := Ack{Op: OpSignedMSG, Block: 0}
+	msgAckBytes, err := msgAck.Marshal()
 
 	sign := Sign("test")
 	signBytes, _ := sign.Marshal()
@@ -38,8 +40,8 @@ func TestListenPacketUDP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(ackBytes, buf[:n]) {
-		t.Errorf("expected reply %q; actual reply %q", ackBytes, buf[:n])
+	if !bytes.Equal(signAckBytes, buf[:n]) {
+		t.Errorf("expected reply %q; actual reply %q", signAckBytes, buf[:n])
 	}
 
 	// send text
@@ -56,10 +58,10 @@ func TestListenPacketUDP(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(msgBytes, buf[:n]) {
-		t.Errorf("expected reply %q; actual reply %q", ackBytes, buf[:n])
+		t.Errorf("expected reply %q; actual reply %q", signAckBytes, buf[:n])
 	}
 	// send ack
-	client.WriteTo(ackBytes, sAddr)
+	client.WriteTo(msgAckBytes, sAddr)
 
 	// test send text, server should ack
 	_, err = client.WriteTo(msgBytes, sAddr)
@@ -68,8 +70,8 @@ func TestListenPacketUDP(t *testing.T) {
 	}
 	// read ack
 	n, _, err = client.ReadFrom(buf)
-	if !bytes.Equal(ackBytes, buf[:n]) {
-		t.Errorf("expected reply %q; actual reply %q", ackBytes, buf[:n])
+	if !bytes.Equal(msgAckBytes, buf[:n]) {
+		t.Errorf("expected reply %q; actual reply %q", signAckBytes, buf[:n])
 	}
 }
 

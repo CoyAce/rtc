@@ -2,6 +2,7 @@ package ui
 
 import (
 	"image"
+	"rtc/core"
 	ui "rtc/ui/layout"
 
 	"gioui.org/io/event"
@@ -18,25 +19,41 @@ import (
 
 type settingsForm struct {
 	*material.Theme
+	client         *core.Client
+	onSuccess      func(gtx layout.Context)
 	nicknameEditor *component.TextField
 	signEditor     *component.TextField
 	submitButton   IconButton
 }
 
-func NewSettingsForm(theme *material.Theme) ui.View {
+func NewSettingsForm(theme *material.Theme, client *core.Client, onSuccess func(gtx layout.Context)) ui.View {
 	submitIcon, _ := widget.NewIcon(icons.ActionDone)
-	return &settingsForm{
+	s := &settingsForm{
 		Theme:          theme,
+		onSuccess:      onSuccess,
+		client:         client,
 		nicknameEditor: &component.TextField{Editor: widget.Editor{}},
 		signEditor:     &component.TextField{Editor: widget.Editor{}},
 		submitButton:   IconButton{Theme: theme, Icon: submitIcon, Enabled: true},
 	}
+	s.submitButton.OnClick = func(gtx layout.Context) {
+		client.Nickname = s.nicknameEditor.Text()
+		client.Sign = core.Sign(s.signEditor.Text())
+		client.SendSign()
+		s.onSuccess(gtx)
+	}
+	return s
 }
 
 func (s *settingsForm) Layout(gtx layout.Context) layout.Dimensions {
-	gtx.Constraints.Min.X = gtx.Constraints.Max.X
 	s.processClick(gtx)
-
+	if len(s.nicknameEditor.Text()) == 0 {
+		s.nicknameEditor.SetText(s.client.Nickname)
+	}
+	if len(s.signEditor.Text()) == 0 {
+		s.signEditor.SetText(string(s.client.Sign))
+	}
+	gtx.Constraints.Min.X = gtx.Constraints.Max.X
 	dimensions := layout.Flex{Spacing: layout.SpaceSides}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical, Alignment: layout.Middle}.Layout(gtx,

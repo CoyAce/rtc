@@ -4,6 +4,7 @@ import (
 	"image"
 	"image/color"
 	"math"
+	ui "rtc/ui/layout"
 	"time"
 
 	"gioui.org/font"
@@ -75,7 +76,6 @@ var voiceMessageIcon, _ = widget.NewIcon(icons.AVMic)
 var audioCallIcon, _ = widget.NewIcon(icons.CommunicationPhone)
 var videoCallIcon, _ = widget.NewIcon(icons.AVVideoCall)
 var settingsIcon, _ = widget.NewIcon(icons.ActionSettings)
-var settings = NewSettingsForm(material.NewTheme())
 
 var iconStackAnimation = component.VisibilityAnimation{
 	Duration: time.Millisecond * 250,
@@ -85,10 +85,10 @@ var iconStackAnimation = component.VisibilityAnimation{
 
 var avatar Avatar
 
-func NewIconStack(theme *material.Theme) *IconStack {
+func NewIconStack(theme *material.Theme, settings ui.View) *IconStack {
 	return &IconStack{Theme: theme,
 		IconButtons: []*IconButton{
-			{Theme: theme, Icon: settingsIcon, Enabled: true, OnClick: showSettings(theme)},
+			{Theme: theme, Icon: settingsIcon, Enabled: true, OnClick: showSettings(theme, settings)},
 			{Theme: theme, Icon: videoCallIcon},
 			{Theme: theme, Icon: audioCallIcon},
 			{Theme: theme, Icon: voiceMessageIcon},
@@ -442,10 +442,10 @@ func (b *IconButton) Layout(gtx layout.Context) layout.Dimensions {
 	)
 }
 
-func showSettings(theme *material.Theme) func(gtx layout.Context) {
+func showSettings(theme *material.Theme, settings ui.View) func(gtx layout.Context) {
 	return func(gtx layout.Context) {
 		iconStackAnimation.Disappear(gtx.Now)
-		modal.Show(settingsModal(theme), nil, component.VisibilityAnimation{
+		modal.Show(settingsModal(theme, settings), nil, component.VisibilityAnimation{
 			Duration: time.Millisecond * 250,
 			State:    component.Invisible,
 			Started:  time.Time{},
@@ -453,7 +453,7 @@ func showSettings(theme *material.Theme) func(gtx layout.Context) {
 	}
 }
 
-func settingsModal(theme *material.Theme) func(gtx layout.Context) layout.Dimensions {
+func settingsModal(theme *material.Theme, settings ui.View) func(gtx layout.Context) layout.Dimensions {
 	return func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Max.X = int(float32(gtx.Constraints.Max.X) * 0.85)
 		gtx.Constraints.Max.Y = int(float32(gtx.Constraints.Max.Y) * 0.85)
