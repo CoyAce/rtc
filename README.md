@@ -25,6 +25,7 @@
 5. 支持发送文件，图片，文档，压缩包等等
 6. 跟DeepSeek类似的markdown文本
 7. 支持收发邮件
+8. bit torrent
 
 # 想法
 
