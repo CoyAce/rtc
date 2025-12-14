@@ -75,7 +75,7 @@ var voiceMessageIcon, _ = widget.NewIcon(icons.AVMic)
 var audioCallIcon, _ = widget.NewIcon(icons.CommunicationPhone)
 var videoCallIcon, _ = widget.NewIcon(icons.AVVideoCall)
 var settingsIcon, _ = widget.NewIcon(icons.ActionSettings)
-var accountsView = NewAccountFormView(material.NewTheme(), onAccountChange)
+var settings = NewSettingsForm(material.NewTheme())
 
 var iconStackAnimation = component.VisibilityAnimation{
 	Duration: time.Millisecond * 250,
@@ -457,13 +457,6 @@ func drawShowAccountsModal(theme *material.Theme) func(gtx layout.Context) layou
 	return func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Max.X = int(float32(gtx.Constraints.Max.X) * 0.85)
 		gtx.Constraints.Max.Y = int(float32(gtx.Constraints.Max.Y) * 0.85)
-		return modalContent.DrawContent(gtx, theme, accountsView.Layout)
+		return modalContent.DrawContent(gtx, theme, settings.Layout)
 	}
-}
-
-func onAccountChange() {
-	modal.Dismiss(afterAccountsModalDismissed)
-}
-func afterAccountsModalDismissed() {
-	// do something
 }
