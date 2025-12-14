@@ -13,6 +13,7 @@ import (
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"gioui.org/x/component"
+	"gioui.org/x/explorer"
 )
 
 func Draw(window *app.Window, client *core.Client) error {
@@ -39,10 +40,13 @@ func Draw(window *app.Window, client *core.Client) error {
 		modal.Dismiss(nil)
 	})
 	iconStack := NewIconStack(theme, settings)
+	picker = explorer.NewExplorer(window)
 	// listen for events in the window.
 	for {
+		event := window.Event()
+		picker.ListenEvents(event)
 		// detect what type of event
-		switch e := window.Event().(type) {
+		switch e := event.(type) {
 		// this is sent when the application is closed
 		case app.DestroyEvent:
 			return e.Err
@@ -79,3 +83,4 @@ func Draw(window *app.Window, client *core.Client) error {
 
 var modal = ui.NewModalStack()
 var modalContent = ui.NewModalContent(func() { modal.Dismiss(nil) })
+var picker *explorer.Explorer

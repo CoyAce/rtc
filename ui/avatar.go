@@ -14,11 +14,12 @@ import (
 )
 
 type Avatar struct {
-	Size       int
-	Editable   bool
-	EditButton IconButton
-	point      image.Point
-	Image      image.Image
+	Size          int
+	Editable      bool
+	EditButton    IconButton
+	point         image.Point
+	Image         image.Image
+	selectedImage chan image.Image
 	widget.Clickable
 	*material.Theme
 }
@@ -27,9 +28,31 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 	if v.Size == 0 {
 		v.Size = 48
 	}
+	if v.selectedImage == nil {
+		v.selectedImage = make(chan image.Image)
+	}
 	v.point = image.Point{X: gtx.Dp(unit.Dp(v.Size)), Y: gtx.Dp(unit.Dp(v.Size))}
 	if v.Image == nil {
 		v.Image = assets.AppIconImage
+	}
+	if v.Editable && v.Clicked(gtx) {
+		go func() {
+			file, err := picker.ChooseFile(".jpg", ".png")
+			if err != nil {
+				return
+			}
+			var img, _, _ = image.Decode(file)
+			v.selectedImage <- img
+		}()
+	}
+	if v.Editable {
+		select {
+		case img, ok := <-v.selectedImage:
+			if ok {
+				v.Image = img
+			}
+		default:
+		}
 	}
 	gtx.Constraints.Min, gtx.Constraints.Max = v.point, v.point
 	return layout.Stack{Alignment: layout.Center}.Layout(gtx,
@@ -55,8 +78,6 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Min = gtx.Constraints.Max
 			iconClr := v.Theme.ContrastFg
 			icon, _ := widget.NewIcon(icons.ImageEdit)
-			//if !v.Selected {
-			//}
 			return icon.Layout(gtx, iconClr)
 		}),
 	)
