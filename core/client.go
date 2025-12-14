@@ -192,12 +192,7 @@ func Load() *Client {
 	if err != nil {
 		panic(err)
 	}
-	defer func(file *os.File) {
-		err := file.Close()
-		if err != nil {
-
-		}
-	}(file)
+	defer file.Close()
 	var c Client
 	decoder := json.NewDecoder(file)
 	err = decoder.Decode(&c)
@@ -212,13 +207,7 @@ func (c *Client) Store() {
 	if err != nil {
 		panic(err)
 	}
-	defer func(file *os.File) {
-		err := file.Close()
-		if err != nil {
-
-		}
-	}(file)
-	log.Printf("file path: %s", file.Name())
+	defer file.Close()
 
 	encoder := json.NewEncoder(file)
 	err = encoder.Encode(&c)

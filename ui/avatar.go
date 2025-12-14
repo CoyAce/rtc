@@ -2,6 +2,9 @@ package ui
 
 import (
 	"image"
+	"image/png"
+	"log"
+	"os"
 	"rtc/assets"
 
 	"gioui.org/layout"
@@ -33,7 +36,21 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 	}
 	v.point = image.Point{X: gtx.Dp(unit.Dp(v.Size)), Y: gtx.Dp(unit.Dp(v.Size))}
 	if v.Image == nil {
-		v.Image = assets.AppIconImage
+		_, err := os.Stat(iconFileName)
+		if os.IsNotExist(err) {
+			v.Image = assets.AppIconImage
+		} else {
+			file, err := os.Open(iconFileName)
+			if err != nil {
+				log.Fatal(err)
+			}
+			defer file.Close()
+			img, err := png.Decode(file)
+			if err != nil {
+				log.Fatal(err)
+			}
+			v.Image = img
+		}
 	}
 	if v.Editable && v.Clicked(gtx) {
 		go func() {
@@ -41,8 +58,22 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 			if err != nil {
 				return
 			}
+			defer file.Close()
+
 			var img, _, _ = image.Decode(file)
+			avatar.Image = img
 			v.selectedImage <- img
+
+			// save to file
+			out, err := os.Create(iconFileName)
+			defer out.Close()
+			if err != nil {
+				log.Fatal(err)
+			}
+			err = png.Encode(out, img)
+			if err != nil {
+				log.Fatal(err)
+			}
 		}()
 	}
 	if v.Editable {
@@ -82,3 +113,5 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 		}),
 	)
 }
+
+var iconFileName = "icon.png"
