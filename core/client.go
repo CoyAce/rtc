@@ -1,9 +1,11 @@
 package core
 
 import (
+	"encoding/json"
 	"errors"
 	"log"
 	"net"
+	"os"
 	"syscall"
 	"time"
 )
@@ -11,13 +13,13 @@ import (
 type Client struct {
 	UUID           string
 	Nickname       string
-	SignedMessages chan SignedMessage
-	Status         chan struct{}
-	Conn           net.PacketConn
+	SignedMessages chan SignedMessage `json:"-"`
+	Status         chan struct{}      `json:"-"`
+	Conn           net.PacketConn     `json:"-"`
 	Connected      bool
 	Sign           Sign
 	ServerAddr     string
-	SAddr          net.Addr
+	SAddr          net.Addr      `json:"-"`
 	Retries        uint8         // the number of times to retry a failed transmission
 	Timeout        time.Duration // the duration to wait for an acknowledgement
 }
@@ -177,4 +179,50 @@ RETRY:
 		}
 	}
 	return errors.New("exhausted retries")
+}
+
+var configName = "config.json"
+
+func Load() *Client {
+	_, err := os.Stat(configName)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	file, err := os.Open(configName)
+	if err != nil {
+		panic(err)
+	}
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+
+		}
+	}(file)
+	var c Client
+	decoder := json.NewDecoder(file)
+	err = decoder.Decode(&c)
+	if err != nil {
+		panic(err)
+	}
+	return &c
+}
+
+func (c *Client) Store() {
+	file, err := os.Create(configName)
+	if err != nil {
+		panic(err)
+	}
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+
+		}
+	}(file)
+	log.Printf("file path: %s", file.Name())
+
+	encoder := json.NewEncoder(file)
+	err = encoder.Encode(&c)
+	if err != nil {
+		panic(err)
+	}
 }

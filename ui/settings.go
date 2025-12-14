@@ -40,6 +40,7 @@ func NewSettingsForm(theme *material.Theme, client *core.Client, onSuccess func(
 		client.Nickname = s.nicknameEditor.Text()
 		client.Sign = core.Sign(s.signEditor.Text())
 		client.SendSign()
+		client.Store()
 		s.onSuccess(gtx)
 	}
 	return s

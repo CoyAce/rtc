@@ -59,7 +59,11 @@ func main() {
 	}
 
 	// setup client
-	c := &core.Client{ServerAddr: *address, Status: make(chan struct{}), UUID: uuid, Sign: core.Sign("default")}
+	c := core.Load()
+	if c == nil {
+		c = &core.Client{ServerAddr: *address, Status: make(chan struct{}), UUID: uuid, Sign: core.Sign("default")}
+	}
+	c.Store()
 	go func() {
 		c.ListenAndServe("127.0.0.1:")
 	}()
