@@ -32,7 +32,7 @@ func NewSettingsForm(theme *material.Theme, client *core.Client, onSuccess func(
 	submitIcon, _ := widget.NewIcon(icons.ActionDone)
 	s := &settingsForm{
 		Theme:            theme,
-		avatar:           Avatar{Size: 64},
+		avatar:           Avatar{Size: 64, Editable: true, Theme: theme},
 		onSuccess:        onSuccess,
 		client:           client,
 		nicknameEditor:   &component.TextField{Editor: widget.Editor{}},
