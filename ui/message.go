@@ -422,24 +422,18 @@ func (b *IconButton) Layout(gtx layout.Context) layout.Dimensions {
 	if b.button.Clicked(gtx) && b.OnClick != nil {
 		b.OnClick(gtx)
 	}
-	inset := layout.Inset{Left: unit.Dp(8.0)}
-	return inset.Layout(
-		gtx,
-		func(gtx layout.Context) layout.Dimensions {
-			bg := b.Theme.ContrastBg
-			if !b.Enabled {
-				bg = color.NRGBA(colornames.Grey500)
-			}
-			return material.IconButtonStyle{
-				Background: bg,
-				Color:      b.Theme.ContrastFg,
-				Icon:       b.Icon,
-				Size:       unit.Dp(24.0),
-				Button:     &b.button,
-				Inset:      layout.UniformInset(unit.Dp(9)),
-			}.Layout(gtx)
-		},
-	)
+	bg := b.Theme.ContrastBg
+	if !b.Enabled {
+		bg = color.NRGBA(colornames.Grey500)
+	}
+	return material.IconButtonStyle{
+		Background: bg,
+		Color:      b.Theme.ContrastFg,
+		Icon:       b.Icon,
+		Size:       unit.Dp(24.0),
+		Button:     &b.button,
+		Inset:      layout.UniformInset(unit.Dp(9)),
+	}.Layout(gtx)
 }
 
 func showSettings(theme *material.Theme, settings ui.View) func(gtx layout.Context) {

@@ -19,26 +19,31 @@ import (
 
 type settingsForm struct {
 	*material.Theme
-	client         *core.Client
-	onSuccess      func(gtx layout.Context)
-	nicknameEditor *component.TextField
-	signEditor     *component.TextField
-	submitButton   IconButton
+	client           *core.Client
+	avatar           Avatar
+	onSuccess        func(gtx layout.Context)
+	nicknameEditor   *component.TextField
+	signEditor       *component.TextField
+	serverAddrEditor *component.TextField
+	submitButton     IconButton
 }
 
 func NewSettingsForm(theme *material.Theme, client *core.Client, onSuccess func(gtx layout.Context)) ui.View {
 	submitIcon, _ := widget.NewIcon(icons.ActionDone)
 	s := &settingsForm{
-		Theme:          theme,
-		onSuccess:      onSuccess,
-		client:         client,
-		nicknameEditor: &component.TextField{Editor: widget.Editor{}},
-		signEditor:     &component.TextField{Editor: widget.Editor{}},
-		submitButton:   IconButton{Theme: theme, Icon: submitIcon, Enabled: true},
+		Theme:            theme,
+		avatar:           Avatar{Size: 64},
+		onSuccess:        onSuccess,
+		client:           client,
+		nicknameEditor:   &component.TextField{Editor: widget.Editor{}},
+		signEditor:       &component.TextField{Editor: widget.Editor{}},
+		serverAddrEditor: &component.TextField{Editor: widget.Editor{}},
+		submitButton:     IconButton{Theme: theme, Icon: submitIcon, Enabled: true},
 	}
 	s.submitButton.OnClick = func(gtx layout.Context) {
 		client.Nickname = s.nicknameEditor.Text()
 		client.Sign = core.Sign(s.signEditor.Text())
+		client.ServerAddr = s.serverAddrEditor.Text()
 		client.SendSign()
 		client.Store()
 		s.onSuccess(gtx)
@@ -54,12 +59,15 @@ func (s *settingsForm) Layout(gtx layout.Context) layout.Dimensions {
 	if len(s.signEditor.Text()) == 0 {
 		s.signEditor.SetText(string(s.client.Sign))
 	}
+	if len(s.serverAddrEditor.Text()) == 0 {
+		s.serverAddrEditor.SetText(s.client.ServerAddr)
+	}
 	gtx.Constraints.Min.X = gtx.Constraints.Max.X
 	dimensions := layout.Flex{Spacing: layout.SpaceSides}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical, Alignment: layout.Middle}.Layout(gtx,
 				layout.Rigid(layout.Spacer{Height: unit.Dp(25)}.Layout),
-				layout.Rigid(avatar.Layout),
+				layout.Rigid(s.avatar.Layout),
 				layout.Rigid(layout.Spacer{Height: unit.Dp(15)}.Layout),
 				layout.Rigid(s.drawInputArea("Nickname:", func(gtx layout.Context) layout.Dimensions {
 					return s.nicknameEditor.Layout(gtx, s.Theme, "")
@@ -69,6 +77,10 @@ func (s *settingsForm) Layout(gtx layout.Context) layout.Dimensions {
 					return s.signEditor.Layout(gtx, s.Theme, "")
 				})),
 				layout.Rigid(layout.Spacer{Height: unit.Dp(15)}.Layout),
+				layout.Rigid(s.drawInputArea("Server Addr:", func(gtx layout.Context) layout.Dimensions {
+					return s.serverAddrEditor.Layout(gtx, s.Theme, "")
+				})),
+				layout.Rigid(layout.Spacer{Height: unit.Dp(25)}.Layout),
 				layout.Rigid(s.submitButton.Layout),
 				layout.Rigid(layout.Spacer{Height: unit.Dp(30)}.Layout),
 			)
@@ -110,7 +122,7 @@ func (s *settingsForm) drawInputArea(label string, widget layout.Widget) func(gt
 			layout.Flexed(0.6, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Spacing: layout.SpaceEnd}.Layout(gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						gtx.Constraints.Max.X = gtx.Dp(unit.Dp(160))
+						gtx.Constraints.Max.X = gtx.Dp(unit.Dp(175))
 						return widget(gtx)
 					}),
 				)
