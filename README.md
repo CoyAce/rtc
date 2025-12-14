@@ -16,7 +16,8 @@
 
 设计原则：极简主义，keep it simple and stupid
 
-后续：
+# 后续
+
 1. 支持语音、电话、视频交流  
 2. 支持p2p通信，相关库：[libp2p](https://github.com/libp2p/go-libp2p)  
 3. 表情包，消息框支持图片边框
