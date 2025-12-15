@@ -26,8 +26,8 @@ func Draw(window *app.Window, client *core.Client) error {
 	// listen for events in the messages channel
 	go func() {
 		for m := range client.SignedMessages {
-			message := Message{Theme: theme, State: Sent, UUID: client.FullID(), Sender: m.UUID,
-				Text: string(m.Payload), CreatedAt: time.Now()}
+			message := Message{Sent, theme, client.FullID(),
+				string(m.Payload), m.Sign.UUID, time.Now()}
 			message.AddTo(messageList)
 			messageList.ScrollToEnd = true
 			window.Invalidate()
@@ -59,12 +59,13 @@ func Draw(window *app.Window, client *core.Client) error {
 			// ---------- Handle input ----------
 			if messageEditor.Submitted(gtx) {
 				msg := strings.TrimSpace(inputField.Text())
+				message := Message{Stateless, theme, client.FullID(), msg, client.FullID(), time.Now()}
 				if !client.Connected || client.SendText(msg) != nil {
-					message := Message{Theme: theme, Sender: client.FullID(), UUID: client.FullID(),
-						Text: msg, CreatedAt: time.Now(), State: Stateless}
-					message.AddTo(messageList)
 					messageList.ScrollToEnd = true
+				} else {
+					message.State = Sent
 				}
+				message.AddTo(messageList)
 				inputField.Clear()
 			}
 

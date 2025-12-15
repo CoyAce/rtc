@@ -13,13 +13,22 @@ func TestListenPacketUDP(t *testing.T) {
 	msgAck := Ack{SrcOp: OpSignedMSG, Block: 0}
 	msgAckBytes, err := msgAck.Marshal()
 
-	sign := Sign("test")
-	signBytes, _ := sign.Marshal()
+	sign := "test"
 
 	uuid := "#00001"
-	text := "beautiful world"
-	msg := SignedMessage{Sign: string(sign), UUID: uuid, Payload: []byte(text)}
-	msgBytes, err := msg.Marshal()
+	clientSign := Sign{sign, uuid}
+	clientSignPkt, _ := clientSign.Marshal()
+
+	uuidA := "#00002"
+	clientASign := Sign{sign, uuidA}
+
+	text := "hello beautiful world"
+	clientMsg := SignedMessage{Sign: clientSign, Payload: []byte(text)}
+	clientMsgPkt, err := clientMsg.Marshal()
+
+	textA := "beautiful world"
+	clientAMsg := SignedMessage{Sign: clientASign, Payload: []byte(textA)}
+	clientAMsgPkt, err := clientAMsg.Marshal()
 
 	serverAddr := setUpServer(t)
 	client, err := setUpClient(t)
@@ -30,7 +39,7 @@ func TestListenPacketUDP(t *testing.T) {
 	sAddr, _ := net.ResolveUDPAddr("udp", serverAddr)
 
 	// send sign
-	_, err = client.WriteTo(signBytes, sAddr)
+	_, err = client.WriteTo(clientSignPkt, sAddr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,27 +53,27 @@ func TestListenPacketUDP(t *testing.T) {
 		t.Errorf("expected reply %q; actual reply %q", signAckBytes, buf[:n])
 	}
 
-	// send text
-	clientA := Client{ServerAddr: serverAddr, Status: make(chan struct{}), UUID: uuid, Sign: sign}
+	// clientA send text
+	clientA := Client{ServerAddr: serverAddr, Status: make(chan struct{}), UUID: uuidA, Sign: sign}
 	go func() {
 		clientA.ListenAndServe("127.0.0.1:")
 	}()
 	clientA.Ready()
-	clientA.SendText(text)
+	clientA.SendText(textA)
 
-	// read text
+	// client read text. client should receive "beautiful world" from clientA
 	n, _, err = client.ReadFrom(buf)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(msgBytes, buf[:n]) {
-		t.Errorf("expected reply %q; actual reply %q", signAckBytes, buf[:n])
+	if !bytes.Equal(clientAMsgPkt, buf[:n]) {
+		t.Errorf("expected reply %q; actual reply %q", clientAMsgPkt, buf[:n])
 	}
 	// send ack
 	client.WriteTo(msgAckBytes, sAddr)
 
-	// test send text, server should ack
-	_, err = client.WriteTo(msgBytes, sAddr)
+	// client send text, server should ack
+	_, err = client.WriteTo(clientMsgPkt, sAddr)
 	if err != nil {
 		t.Fatal(err)
 	}

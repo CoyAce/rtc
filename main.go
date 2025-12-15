@@ -42,7 +42,7 @@ func main() {
 		fmt.Scanln(&sign)
 
 		// setup client
-		c := core.Client{ServerAddr: *address, Status: make(chan struct{}), UUID: uuid, Sign: core.Sign(sign)}
+		c := core.Client{ServerAddr: *address, Status: make(chan struct{}), UUID: uuid, Sign: sign}
 		go func() {
 			c.ListenAndServe("127.0.0.1:")
 		}()
@@ -61,7 +61,7 @@ func main() {
 	// setup client
 	c := core.Load()
 	if c == nil {
-		c = &core.Client{ServerAddr: *address, Status: make(chan struct{}), UUID: uuid, Sign: core.Sign("default")}
+		c = &core.Client{ServerAddr: *address, Status: make(chan struct{}), UUID: uuid, Sign: "default"}
 	}
 	c.Store()
 	go func() {

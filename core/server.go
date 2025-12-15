@@ -87,9 +87,9 @@ func (s *Server) ack(conn net.PacketConn, clientAddr net.Addr, code OpCode, bloc
 	// log.Printf("[%s] write ack finished, soucre addr [%s]", clientAddr, conn.LocalAddr())
 }
 
-func (s *Server) handle(sign string, bytes []byte) {
+func (s *Server) handle(sign Sign, bytes []byte) {
 	for addr, v := range s.SignMap {
-		if v == Sign(sign) {
+		if v.Sign == sign.Sign && v.UUID != sign.UUID {
 			conn, err := net.Dial("udp", addr)
 			if err != nil {
 				log.Printf("[%s] dial failed: %v", addr, err)

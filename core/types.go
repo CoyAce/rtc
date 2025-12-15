@@ -181,18 +181,26 @@ func (d *Data) Unmarshal(p []byte) error {
 	return nil
 }
 
-type Sign string
+type Sign struct {
+	Sign string
+	UUID string
+}
 
 func (sign *Sign) Marshal() ([]byte, error) {
 	b := new(bytes.Buffer)
-	b.Grow(len(*sign) + 2)
+	b.Grow(2 + len(sign.Sign) + 1 + len(sign.UUID) + 1)
 
 	err := binary.Write(b, binary.BigEndian, OpSign) // write operation code
 	if err != nil {
 		return nil, err
 	}
 
-	err = writeString(b, string(*sign)) // write Sign
+	err = writeString(b, sign.Sign) // write Sign
+	if err != nil {
+		return nil, err
+	}
+
+	err = writeString(b, sign.UUID) // write UUID
 	if err != nil {
 		return nil, err
 	}
@@ -208,22 +216,25 @@ func (sign *Sign) Unmarshal(p []byte) error {
 		return errors.New("invalid DATA")
 	}
 
-	s, err := readString(r) // read sign
+	sign.Sign, err = readString(r) // read sign
 	if err != nil {
 		return errors.New("invalid DATA")
 	}
-	*sign = Sign(s)
+
+	sign.UUID, err = readString(r) // read UUID
+	if err != nil {
+		return errors.New("invalid DATA")
+	}
 	return nil
 }
 
 type SignedMessage struct {
-	Sign    string
-	UUID    string
+	Sign    Sign
 	Payload []byte
 }
 
 func (m *SignedMessage) Marshal() ([]byte, error) {
-	size := 2 + len(m.Sign) + 1 + len(m.UUID) + 1 + len(m.Payload)
+	size := 2 + len(m.Sign.Sign) + 1 + len(m.Sign.UUID) + 1 + len(m.Payload)
 	if size > DatagramSize {
 		return nil, errors.New("packet is greater than DatagramSize")
 	}
@@ -235,15 +246,11 @@ func (m *SignedMessage) Marshal() ([]byte, error) {
 		return nil, err
 	}
 
-	err = writeString(b, m.Sign) // write Sign
+	sign, err := m.Sign.Marshal()
 	if err != nil {
 		return nil, err
 	}
-
-	err = writeString(b, m.UUID) // write UUID
-	if err != nil {
-		return nil, err
-	}
+	b.Write(sign[2:])
 
 	b.Write(m.Payload)
 	return b.Bytes(), nil
@@ -260,12 +267,12 @@ func (m *SignedMessage) Unmarshal(p []byte) error {
 		return errors.New("invalid DATA")
 	}
 
-	m.Sign, err = readString(r) // read sign
+	m.Sign.Sign, err = readString(r) // read sign
 	if err != nil {
 		return errors.New("invalid DATA")
 	}
 
-	m.UUID, err = readString(r) // read sign
+	m.Sign.UUID, err = readString(r) // read sign
 	if err != nil {
 		return errors.New("invalid DATA")
 	}
@@ -280,10 +287,10 @@ type Ack struct {
 }
 
 func (a *Ack) Marshal() ([]byte, error) {
-	cap := 2 + 2 + 4 // operation code + source operation code + block number
+	size := 2 + 2 + 4 // operation code + source operation code + block number
 
 	b := new(bytes.Buffer)
-	b.Grow(cap)
+	b.Grow(size)
 
 	err := binary.Write(b, binary.BigEndian, uint16(OpAck)) // write operation code
 	if err != nil {

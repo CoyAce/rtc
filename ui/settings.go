@@ -48,7 +48,7 @@ func NewSettingsForm(theme *material.Theme, client *core.Client, onSuccess func(
 	}
 	s.submitButton.OnClick = func(gtx layout.Context) {
 		client.Nickname = s.nicknameEditor.Text()
-		client.Sign = core.Sign(s.signEditor.Text())
+		client.Sign = s.signEditor.Text()
 		client.ServerAddr = s.serverAddrEditor.Text()
 		client.SendSign()
 		client.Store()

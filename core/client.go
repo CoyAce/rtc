@@ -21,7 +21,7 @@ type Client struct {
 	Status         chan struct{}      `json:"-"`
 	Conn           net.PacketConn     `json:"-"`
 	Connected      bool
-	Sign           Sign
+	Sign           string
 	ServerAddr     string
 	SAddr          net.Addr      `json:"-"`
 	Retries        uint8         // the number of times to retry a failed transmission
@@ -85,7 +85,7 @@ func (c *Client) SendText(text string) error {
 	}
 	defer func() { _ = conn.Close() }()
 
-	msg := SignedMessage{Sign: string(c.Sign), UUID: c.FullID(), Payload: []byte(text)}
+	msg := SignedMessage{Sign: Sign{c.Sign, c.FullID()}, Payload: []byte(text)}
 	pkt, err := msg.Marshal()
 	if err != nil {
 		log.Printf("[%s] marshal failed: %v", text, err)
@@ -138,7 +138,8 @@ func (c *Client) ListenAndServe(addr string) {
 }
 
 func (c *Client) SendSign() {
-	pkt, err := c.Sign.Marshal()
+	sign := Sign{c.Sign, c.FullID()}
+	pkt, err := sign.Marshal()
 	if err != nil {
 		log.Printf("[%s] marshal failed: %v", c.Sign, err)
 	}
@@ -181,7 +182,7 @@ func (c *Client) serve(conn net.PacketConn) {
 			continue
 		case msg.Unmarshal(buf[:n]) == nil:
 			s := string(msg.Payload)
-			log.Printf("received text [%s] from [%s]\n", s, msg.UUID)
+			log.Printf("received text [%s] from [%s]\n", s, msg.Sign.UUID)
 			c.SignedMessages <- msg
 			c.ack(conn, addr, OpSignedMSG, 0)
 		case wrq.Unmarshal(buf[:n]) == nil:
