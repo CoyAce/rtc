@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	DatagramSize = 1286
-	BlockSize    = DatagramSize - 2 - 4 // DataGramSize - OpCode -Block
+	DatagramSize = 1460
+	BlockSize    = DatagramSize - 2 - 4 - 4 // DataGramSize - OpCode - FileId - Block
 )
 
 type OpCode uint16
@@ -54,12 +54,13 @@ func readString(r *bytes.Buffer) (string, error) {
 
 type WriteReq struct {
 	Code     OpCode
+	FileId   uint32
 	UUID     string
 	Filename string
 }
 
 func (q *WriteReq) Marshal() ([]byte, error) {
-	size := 2 + len(q.UUID) + 1 + len(q.Filename) + 1
+	size := 2 + 4 + len(q.UUID) + 1 + len(q.Filename) + 1
 	b := new(bytes.Buffer)
 	b.Grow(size)
 
@@ -68,6 +69,11 @@ func (q *WriteReq) Marshal() ([]byte, error) {
 	}
 
 	err := binary.Write(b, binary.BigEndian, q.Code) // write operation code
+	if err != nil {
+		return nil, err
+	}
+
+	err = binary.Write(b, binary.BigEndian, q.FileId) // write file id
 	if err != nil {
 		return nil, err
 	}
@@ -97,6 +103,11 @@ func (q *WriteReq) Unmarshal(p []byte) error {
 		return errors.New("invalid WRQ")
 	}
 
+	err = binary.Read(r, binary.BigEndian, &q.FileId) // read file id
+	if err != nil {
+		return errors.New("invalid WRQ")
+	}
+
 	q.UUID, err = readString(r)
 	if err != nil {
 		return errors.New("invalid WRQ")
@@ -111,6 +122,7 @@ func (q *WriteReq) Unmarshal(p []byte) error {
 }
 
 type Data struct {
+	FileId  uint32
 	Block   uint32
 	Payload io.Reader
 }
@@ -122,6 +134,11 @@ func (d *Data) Marshal() ([]byte, error) {
 	d.Block++ // block numbers increment from 1
 
 	err := binary.Write(b, binary.BigEndian, OpData) // write operation code
+	if err != nil {
+		return nil, err
+	}
+
+	err = binary.Write(b, binary.BigEndian, d.FileId) // write file id
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +158,7 @@ func (d *Data) Marshal() ([]byte, error) {
 }
 
 func (d *Data) Unmarshal(p []byte) error {
-	if l := len(p); l < 6 || l > DatagramSize {
+	if l := len(p); l < 10 || l > DatagramSize {
 		return errors.New("invalid DATA")
 	}
 
@@ -152,12 +169,14 @@ func (d *Data) Unmarshal(p []byte) error {
 		return errors.New("invalid DATA")
 	}
 
-	err = binary.Read(bytes.NewReader(p[2:6]), binary.BigEndian, &d.Block)
+	err = binary.Read(bytes.NewReader(p[2:6]), binary.BigEndian, &d.FileId)
 	if err != nil {
 		return errors.New("invalid DATA")
 	}
 
-	d.Payload = bytes.NewBuffer(p[6:])
+	err = binary.Read(bytes.NewReader(p[6:10]), binary.BigEndian, &d.Block)
+
+	d.Payload = bytes.NewBuffer(p[10:])
 
 	return nil
 }
