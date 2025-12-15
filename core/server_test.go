@@ -8,9 +8,9 @@ import (
 
 func TestListenPacketUDP(t *testing.T) {
 	// init data
-	signAck := Ack{Op: OpSign, Block: 0}
+	signAck := Ack{SrcOp: OpSign, Block: 0}
 	signAckBytes, err := signAck.Marshal()
-	msgAck := Ack{Op: OpSignedMSG, Block: 0}
+	msgAck := Ack{SrcOp: OpSignedMSG, Block: 0}
 	msgAckBytes, err := msgAck.Marshal()
 
 	sign := Sign("test")

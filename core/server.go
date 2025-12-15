@@ -67,7 +67,7 @@ func (s *Server) Serve(conn net.PacketConn) error {
 }
 
 func (s *Server) ack(conn net.PacketConn, clientAddr net.Addr, code OpCode) {
-	ack := Ack{Op: code, Block: 0}
+	ack := Ack{SrcOp: code, Block: 0}
 	bytes, err := ack.Marshal()
 	_, err = conn.WriteTo(bytes, clientAddr)
 	if err != nil {

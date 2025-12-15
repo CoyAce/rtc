@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"io"
 	"strings"
 )
 
 const (
-	DatagramSize = 1280
+	DatagramSize = 1286
+	BlockSize    = DatagramSize - 2 - 4 // DataGramSize - OpCode -Block
 )
 
 type OpCode uint16
@@ -21,7 +23,144 @@ const (
 	OpSignedMSG
 	OpAck
 	OpErr
+	OpSyncIcon
 )
+
+func writeString(b *bytes.Buffer, str string) error {
+	_, err := b.WriteString(str) // write str
+	if err != nil {
+		return err
+	}
+
+	err = b.WriteByte(0) // write 0 byte
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func readString(r *bytes.Buffer) (string, error) {
+	str, err := r.ReadString(0) //read filename
+	if err != nil {
+		return "", err
+	}
+
+	str = strings.TrimRight(str, "\x00") // remove the 0-byte
+	if len(str) == 0 {
+		return "", err
+	}
+	return str, nil
+}
+
+type WriteReq struct {
+	Code     OpCode
+	UUID     string
+	Filename string
+}
+
+func (q *WriteReq) Marshal() ([]byte, error) {
+	size := 2 + len(q.UUID) + 1 + len(q.Filename) + 1
+	b := new(bytes.Buffer)
+	b.Grow(size)
+
+	if q.Code != OpWRQ && q.Code != OpSyncIcon {
+		return nil, errors.New("invalid WRQ")
+	}
+
+	err := binary.Write(b, binary.BigEndian, q.Code) // write operation code
+	if err != nil {
+		return nil, err
+	}
+
+	err = writeString(b, q.UUID) // write UUID
+	if err != nil {
+		return nil, err
+	}
+
+	err = writeString(b, q.Filename) // write filename
+	if err != nil {
+		return nil, err
+	}
+
+	return b.Bytes(), nil
+}
+
+func (q *WriteReq) Unmarshal(p []byte) error {
+	r := bytes.NewBuffer(p)
+
+	err := binary.Read(r, binary.BigEndian, &q.Code) // read operation code
+	if err != nil {
+		return err
+	}
+
+	if q.Code != OpWRQ && q.Code != OpSyncIcon {
+		return errors.New("invalid WRQ")
+	}
+
+	q.UUID, err = readString(r)
+	if err != nil {
+		return errors.New("invalid WRQ")
+	}
+
+	q.Filename, err = readString(r)
+	if err != nil {
+		return errors.New("invalid WRQ")
+	}
+
+	return nil
+}
+
+type Data struct {
+	Block   uint32
+	Payload io.Reader
+}
+
+func (d *Data) Marshal() ([]byte, error) {
+	b := new(bytes.Buffer)
+	b.Grow(DatagramSize)
+
+	d.Block++ // block numbers increment from 1
+
+	err := binary.Write(b, binary.BigEndian, OpData) // write operation code
+	if err != nil {
+		return nil, err
+	}
+
+	err = binary.Write(b, binary.BigEndian, d.Block) // write block number
+	if err != nil {
+		return nil, err
+	}
+
+	// write up to BlockSize worth of bytes
+	_, err = io.CopyN(b, d.Payload, BlockSize)
+	if err != nil && err != io.EOF {
+		return nil, err
+	}
+
+	return b.Bytes(), nil
+}
+
+func (d *Data) Unmarshal(p []byte) error {
+	if l := len(p); l < 6 || l > DatagramSize {
+		return errors.New("invalid DATA")
+	}
+
+	var code OpCode
+
+	err := binary.Read(bytes.NewReader(p[:2]), binary.BigEndian, &code)
+	if err != nil || code != OpData {
+		return errors.New("invalid DATA")
+	}
+
+	err = binary.Read(bytes.NewReader(p[2:6]), binary.BigEndian, &d.Block)
+	if err != nil {
+		return errors.New("invalid DATA")
+	}
+
+	d.Payload = bytes.NewBuffer(p[6:])
+
+	return nil
+}
 
 type Sign string
 
@@ -34,12 +173,7 @@ func (sign *Sign) Marshal() ([]byte, error) {
 		return nil, err
 	}
 
-	_, err = b.WriteString(string(*sign)) // write Sign
-	if err != nil {
-		return nil, err
-	}
-
-	err = b.WriteByte(0) // write 0 byte
+	err = writeString(b, string(*sign)) // write Sign
 	if err != nil {
 		return nil, err
 	}
@@ -55,12 +189,8 @@ func (sign *Sign) Unmarshal(p []byte) error {
 		return errors.New("invalid DATA")
 	}
 
-	s, err := r.ReadString(0) // read sign
+	s, err := readString(r) // read sign
 	if err != nil {
-		return errors.New("invalid DATA")
-	}
-	s = strings.TrimRight((s), "\x00") // remove the 0-byte
-	if len(s) == 0 {
 		return errors.New("invalid DATA")
 	}
 	*sign = Sign(s)
@@ -86,22 +216,12 @@ func (m *SignedMessage) Marshal() ([]byte, error) {
 		return nil, err
 	}
 
-	_, err = b.WriteString(m.Sign) // write Sign
+	err = writeString(b, m.Sign) // write Sign
 	if err != nil {
 		return nil, err
 	}
 
-	err = b.WriteByte(0) // write 0 byte
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = b.WriteString(m.UUID) // write UUID
-	if err != nil {
-		return nil, err
-	}
-
-	err = b.WriteByte(0) // write 0 byte
+	err = writeString(b, m.UUID) // write UUID
 	if err != nil {
 		return nil, err
 	}
@@ -121,21 +241,13 @@ func (m *SignedMessage) Unmarshal(p []byte) error {
 		return errors.New("invalid DATA")
 	}
 
-	m.Sign, err = r.ReadString(0) // read sign
+	m.Sign, err = readString(r) // read sign
 	if err != nil {
-		return errors.New("invalid DATA")
-	}
-	m.Sign = strings.TrimRight((m.Sign), "\x00") // remove the 0-byte
-	if len(m.Sign) == 0 {
 		return errors.New("invalid DATA")
 	}
 
-	m.UUID, err = r.ReadString(0) // read sign
+	m.UUID, err = readString(r) // read sign
 	if err != nil {
-		return errors.New("invalid DATA")
-	}
-	m.UUID = strings.TrimRight((m.UUID), "\x00") // remove the 0-byte
-	if len(m.UUID) == 0 {
 		return errors.New("invalid DATA")
 	}
 
@@ -144,7 +256,7 @@ func (m *SignedMessage) Unmarshal(p []byte) error {
 }
 
 type Ack struct {
-	Op    OpCode
+	SrcOp OpCode
 	Block uint32
 }
 
@@ -159,7 +271,7 @@ func (a *Ack) Marshal() ([]byte, error) {
 		return nil, err
 	}
 
-	err = binary.Write(b, binary.BigEndian, uint16(a.Op)) // write source operation code
+	err = binary.Write(b, binary.BigEndian, uint16(a.SrcOp)) // write source operation code
 	if err != nil {
 		return nil, err
 	}
@@ -185,7 +297,7 @@ func (a *Ack) Unmarshal(p []byte) error {
 		return errors.New("invalid DATA")
 	}
 
-	err = binary.Read(r, binary.BigEndian, &a.Op) // read source operation code
+	err = binary.Read(r, binary.BigEndian, &a.SrcOp) // read source operation code
 
 	return binary.Read(r, binary.BigEndian, &a.Block) // read block number
 }

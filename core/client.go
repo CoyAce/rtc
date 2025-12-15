@@ -119,7 +119,7 @@ func (c *Client) serve(conn net.PacketConn) {
 
 		switch {
 		case ackPkt.Unmarshal(buf[:n]) == nil:
-			if ackPkt.Op == OpSign {
+			if ackPkt.SrcOp == OpSign {
 				c.Connected = true
 			}
 			continue
@@ -133,7 +133,7 @@ func (c *Client) serve(conn net.PacketConn) {
 }
 
 func (c *Client) ack(conn net.PacketConn, clientAddr net.Addr, code OpCode) {
-	ack := Ack{Op: code, Block: 0}
+	ack := Ack{SrcOp: code, Block: 0}
 	bytes, err := ack.Marshal()
 	_, err = conn.WriteTo(bytes, clientAddr)
 	if err != nil {
