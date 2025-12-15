@@ -43,6 +43,8 @@ func (s *Server) Serve(conn net.PacketConn) error {
 	var (
 		sign Sign
 		msg  SignedMessage
+		wrq  WriteReq
+		data = Data{}
 	)
 
 	for {
@@ -56,18 +58,26 @@ func (s *Server) Serve(conn net.PacketConn) error {
 		switch {
 		case sign.Unmarshal(bytes) == nil:
 			s.SignMap[addr.String()] = sign
+			s.ack(conn, addr, OpSign, 0)
 			log.Printf("[%s] set sign: [%s]", addr.String(), sign)
-			go s.ack(conn, addr, OpSign)
 		case msg.Unmarshal(bytes) == nil:
 			log.Printf("received msg [%s] from [%s]", string(msg.Payload), addr.String())
+			s.ack(conn, addr, OpSignedMSG, 0)
 			go s.handle(msg.Sign, bytes)
-			go s.ack(conn, addr, OpSignedMSG)
+		case wrq.Unmarshal(bytes) == nil:
+			if wrq.Code == OpSyncIcon {
+				s.ack(conn, addr, OpSyncIcon, 0)
+				go s.handle(msg.Sign, bytes)
+			}
+		case data.Unmarshal(bytes) == nil:
+			s.ack(conn, addr, OpData, data.Block)
+			go s.handle(msg.Sign, bytes)
 		}
 	}
 }
 
-func (s *Server) ack(conn net.PacketConn, clientAddr net.Addr, code OpCode) {
-	ack := Ack{SrcOp: code, Block: 0}
+func (s *Server) ack(conn net.PacketConn, clientAddr net.Addr, code OpCode, block uint32) {
+	ack := Ack{SrcOp: code, Block: block}
 	bytes, err := ack.Marshal()
 	_, err = conn.WriteTo(bytes, clientAddr)
 	if err != nil {

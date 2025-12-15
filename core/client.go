@@ -1,8 +1,11 @@
 package core
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"image"
+	"image/png"
 	"log"
 	"net"
 	"os"
@@ -30,6 +33,44 @@ func (c *Client) Ready() {
 	}
 }
 
+func (c *Client) SyncIcon(img image.Image) error {
+	conn, err := net.Dial("udp", c.ServerAddr)
+	if err != nil {
+		log.Printf("[%s] dial failed: %v", c.ServerAddr, err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	buf := new(bytes.Buffer)
+	err = png.Encode(buf, img)
+	if err != nil {
+		return err
+	}
+	data := Data{Payload: bytes.NewReader(buf.Bytes())}
+
+	pktBuf := make([]byte, DatagramSize)
+	wrq := WriteReq{OpSyncIcon, c.FullID(), "icon.png"}
+	pkt, err := wrq.Marshal()
+	if err != nil {
+		log.Printf("[%v] write request marshal failed: %v", wrq, err)
+	}
+	_, err = c.sendPacket(conn, pktBuf, pkt, 0)
+	if err != nil {
+		return err
+	}
+
+	for n := DatagramSize; n == DatagramSize; {
+		pkt, err := data.Marshal()
+		if err != nil {
+			log.Printf("[%s] marshal failed: %v", "icon", err)
+		}
+		n, err = c.sendPacket(conn, pktBuf, pkt, data.Block)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (c *Client) SendText(text string) error {
 	conn, err := net.Dial("udp", c.ServerAddr)
 	if err != nil {
@@ -38,12 +79,14 @@ func (c *Client) SendText(text string) error {
 	defer func() { _ = conn.Close() }()
 
 	msg := SignedMessage{Sign: string(c.Sign), UUID: c.FullID(), Payload: []byte(text)}
-	bytes, err := msg.Marshal()
+	pkt, err := msg.Marshal()
 	if err != nil {
 		log.Printf("[%s] marshal failed: %v", text, err)
 	}
 
-	return c.sendPacket(conn, bytes)
+	buf := make([]byte, DatagramSize)
+	_, err = c.sendPacket(conn, buf, pkt, 0)
+	return err
 }
 
 func (c *Client) FullID() string {
@@ -86,11 +129,11 @@ func (c *Client) ListenAndServe(addr string) {
 }
 
 func (c *Client) SendSign() {
-	bytes, err := c.Sign.Marshal()
+	pkt, err := c.Sign.Marshal()
 	if err != nil {
 		log.Printf("[%s] marshal failed: %v", c.Sign, err)
 	}
-	_, err = c.Conn.WriteTo(bytes, c.SAddr)
+	_, err = c.Conn.WriteTo(pkt, c.SAddr)
 	if err != nil {
 		log.Printf("[%s] write failed: %v", c.ServerAddr, err)
 		return
@@ -134,24 +177,22 @@ func (c *Client) serve(conn net.PacketConn) {
 
 func (c *Client) ack(conn net.PacketConn, clientAddr net.Addr, code OpCode) {
 	ack := Ack{SrcOp: code, Block: 0}
-	bytes, err := ack.Marshal()
-	_, err = conn.WriteTo(bytes, clientAddr)
+	pkt, err := ack.Marshal()
+	_, err = conn.WriteTo(pkt, clientAddr)
 	if err != nil {
 		log.Printf("[%s] write failed: %v", clientAddr, err)
 		return
 	}
-	// log.Printf("[%s] write ack finished, soucre addr [%s]", clientAddr, conn.LocalAddr())
 }
 
-func (c *Client) sendPacket(conn net.Conn, bytes []byte) error {
+func (c *Client) sendPacket(conn net.Conn, buf []byte, bytes []byte, block uint32) (int, error) {
 	var ackPkt Ack
-	buf := make([]byte, DatagramSize)
 RETRY:
 	for i := c.Retries; i > 0; i-- {
-		_, err := conn.Write(bytes)
+		n, err := conn.Write(bytes)
 		if err != nil {
 			log.Printf("[%s] write failed: %v", c.ServerAddr, err)
-			return err
+			return 0, err
 		}
 
 		// wait for the Server's ACK packet
@@ -173,12 +214,14 @@ RETRY:
 
 		switch {
 		case ackPkt.Unmarshal(buf) == nil:
-			return nil
+			if block == 0 || ackPkt.Block == block {
+				return n, nil
+			}
 		default:
 			log.Printf("[%s] bad packet", c.ServerAddr)
 		}
 	}
-	return errors.New("exhausted retries")
+	return 0, errors.New("exhausted retries")
 }
 
 var configName = "config.json"
