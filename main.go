@@ -17,6 +17,7 @@ import (
 
 var (
 	address         = flag.String("a", "127.0.0.1:52000", "listen address")
+	config          = flag.String("c", "config.json", "config file")
 	serverMode      = flag.Bool("s", false, "server mode")
 	commandLineMode = flag.Bool("i", false, "server mode")
 )
@@ -42,7 +43,7 @@ func main() {
 		fmt.Scanln(&sign)
 
 		// setup client
-		c := core.Client{ServerAddr: *address, Status: make(chan struct{}), UUID: uuid, Sign: sign}
+		c := core.Client{ConfigName: *config, ServerAddr: *address, Status: make(chan struct{}), UUID: uuid, Sign: sign}
 		go func() {
 			c.ListenAndServe("127.0.0.1:")
 		}()
@@ -59,9 +60,10 @@ func main() {
 	}
 
 	// setup client
-	c := core.Load()
+	c := core.Load(*config)
+	c.ConfigName = *config
 	if c == nil {
-		c = &core.Client{ServerAddr: *address, Status: make(chan struct{}), UUID: uuid, Sign: "default"}
+		c = &core.Client{ConfigName: *config, ServerAddr: *address, Status: make(chan struct{}), UUID: uuid, Sign: "default"}
 	}
 	c.Store()
 	go func() {

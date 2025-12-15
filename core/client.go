@@ -30,7 +30,7 @@ func (f *FileWriter) Loop() {
 		select {
 		case id := <-f.FileId:
 			req := f.wrq[id]
-			write(getDir(req.UUID), getFileName(req), f.fileData[id][:1])
+			write(getDir(req.UUID), getFileName(req), f.fileData[id])
 			delete(f.wrq, id)
 			delete(f.fileData, id)
 		case req := <-f.Wrq:
@@ -51,6 +51,18 @@ func (f *FileWriter) Loop() {
 		}
 	}
 
+}
+
+func removeDuplicates(data []Data) []Data {
+	seen := make(map[uint32]bool)
+	result := []Data{}
+	for _, d := range data {
+		if !seen[d.Block] {
+			seen[d.Block] = true
+			result = append(result, d)
+		}
+	}
+	return result
 }
 
 func removeFile(filePath string) {
@@ -77,6 +89,7 @@ func write(dir string, filename string, data []Data) []Data {
 	if len(data) == 0 {
 		return nil
 	}
+	data = removeDuplicates(data)
 	sort.Slice(data, func(i, j int) bool {
 		return data[i].Block < data[j].Block
 	})
@@ -125,11 +138,12 @@ func write(dir string, filename string, data []Data) []Data {
 
 type Client struct {
 	UUID           string
+	ConfigName     string `json:"-"`
 	Nickname       string
 	SignedMessages chan SignedMessage `json:"-"`
 	Status         chan struct{}      `json:"-"`
 	Conn           net.PacketConn     `json:"-"`
-	Connected      bool
+	Connected      bool               `json:"-"`
 	Sign           string
 	ServerAddr     string
 	SAddr          net.Addr      `json:"-"`
@@ -359,9 +373,7 @@ RETRY:
 	return 0, errors.New("exhausted retries")
 }
 
-var configName = "config.json"
-
-func Load() *Client {
+func Load(configName string) *Client {
 	_, err := os.Stat(configName)
 	if os.IsNotExist(err) {
 		return nil
@@ -381,15 +393,15 @@ func Load() *Client {
 }
 
 func (c *Client) Store() {
-	file, err := os.Create(configName)
+	file, err := os.Create(c.ConfigName)
 	if err != nil {
-		panic(err)
+		log.Printf("[%s] create file failed: %v", c.ConfigName, err)
 	}
 	defer file.Close()
 
 	encoder := json.NewEncoder(file)
 	err = encoder.Encode(&c)
 	if err != nil {
-		panic(err)
+		log.Printf("[%s] encode file failed: %v", c.ConfigName, err)
 	}
 }
