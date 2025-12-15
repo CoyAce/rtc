@@ -11,6 +11,7 @@ import (
 	"os"
 	"syscall"
 	"time"
+	"unsafe"
 )
 
 type Client struct {
@@ -25,6 +26,8 @@ type Client struct {
 	SAddr          net.Addr      `json:"-"`
 	Retries        uint8         // the number of times to retry a failed transmission
 	Timeout        time.Duration // the duration to wait for an acknowledgement
+	fileWrq        map[uint32][]WriteReq
+	fileData       map[uint32][]Data
 }
 
 func (c *Client) Ready() {
@@ -45,10 +48,10 @@ func (c *Client) SyncIcon(img image.Image) error {
 	if err != nil {
 		return err
 	}
-	data := Data{Payload: bytes.NewReader(buf.Bytes())}
+	wrq := WriteReq{OpSyncIcon, Hash(unsafe.Pointer(&buf)), c.FullID(), "icon.png"}
+	data := Data{FileId: wrq.FileId, Payload: bytes.NewReader(buf.Bytes())}
 
 	pktBuf := make([]byte, DatagramSize)
-	wrq := WriteReq{OpSyncIcon, c.FullID(), "icon.png"}
 	pkt, err := wrq.Marshal()
 	if err != nil {
 		log.Printf("[%v] write request marshal failed: %v", wrq, err)
@@ -69,6 +72,10 @@ func (c *Client) SyncIcon(img image.Image) error {
 		}
 	}
 	return nil
+}
+
+func Hash(ptr unsafe.Pointer) uint32 {
+	return uint32(uintptr(ptr))
 }
 
 func (c *Client) SendText(text string) error {
@@ -114,6 +121,8 @@ func (c *Client) ListenAndServe(addr string) {
 	}
 
 	c.SignedMessages = make(chan SignedMessage)
+	c.fileWrq = make(map[uint32][]WriteReq)
+	c.fileData = make(map[uint32][]Data)
 
 	c.SAddr, err = net.ResolveUDPAddr("udp", c.ServerAddr)
 	go func() {
@@ -141,8 +150,12 @@ func (c *Client) SendSign() {
 }
 
 func (c *Client) serve(conn net.PacketConn) {
-	var ackPkt Ack
-	var msg SignedMessage
+	var (
+		ack  Ack
+		msg  SignedMessage
+		data Data
+		wrq  WriteReq
+	)
 	buf := make([]byte, DatagramSize)
 
 	for {
@@ -161,8 +174,8 @@ func (c *Client) serve(conn net.PacketConn) {
 		}
 
 		switch {
-		case ackPkt.Unmarshal(buf[:n]) == nil:
-			if ackPkt.SrcOp == OpSign {
+		case ack.Unmarshal(buf[:n]) == nil:
+			if ack.SrcOp == OpSign {
 				c.Connected = true
 			}
 			continue
@@ -170,13 +183,19 @@ func (c *Client) serve(conn net.PacketConn) {
 			s := string(msg.Payload)
 			log.Printf("received text [%s] from [%s]\n", s, msg.UUID)
 			c.SignedMessages <- msg
-			c.ack(conn, addr, OpSignedMSG)
+			c.ack(conn, addr, OpSignedMSG, 0)
+		case wrq.Unmarshal(buf[:n]) == nil:
+			c.fileWrq[wrq.FileId] = append(c.fileWrq[wrq.FileId], wrq)
+			c.ack(conn, addr, wrq.Code, 0)
+		case data.Unmarshal(buf[:n]) == nil:
+			c.fileData[data.FileId] = append(c.fileData[data.FileId], data)
+			c.ack(conn, addr, OpData, data.Block)
 		}
 	}
 }
 
-func (c *Client) ack(conn net.PacketConn, clientAddr net.Addr, code OpCode) {
-	ack := Ack{SrcOp: code, Block: 0}
+func (c *Client) ack(conn net.PacketConn, clientAddr net.Addr, code OpCode, block uint32) {
+	ack := Ack{SrcOp: code, Block: block}
 	pkt, err := ack.Marshal()
 	_, err = conn.WriteTo(pkt, clientAddr)
 	if err != nil {
