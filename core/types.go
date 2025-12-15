@@ -164,17 +164,17 @@ func (d *Data) Unmarshal(p []byte) error {
 
 	var code OpCode
 
-	err := binary.Read(bytes.NewReader(p[:2]), binary.BigEndian, &code)
+	err := binary.Read(bytes.NewReader(p[:2]), binary.BigEndian, &code) // read operation code
 	if err != nil || code != OpData {
 		return errors.New("invalid DATA")
 	}
 
-	err = binary.Read(bytes.NewReader(p[2:6]), binary.BigEndian, &d.FileId)
+	err = binary.Read(bytes.NewReader(p[2:6]), binary.BigEndian, &d.FileId) // read file id
 	if err != nil {
 		return errors.New("invalid DATA")
 	}
 
-	err = binary.Read(bytes.NewReader(p[6:10]), binary.BigEndian, &d.Block)
+	err = binary.Read(bytes.NewReader(p[6:10]), binary.BigEndian, &d.Block) // read block number
 
 	d.Payload = bytes.NewBuffer(p[10:])
 

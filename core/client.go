@@ -6,13 +6,96 @@ import (
 	"errors"
 	"image"
 	"image/png"
+	"io"
 	"log"
 	"net"
 	"os"
+	"strings"
 	"syscall"
 	"time"
 	"unsafe"
 )
+
+type FileWriter struct {
+	FileId   chan uint32 // finished file id
+	Wrq      chan WriteReq
+	FileData chan Data
+	wrq      map[uint32]WriteReq
+	fileData map[uint32][]Data
+}
+
+func (f *FileWriter) Loop() {
+	for {
+		select {
+		case id := <-f.FileId:
+			req := f.wrq[id]
+			write(getDir(req.UUID), getFileName(req), f.fileData[id])
+			delete(f.wrq, id)
+			delete(f.fileData, id)
+		case req := <-f.Wrq:
+			f.wrq[req.FileId] = req
+			removeFile(getFileName(req))
+		case data := <-f.FileData:
+			f.fileData[data.FileId] = append(f.fileData[data.FileId], data)
+			// received ~100kb
+			if len(f.fileData[data.FileId]) >= 70 {
+				req := f.wrq[data.FileId]
+				write(getDir(req.UUID), getFileName(req), f.fileData[data.FileId])
+				f.fileData[data.FileId] = make([]Data, 0)
+			}
+		}
+	}
+
+}
+
+func removeFile(filePath string) {
+	// 使用os.Stat检查文件是否存在
+	_, err := os.Stat(filePath)
+	if err == nil {
+		// 文件存在，尝试删除
+		err := os.Remove(filePath)
+		if err != nil {
+			log.Printf("Error removing file: %s\n", err)
+		}
+	}
+}
+func getFileName(req WriteReq) string {
+	return getDir(req.UUID) + "/" + req.Filename
+}
+
+func getDir(uuid string) string {
+	return strings.Replace(uuid, "#", "_", -1)
+}
+
+func write(dir string, filename string, data []Data) {
+	// 使用 MkdirAll 确保目录存在
+	if len(dir) != 0 {
+		err := os.MkdirAll(dir, 0755)
+		if err != nil {
+			log.Fatalf("Error creating directory: %v", err)
+		}
+	}
+	// 使用os.O_APPEND, os.O_CREATE, os.O_WRONLY标志
+	// os.O_APPEND: 追加模式，写入的数据会被追加到文件尾部
+	// os.O_CREATE: 如果文件不存在，则创建文件
+	// os.O_WRONLY: 以只写模式打开文件
+	// os.O_TRUNC: 如果该文件已存在，则将其长度截为零，也就是清空文件内容（如果你想追加而不是覆盖，就不要使用这个标志）
+	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Fatalf("error opening file: %v", err)
+	}
+	defer file.Close()
+
+	readers := make([]io.Reader, 0, len(data))
+	for _, d := range data {
+		readers = append(readers, d.Payload)
+	}
+	multiReader := io.MultiReader(readers...)
+	// 使用io.Copy将multiReader的内容写入文件
+	if _, err := io.Copy(file, multiReader); err != nil {
+		log.Fatalf("error writing to file: %v", err)
+	}
+}
 
 type Client struct {
 	UUID           string
@@ -26,8 +109,7 @@ type Client struct {
 	SAddr          net.Addr      `json:"-"`
 	Retries        uint8         // the number of times to retry a failed transmission
 	Timeout        time.Duration // the duration to wait for an acknowledgement
-	fileWrq        map[uint32][]WriteReq
-	fileData       map[uint32][]Data
+	fileWriter     *FileWriter
 }
 
 func (c *Client) Ready() {
@@ -121,8 +203,9 @@ func (c *Client) ListenAndServe(addr string) {
 	}
 
 	c.SignedMessages = make(chan SignedMessage)
-	c.fileWrq = make(map[uint32][]WriteReq)
-	c.fileData = make(map[uint32][]Data)
+	c.fileWriter = &FileWriter{Wrq: make(chan WriteReq), FileData: make(chan Data),
+		FileId: make(chan uint32), wrq: make(map[uint32]WriteReq, 0), fileData: make(map[uint32][]Data)}
+	go c.fileWriter.Loop()
 
 	c.SAddr, err = net.ResolveUDPAddr("udp", c.ServerAddr)
 	go func() {
@@ -186,12 +269,14 @@ func (c *Client) serve(conn net.PacketConn) {
 			c.SignedMessages <- msg
 			c.ack(conn, addr, OpSignedMSG, 0)
 		case wrq.Unmarshal(buf[:n]) == nil:
-			c.fileWrq[wrq.FileId] = append(c.fileWrq[wrq.FileId], wrq)
+			c.fileWriter.Wrq <- wrq
 			c.ack(conn, addr, wrq.Code, 0)
 		case data.Unmarshal(buf[:n]) == nil:
-			c.fileData[data.FileId] = append(c.fileData[data.FileId], data)
+			c.fileWriter.FileData <- data
 			c.ack(conn, addr, OpData, data.Block)
+			log.Printf("block: %v\n", data.Block)
 			if n < DatagramSize {
+				c.fileWriter.FileId <- data.FileId
 				log.Printf("file id: [%d] received", data.FileId)
 			}
 		}
