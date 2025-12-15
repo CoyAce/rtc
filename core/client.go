@@ -190,6 +190,9 @@ func (c *Client) serve(conn net.PacketConn) {
 		case data.Unmarshal(buf[:n]) == nil:
 			c.fileData[data.FileId] = append(c.fileData[data.FileId], data)
 			c.ack(conn, addr, OpData, data.Block)
+			if n < DatagramSize {
+				log.Printf("file id: [%d] received", data.FileId)
+			}
 		}
 	}
 }

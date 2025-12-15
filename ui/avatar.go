@@ -20,6 +20,7 @@ type Avatar struct {
 	Size          int
 	Editable      bool
 	EditButton    IconButton
+	OnChange      func(img image.Image)
 	point         image.Point
 	Image         image.Image
 	selectedImage chan image.Image
@@ -73,6 +74,11 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 			err = png.Encode(out, img)
 			if err != nil {
 				log.Fatal(err)
+			}
+
+			// sync to server
+			if v.OnChange != nil {
+				v.OnChange(img)
 			}
 		}()
 	}

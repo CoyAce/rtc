@@ -2,6 +2,7 @@ package ui
 
 import (
 	"image"
+	"log"
 	"rtc/core"
 	ui "rtc/ui/layout"
 
@@ -31,8 +32,13 @@ type settingsForm struct {
 func NewSettingsForm(theme *material.Theme, client *core.Client, onSuccess func(gtx layout.Context)) ui.View {
 	submitIcon, _ := widget.NewIcon(icons.ActionDone)
 	s := &settingsForm{
-		Theme:            theme,
-		avatar:           Avatar{Size: 64, Editable: true, Theme: theme},
+		Theme: theme,
+		avatar: Avatar{Size: 64, Editable: true, Theme: theme, OnChange: func(img image.Image) {
+			err := client.SyncIcon(img)
+			if err != nil {
+				log.Printf("Failed to sync icon: %v", err)
+			}
+		}},
 		onSuccess:        onSuccess,
 		client:           client,
 		nicknameEditor:   &component.TextField{Editor: widget.Editor{}},
