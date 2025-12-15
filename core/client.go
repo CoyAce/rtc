@@ -11,18 +11,18 @@ import (
 	"net"
 	"os"
 	"sort"
-	"strings"
 	"syscall"
 	"time"
 	"unsafe"
 )
 
 type FileWriter struct {
-	FileId   chan uint32 // finished file id
-	Wrq      chan WriteReq
-	FileData chan Data
-	wrq      map[uint32]WriteReq
-	fileData map[uint32][]Data
+	FileId     chan uint32 // finished file id
+	Wrq        chan WriteReq
+	FileData   chan Data
+	OnComplete func(req WriteReq)
+	wrq        map[uint32]WriteReq
+	fileData   map[uint32][]Data
 }
 
 func (f *FileWriter) Loop() {
@@ -30,18 +30,22 @@ func (f *FileWriter) Loop() {
 		select {
 		case id := <-f.FileId:
 			req := f.wrq[id]
-			write(getDir(req.UUID), getFileName(req), f.fileData[id])
+			fileName := GetFileName(req.UUID, req.Filename)
+			write(GetDir(req.UUID), fileName, f.fileData[id])
 			delete(f.wrq, id)
 			delete(f.fileData, id)
+			if f.OnComplete != nil {
+				f.OnComplete(req)
+			}
 		case req := <-f.Wrq:
 			f.wrq[req.FileId] = req
-			removeFile(getFileName(req))
+			RemoveFile(GetFileName(req.UUID, req.Filename))
 		case data := <-f.FileData:
 			f.fileData[data.FileId] = append(f.fileData[data.FileId], data)
 			// received ~100kb
 			if len(f.fileData[data.FileId]) >= 70 {
 				req := f.wrq[data.FileId]
-				d := write(getDir(req.UUID), getFileName(req), f.fileData[data.FileId])
+				d := write(GetDir(req.UUID), GetFileName(req.UUID, req.Filename), f.fileData[data.FileId])
 				if d != nil {
 					f.fileData[data.FileId] = d
 				} else {
@@ -51,37 +55,6 @@ func (f *FileWriter) Loop() {
 		}
 	}
 
-}
-
-func removeDuplicates(data []Data) []Data {
-	seen := make(map[uint32]bool)
-	result := []Data{}
-	for _, d := range data {
-		if !seen[d.Block] {
-			seen[d.Block] = true
-			result = append(result, d)
-		}
-	}
-	return result
-}
-
-func removeFile(filePath string) {
-	// 使用os.Stat检查文件是否存在
-	_, err := os.Stat(filePath)
-	if err == nil {
-		// 文件存在，尝试删除
-		err := os.Remove(filePath)
-		if err != nil {
-			log.Printf("Error removing file: %s\n", err)
-		}
-	}
-}
-func getFileName(req WriteReq) string {
-	return getDir(req.UUID) + "/" + req.Filename
-}
-
-func getDir(uuid string) string {
-	return strings.Replace(uuid, "#", "_", -1)
 }
 
 func write(dir string, filename string, data []Data) []Data {
@@ -103,13 +76,7 @@ func write(dir string, filename string, data []Data) []Data {
 		block++
 	}
 
-	// 使用 MkdirAll 确保目录存在
-	if len(dir) != 0 {
-		err := os.MkdirAll(dir, 0755)
-		if err != nil {
-			log.Fatalf("Error creating directory: %v", err)
-		}
-	}
+	mkdir(dir)
 	// 使用os.O_APPEND, os.O_CREATE, os.O_WRONLY标志
 	// os.O_APPEND: 追加模式，写入的数据会被追加到文件尾部
 	// os.O_CREATE: 如果文件不存在，则创建文件
@@ -156,6 +123,10 @@ func (c *Client) Ready() {
 	if c.Status != nil {
 		<-c.Status
 	}
+}
+
+func (c *Client) SetCallback(callback func(req WriteReq)) {
+	c.fileWriter.OnComplete = callback
 }
 
 func (c *Client) SyncIcon(img image.Image) error {

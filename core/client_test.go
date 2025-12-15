@@ -54,6 +54,6 @@ func TestSendAndReceive(t *testing.T) {
 		}
 	}
 	filename := "testX.png"
-	removeFile(filename)
+	RemoveFile(filename)
 	write("", filename, results[:1])
 }

@@ -76,6 +76,7 @@ var voiceMessageIcon, _ = widget.NewIcon(icons.AVMic)
 var audioCallIcon, _ = widget.NewIcon(icons.CommunicationPhone)
 var videoCallIcon, _ = widget.NewIcon(icons.AVVideoCall)
 var settingsIcon, _ = widget.NewIcon(icons.ActionSettings)
+var avatarCache = make(map[string]*Avatar)
 
 var iconStackAnimation = component.VisibilityAnimation{
 	Duration: time.Millisecond * 250,
@@ -83,7 +84,7 @@ var iconStackAnimation = component.VisibilityAnimation{
 	Started:  time.Time{},
 }
 
-var avatar Avatar
+var defaultAvatar Avatar
 
 func NewIconStack(theme *material.Theme, settings ui.View) *IconStack {
 	return &IconStack{Theme: theme,
@@ -113,18 +114,27 @@ func (m *Message) Layout(gtx layout.Context) (d layout.Dimensions) {
 				if m.isMe() {
 					return d
 				}
-				return avatar.Layout(gtx)
+				return m.drawAvatar(gtx, m.Sender)
 			}),
 			layout.Rigid(layout.Spacer{Width: unit.Dp(2)}.Layout),
 			layout.Rigid(m.drawMessage),
 			layout.Rigid(layout.Spacer{Width: unit.Dp(2)}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				if m.isMe() {
-					return avatar.Layout(gtx)
+					return m.drawAvatar(gtx, m.UUID)
 				}
 				return d
 			}))
 	})
+}
+
+func (m *Message) drawAvatar(gtx layout.Context, uuid string) layout.Dimensions {
+	avatar := avatarCache[uuid]
+	if avatar == nil {
+		avatar = &Avatar{UUID: uuid}
+		avatarCache[uuid] = avatar
+	}
+	return avatar.Layout(gtx)
 }
 
 func (m *Message) isMe() bool {

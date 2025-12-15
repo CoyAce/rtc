@@ -33,7 +33,14 @@ func Draw(window *app.Window, client *core.Client) error {
 			window.Invalidate()
 		}
 	}()
-
+	client.SetCallback(func(req core.WriteReq) {
+		if req.Code == core.OpSyncIcon {
+			if avatarCache[req.UUID] == nil {
+				avatarCache[req.UUID] = &Avatar{UUID: req.UUID}
+			}
+			avatarCache[req.UUID].Reload()
+		}
+	})
 	inputField := component.TextField{Editor: widget.Editor{Submit: true}}
 	messageEditor := MessageEditor{InputField: &inputField, Theme: theme}
 	settings := NewSettingsForm(material.NewTheme(), client, func(gtx layout.Context) {

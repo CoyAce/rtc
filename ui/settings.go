@@ -33,7 +33,7 @@ func NewSettingsForm(theme *material.Theme, client *core.Client, onSuccess func(
 	submitIcon, _ := widget.NewIcon(icons.ActionDone)
 	s := &settingsForm{
 		Theme: theme,
-		avatar: Avatar{Size: 64, Editable: true, Theme: theme, OnChange: func(img image.Image) {
+		avatar: Avatar{UUID: client.FullID(), Size: 64, Editable: true, Theme: theme, OnChange: func(img image.Image) {
 			err := client.SyncIcon(img)
 			if err != nil {
 				log.Printf("Failed to sync icon: %v", err)

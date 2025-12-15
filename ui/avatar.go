@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"rtc/assets"
+	"rtc/core"
 
 	"gioui.org/layout"
 	"gioui.org/op/clip"
@@ -17,6 +18,7 @@ import (
 )
 
 type Avatar struct {
+	UUID          string
 	Size          int
 	Editable      bool
 	EditButton    IconButton
@@ -37,21 +39,7 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 	}
 	v.point = image.Point{X: gtx.Dp(unit.Dp(v.Size)), Y: gtx.Dp(unit.Dp(v.Size))}
 	if v.Image == nil {
-		_, err := os.Stat(iconFileName)
-		if os.IsNotExist(err) {
-			v.Image = assets.AppIconImage
-		} else {
-			file, err := os.Open(iconFileName)
-			if err != nil {
-				log.Fatal(err)
-			}
-			defer file.Close()
-			img, err := png.Decode(file)
-			if err != nil {
-				log.Fatal(err)
-			}
-			v.Image = img
-		}
+		v.Reload()
 	}
 	if v.Editable && v.Clicked(gtx) {
 		go func() {
@@ -62,11 +50,12 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 			defer file.Close()
 
 			var img, _, _ = image.Decode(file)
-			avatar.Image = img
+			defaultAvatar.Image = img
 			v.selectedImage <- img
 
 			// save to file
-			out, err := os.Create(iconFileName)
+			iconFilePath := core.GetFileName(v.UUID, "icon.png")
+			out, err := os.Create(iconFilePath)
 			defer out.Close()
 			if err != nil {
 				log.Fatal(err)
@@ -87,6 +76,13 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 		case img, ok := <-v.selectedImage:
 			if ok {
 				v.Image = img
+				avatar := avatarCache[v.UUID]
+				if avatar != nil {
+					avatar.Image = img
+				} else {
+					avatar = &Avatar{UUID: v.UUID, Image: img}
+					avatarCache[v.UUID] = avatar
+				}
 			}
 		default:
 		}
@@ -120,4 +116,21 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 	)
 }
 
-var iconFileName = "icon.png"
+func (v *Avatar) Reload() {
+	iconFilePath := core.GetFileName(v.UUID, "icon.png")
+	_, err := os.Stat(iconFilePath)
+	if os.IsNotExist(err) {
+		v.Image = assets.AppIconImage
+	} else {
+		file, err := os.Open(iconFilePath)
+		if err != nil {
+			log.Printf("failed to open icon file: %v", err)
+		}
+		defer file.Close()
+		img, err := png.Decode(file)
+		if err != nil {
+			log.Printf("failed to decode icon: %v", err)
+		}
+		v.Image = img
+	}
+}
