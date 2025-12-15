@@ -10,6 +10,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -29,7 +30,7 @@ func (f *FileWriter) Loop() {
 		select {
 		case id := <-f.FileId:
 			req := f.wrq[id]
-			write(getDir(req.UUID), getFileName(req), f.fileData[id])
+			write(getDir(req.UUID), getFileName(req), f.fileData[id][:1])
 			delete(f.wrq, id)
 			delete(f.fileData, id)
 		case req := <-f.Wrq:
@@ -40,8 +41,12 @@ func (f *FileWriter) Loop() {
 			// received ~100kb
 			if len(f.fileData[data.FileId]) >= 70 {
 				req := f.wrq[data.FileId]
-				write(getDir(req.UUID), getFileName(req), f.fileData[data.FileId])
-				f.fileData[data.FileId] = make([]Data, 0)
+				d := write(getDir(req.UUID), getFileName(req), f.fileData[data.FileId])
+				if d != nil {
+					f.fileData[data.FileId] = d
+				} else {
+					f.fileData[data.FileId] = make([]Data, 0)
+				}
 			}
 		}
 	}
@@ -67,7 +72,24 @@ func getDir(uuid string) string {
 	return strings.Replace(uuid, "#", "_", -1)
 }
 
-func write(dir string, filename string, data []Data) {
+func write(dir string, filename string, data []Data) []Data {
+	// handle number order error, data block may not ordered
+	if len(data) == 0 {
+		return nil
+	}
+	sort.Slice(data, func(i, j int) bool {
+		return data[i].Block < data[j].Block
+	})
+	block := data[0].Block
+	var i = len(data)
+	for k, d := range data {
+		if d.Block != block {
+			i = k
+			break
+		}
+		block++
+	}
+
 	// 使用 MkdirAll 确保目录存在
 	if len(dir) != 0 {
 		err := os.MkdirAll(dir, 0755)
@@ -79,15 +101,15 @@ func write(dir string, filename string, data []Data) {
 	// os.O_APPEND: 追加模式，写入的数据会被追加到文件尾部
 	// os.O_CREATE: 如果文件不存在，则创建文件
 	// os.O_WRONLY: 以只写模式打开文件
-	// os.O_TRUNC: 如果该文件已存在，则将其长度截为零，也就是清空文件内容（如果你想追加而不是覆盖，就不要使用这个标志）
 	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Fatalf("error opening file: %v", err)
 	}
 	defer file.Close()
 
-	readers := make([]io.Reader, 0, len(data))
-	for _, d := range data {
+	readers := make([]io.Reader, 0, i)
+	for _, d := range data[:i] {
+		log.Printf("block: %v", d.Block)
 		readers = append(readers, d.Payload)
 	}
 	multiReader := io.MultiReader(readers...)
@@ -95,6 +117,10 @@ func write(dir string, filename string, data []Data) {
 	if _, err := io.Copy(file, multiReader); err != nil {
 		log.Fatalf("error writing to file: %v", err)
 	}
+	if i < len(data) {
+		return data[:i]
+	}
+	return nil
 }
 
 type Client struct {
@@ -269,12 +295,13 @@ func (c *Client) serve(conn net.PacketConn) {
 			c.SignedMessages <- msg
 			c.ack(conn, addr, OpSignedMSG, 0)
 		case wrq.Unmarshal(buf[:n]) == nil:
-			c.fileWriter.Wrq <- wrq
 			c.ack(conn, addr, wrq.Code, 0)
+			c.fileWriter.Wrq <- wrq
 		case data.Unmarshal(buf[:n]) == nil:
-			c.fileWriter.FileData <- data
 			c.ack(conn, addr, OpData, data.Block)
-			log.Printf("block: %v\n", data.Block)
+			log.Printf("received block: %v\n", data.Block)
+			buf = make([]byte, DatagramSize)
+			c.fileWriter.FileData <- data
 			if n < DatagramSize {
 				c.fileWriter.FileId <- data.FileId
 				log.Printf("file id: [%d] received", data.FileId)
@@ -321,7 +348,7 @@ RETRY:
 		}
 
 		switch {
-		case ackPkt.Unmarshal(buf) == nil:
+		case ackPkt.Unmarshal(buf[:n]) == nil:
 			if block == 0 || ackPkt.Block == block {
 				return n, nil
 			}

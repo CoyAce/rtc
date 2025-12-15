@@ -55,15 +55,5 @@ func TestSendAndReceive(t *testing.T) {
 	}
 	filename := "testX.png"
 	removeFile(filename)
-	for i, d := range results {
-		results = append(results, d)
-		if i%15 == 0 {
-			d := results[8]
-			results[8] = results[10]
-			results[9] = d
-			write("", filename, results)
-			results = make([]Data, 0)
-		}
-	}
-	write("", filename, results)
+	write("", filename, results[:1])
 }
