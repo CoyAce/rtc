@@ -12,13 +12,13 @@ import (
 var dataDir = "data/"
 
 func GetDir(uuid string) string {
+	if uuid == "" {
+		return dataDir + "default"
+	}
 	return dataDir + strings.Replace(uuid, "#", "_", -1)
 }
 
 func GetFileName(uuid string, filename string) string {
-	if uuid == "" {
-		return dataDir + filename
-	}
 	return GetDir(uuid) + "/" + filename
 }
 

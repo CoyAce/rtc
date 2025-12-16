@@ -66,8 +66,8 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 			v.selectedImage <- img
 
 			// save to file
-			core.Mkdir(core.GetDir(v.UUID))
-			iconFilePath := core.GetFileName(v.UUID, "icon.png")
+			core.Mkdir(core.GetDir(client.FullID()))
+			iconFilePath := core.GetFileName(client.FullID(), "icon.png")
 			out, err := os.Create(iconFilePath)
 			defer out.Close()
 			if err != nil {
@@ -89,12 +89,12 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 		case img, ok := <-v.selectedImage:
 			if ok {
 				v.Image = img
-				avatar := avatarCache[v.UUID]
+				avatar := avatarCache[client.FullID()]
 				if avatar != nil {
 					avatar.Image = img
 				} else {
-					avatar = &Avatar{UUID: v.UUID, Image: img}
-					avatarCache[v.UUID] = avatar
+					avatar = &Avatar{UUID: client.FullID(), Image: img}
+					avatarCache[client.FullID()] = avatar
 				}
 			}
 		default:
@@ -144,6 +144,10 @@ func (v *Avatar) Reload() {
 		img, err := png.Decode(file)
 		if err != nil {
 			log.Printf("failed to decode icon: %v", err)
+			if v.Image == nil {
+				v.Image = assets.AppIconImage
+			}
+			return
 		}
 		v.Image = img
 	}

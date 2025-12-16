@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 	"rtc/core"
-	ui "rtc/ui/layout"
+	"time"
 
 	"gioui.org/io/event"
 	"gioui.org/io/key"
@@ -19,9 +19,8 @@ import (
 	"golang.org/x/exp/shiny/materialdesign/icons"
 )
 
-type settingsForm struct {
+type SettingsForm struct {
 	*material.Theme
-	client           *core.Client
 	avatar           Avatar
 	onSuccess        func(gtx layout.Context)
 	nicknameEditor   *component.TextField
@@ -30,18 +29,12 @@ type settingsForm struct {
 	submitButton     IconButton
 }
 
-func NewSettingsForm(theme *material.Theme, client *core.Client, onSuccess func(gtx layout.Context)) ui.View {
+func NewSettingsForm(onSuccess func(gtx layout.Context)) *SettingsForm {
 	submitIcon, _ := widget.NewIcon(icons.ActionDone)
-	s := &settingsForm{
-		Theme: theme,
-		avatar: Avatar{UUID: client.FullID(), Size: 64, Editable: true, Theme: theme, OnChange: func(img image.Image) {
-			err := client.SyncIcon(img)
-			if err != nil {
-				log.Printf("Failed to sync icon: %v", err)
-			}
-		}},
+	s := &SettingsForm{
+		Theme:            theme,
+		avatar:           Avatar{UUID: client.FullID(), Size: 64, Editable: true, Theme: theme, OnChange: SyncSelectedIcon},
 		onSuccess:        onSuccess,
-		client:           client,
 		nicknameEditor:   &component.TextField{Editor: widget.Editor{}},
 		signEditor:       &component.TextField{Editor: widget.Editor{}},
 		serverAddrEditor: &component.TextField{Editor: widget.Editor{}},
@@ -66,16 +59,16 @@ func NewSettingsForm(theme *material.Theme, client *core.Client, onSuccess func(
 	return s
 }
 
-func (s *settingsForm) Layout(gtx layout.Context) layout.Dimensions {
+func (s *SettingsForm) Layout(gtx layout.Context) layout.Dimensions {
 	s.processClick(gtx)
 	if len(s.nicknameEditor.Text()) == 0 {
-		s.nicknameEditor.SetText(s.client.Nickname)
+		s.nicknameEditor.SetText(client.Nickname)
 	}
 	if len(s.signEditor.Text()) == 0 {
-		s.signEditor.SetText(string(s.client.Sign))
+		s.signEditor.SetText(string(client.Sign))
 	}
 	if len(s.serverAddrEditor.Text()) == 0 {
-		s.serverAddrEditor.SetText(s.client.ServerAddr)
+		s.serverAddrEditor.SetText(client.ServerAddr)
 	}
 	gtx.Constraints.Min.X = gtx.Constraints.Max.X
 	dimensions := layout.Flex{Spacing: layout.SpaceSides}.Layout(gtx,
@@ -107,7 +100,7 @@ func (s *settingsForm) Layout(gtx layout.Context) layout.Dimensions {
 	return dimensions
 }
 
-func (s *settingsForm) processClick(gtx layout.Context) {
+func (s *SettingsForm) processClick(gtx layout.Context) {
 	for {
 		_, ok := gtx.Event(
 			pointer.Filter{
@@ -123,7 +116,7 @@ func (s *settingsForm) processClick(gtx layout.Context) {
 	}
 }
 
-func (s *settingsForm) drawInputArea(label string, widget layout.Widget) func(gtx layout.Context) layout.Dimensions {
+func (s *SettingsForm) drawInputArea(label string, widget layout.Widget) func(gtx layout.Context) layout.Dimensions {
 	return func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 			layout.Flexed(0.4, func(gtx layout.Context) layout.Dimensions {
@@ -142,5 +135,22 @@ func (s *settingsForm) drawInputArea(label string, widget layout.Widget) func(gt
 					}),
 				)
 			}))
+	}
+}
+
+func (s *SettingsForm) ShowWithModal(gtx layout.Context) {
+	iconStackAnimation.Disappear(gtx.Now)
+	modal.Show(ZoomInWithModalContent(s.Layout), nil, component.VisibilityAnimation{
+		Duration: time.Millisecond * 250,
+		State:    component.Invisible,
+		Started:  time.Time{},
+	})
+}
+
+func ZoomInWithModalContent(widget layout.Widget) func(gtx layout.Context) layout.Dimensions {
+	return func(gtx layout.Context) layout.Dimensions {
+		gtx.Constraints.Max.X = int(float32(gtx.Constraints.Max.X) * 0.85)
+		gtx.Constraints.Max.Y = int(float32(gtx.Constraints.Max.Y) * 0.85)
+		return modalContent.DrawContent(gtx, widget)
 	}
 }

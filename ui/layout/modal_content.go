@@ -12,26 +12,34 @@ import (
 )
 
 type ModalContent struct {
-	closeButton widget.Clickable
-	closeIcon   *widget.Icon
-	OnClose     func()
+	*material.Theme
+	header  Header
+	OnClose func()
 	layout.List
 }
 
-func NewModalContent(onClose func()) *ModalContent {
+type Header struct {
+	*material.Theme
+	closeButton widget.Clickable
+	closeIcon   *widget.Icon
+}
+
+func (h *Header) CloseButtonClicked(gtx layout.Context) bool {
+	return h.closeButton.Clicked(gtx)
+}
+
+func NewModalContent(theme *material.Theme, onClose func()) *ModalContent {
 	iconClear, _ := widget.NewIcon(icons.ContentClear)
 	return &ModalContent{
-		closeIcon: iconClear,
-		OnClose:   onClose,
-		List:      layout.List{Axis: layout.Vertical},
+		Theme:   theme,
+		header:  Header{Theme: theme, closeIcon: iconClear},
+		OnClose: onClose,
+		List:    layout.List{Axis: layout.Vertical},
 	}
 }
 
-func (m *ModalContent) DrawContent(gtx layout.Context, theme *material.Theme, contentWidget layout.Widget) layout.Dimensions {
-	if m.closeIcon == nil {
-		m.closeIcon, _ = widget.NewIcon(icons.ContentClear)
-	}
-	if m.closeButton.Clicked(gtx) {
+func (m *ModalContent) DrawContent(gtx layout.Context, contentWidget layout.Widget) layout.Dimensions {
+	if m.header.CloseButtonClicked(gtx) {
 		if m.OnClose != nil {
 			m.OnClose()
 		}
@@ -39,34 +47,10 @@ func (m *ModalContent) DrawContent(gtx layout.Context, theme *material.Theme, co
 	mac := op.Record(gtx.Ops)
 	d := layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			// expand parent content in horizontal direction
 			gtx.Constraints.Min.X = gtx.Constraints.Max.X
-			vert := unit.Dp(16)
-			horiz := unit.Dp(8)
-			inset := layout.Inset{Top: vert, Bottom: vert, Right: horiz, Left: horiz}
-			return inset.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return layout.Flex{Spacing: layout.SpaceBetween, Alignment: layout.Middle}.Layout(gtx,
-					layout.Rigid(layout.Spacer{Width: unit.Dp(24)}.Layout),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						bd := material.Body1(theme, "Settings")
-						bd.TextSize = unit.Sp(18)
-						bd.Font.Weight = font.ExtraBold
-						bd.Color = theme.ContrastBg
-						return bd.Layout(gtx)
-					}),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						btn := material.IconButtonStyle{
-							Icon:        m.closeIcon,
-							Button:      &m.closeButton,
-							Description: "close button",
-						}
-						btn.Inset = layout.UniformInset(unit.Dp(4))
-						btn.Size = unit.Dp(24)
-						btn.Background = theme.Bg
-						btn.Color = theme.ContrastBg
-						return btn.Layout(gtx)
-					}),
-				)
-			})
+			margins := layout.Inset{Top: unit.Dp(16), Bottom: unit.Dp(16), Right: unit.Dp(8), Left: unit.Dp(8)}
+			return margins.Layout(gtx, m.header.Layout)
 		}),
 		layout.Rigid(Hr{Height: unit.Dp(1)}.Layout),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -76,7 +60,32 @@ func (m *ModalContent) DrawContent(gtx layout.Context, theme *material.Theme, co
 		}),
 	)
 	call := mac.Stop()
-	component.Rect{Color: theme.Bg, Size: d.Size, Radii: gtx.Dp(8)}.Layout(gtx)
+	component.Rect{Color: m.Theme.Bg, Size: d.Size, Radii: gtx.Dp(8)}.Layout(gtx)
 	call.Add(gtx.Ops)
 	return d
+}
+
+func (h *Header) Layout(gtx layout.Context) layout.Dimensions {
+	return layout.Flex{Spacing: layout.SpaceBetween, Alignment: layout.Middle}.Layout(gtx,
+		layout.Rigid(layout.Spacer{Width: unit.Dp(24)}.Layout),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			bd := material.Body1(h.Theme, "Settings")
+			bd.TextSize = unit.Sp(18)
+			bd.Font.Weight = font.ExtraBold
+			bd.Color = h.Theme.ContrastBg
+			return bd.Layout(gtx)
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			btn := material.IconButtonStyle{
+				Icon:        h.closeIcon,
+				Button:      &h.closeButton,
+				Description: "close button",
+			}
+			btn.Inset = layout.UniformInset(unit.Dp(4))
+			btn.Size = unit.Dp(24)
+			btn.Background = h.Theme.Bg
+			btn.Color = h.Theme.ContrastBg
+			return btn.Layout(gtx)
+		}),
+	)
 }

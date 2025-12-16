@@ -4,7 +4,6 @@ import (
 	"image"
 	"image/color"
 	"math"
-	ui "rtc/ui/layout"
 	"time"
 
 	"gioui.org/font"
@@ -86,10 +85,11 @@ var iconStackAnimation = component.VisibilityAnimation{
 
 var defaultAvatar Avatar
 
-func NewIconStack(theme *material.Theme, settings ui.View) *IconStack {
+func NewIconStack() *IconStack {
+	settings := NewSettingsForm(OnSettingsSubmit)
 	return &IconStack{Theme: theme,
 		IconButtons: []*IconButton{
-			{Theme: theme, Icon: settingsIcon, Enabled: true, OnClick: showSettings(theme, settings)},
+			{Theme: theme, Icon: settingsIcon, Enabled: true, OnClick: settings.ShowWithModal},
 			{Theme: theme, Icon: videoCallIcon},
 			{Theme: theme, Icon: audioCallIcon},
 			{Theme: theme, Icon: voiceMessageIcon},
@@ -248,31 +248,39 @@ func (m *Message) drawName(gtx layout.Context) layout.Dimensions {
 
 func (l *MessageList) Layout(gtx layout.Context) layout.Dimensions {
 	// Process events using the key, &messageList
-	l.processClick(gtx)
-	l.processScroll(gtx)
+	l.getFocusAndResetIconStackIfClicked(gtx)
+	l.resetScrollToEndIfScrolled(gtx)
+	l.processScrollToEnd()
 	// We visualize the text using a list where each paragraph is a separate item.
-	l.List.ScrollToEnd = l.FirstVisible || l.ScrollToEnd
-	if l.ScrollToEnd {
-		l.List.Position = layout.Position{BeforeEnd: false}
-	}
 	dimensions := l.List.Layout(gtx, len(l.Messages), func(gtx layout.Context, index int) layout.Dimensions {
 		return l.Messages[index].Layout(gtx)
 	})
+	l.scrollToEndIfFirstAndLastItemVisible()
+	// Confine the area of interest
+	defer clip.Rect(image.Rectangle{Max: dimensions.Size}).Push(gtx.Ops).Pop()
+	// Use pointer.PassOp to allow pointer events to pass through an input area to those underneath it.
+	defer pointer.PassOp{}.Push(gtx.Ops).Pop()
+	// Declare tag `l` as being one of the targets.
+	event.Op(gtx.Ops, l)
+	return dimensions
+}
+
+func (l *MessageList) scrollToEndIfFirstAndLastItemVisible() {
 	// at end of list
 	if !l.List.Position.BeforeEnd {
 		// if at end and first item visible, scroll to end
 		l.FirstVisible = l.List.Position.First == 0
 	}
-	// Confine the area of interest
-	defer clip.Rect(image.Rectangle{Max: dimensions.Size}).Push(gtx.Ops).Pop()
-	// Use pointer.PassOp to allow pointer events to pass through an input area to those underneath it.
-	defer pointer.PassOp{}.Push(gtx.Ops).Pop()
-	// Declare `tag` as being one of the targets.
-	event.Op(gtx.Ops, l)
-	return dimensions
 }
 
-func (l *MessageList) processScroll(gtx layout.Context) {
+func (l *MessageList) processScrollToEnd() {
+	l.List.ScrollToEnd = l.FirstVisible || l.ScrollToEnd
+	if l.ScrollToEnd {
+		l.List.Position = layout.Position{BeforeEnd: false}
+	}
+}
+
+func (l *MessageList) resetScrollToEndIfScrolled(gtx layout.Context) {
 	for {
 		_, ok := gtx.Event(
 			pointer.Filter{
@@ -288,7 +296,7 @@ func (l *MessageList) processScroll(gtx layout.Context) {
 	}
 }
 
-func (l *MessageList) processClick(gtx layout.Context) {
+func (l *MessageList) getFocusAndResetIconStackIfClicked(gtx layout.Context) {
 	for {
 		_, ok := gtx.Event(
 			pointer.Filter{
@@ -444,23 +452,4 @@ func (b *IconButton) Layout(gtx layout.Context) layout.Dimensions {
 		Button:     &b.button,
 		Inset:      layout.UniformInset(unit.Dp(9)),
 	}.Layout(gtx)
-}
-
-func showSettings(theme *material.Theme, settings ui.View) func(gtx layout.Context) {
-	return func(gtx layout.Context) {
-		iconStackAnimation.Disappear(gtx.Now)
-		modal.Show(settingsModal(theme, settings), nil, component.VisibilityAnimation{
-			Duration: time.Millisecond * 250,
-			State:    component.Invisible,
-			Started:  time.Time{},
-		})
-	}
-}
-
-func settingsModal(theme *material.Theme, settings ui.View) func(gtx layout.Context) layout.Dimensions {
-	return func(gtx layout.Context) layout.Dimensions {
-		gtx.Constraints.Max.X = int(float32(gtx.Constraints.Max.X) * 0.85)
-		gtx.Constraints.Max.Y = int(float32(gtx.Constraints.Max.Y) * 0.85)
-		return modalContent.DrawContent(gtx, theme, settings.Layout)
-	}
 }

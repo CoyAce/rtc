@@ -61,9 +61,11 @@ func main() {
 
 	// setup client
 	c := core.Load(*config)
-	c.ConfigName = *config
 	if c == nil {
 		c = &core.Client{ConfigName: *config, ServerAddr: *address, Status: make(chan struct{}), UUID: uuid, Sign: "default"}
+	} else {
+		c.Status = make(chan struct{})
+		c.ConfigName = *config
 	}
 	c.Store()
 	go func() {
@@ -82,5 +84,4 @@ func main() {
 		os.Exit(0)
 	}()
 	app.Main()
-
 }

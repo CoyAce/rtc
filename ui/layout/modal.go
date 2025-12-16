@@ -13,13 +13,10 @@ import (
 	"gioui.org/x/component"
 )
 
-type View interface {
-	Layout(gtx layout.Context) layout.Dimensions
-}
 type Modal interface {
 	Show(widget layout.Widget, onBackdropClick func(), animation component.VisibilityAnimation)
 	Dismiss(afterDismiss func())
-	View
+	Layout(gtx layout.Context) layout.Dimensions
 }
 type appModal struct {
 	onBackdropClick func()

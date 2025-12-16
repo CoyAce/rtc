@@ -92,6 +92,8 @@ type Client struct {
 	Status         chan struct{}      `json:"-"`
 	Conn           net.PacketConn     `json:"-"`
 	Connected      bool               `json:"-"`
+	MessageCounter uint32
+	SyncFunc       func() `json:"-"`
 	Sign           string
 	ServerAddr     string
 	SAddr          net.Addr      `json:"-"`
@@ -106,7 +108,7 @@ func (c *Client) Ready() {
 	}
 }
 
-func (c *Client) SetCallback(callback func(req WriteReq)) {
+func (c *Client) HandleFileWith(callback func(req WriteReq)) {
 	c.fileWriter.OnComplete = callback
 }
 
@@ -172,6 +174,7 @@ func (c *Client) SendText(text string) error {
 		log.Printf("[%s] marshal failed: %v", text, err)
 	}
 
+	c.MessageCounter++
 	buf := make([]byte, DatagramSize)
 	_, err = c.sendPacket(conn, buf, pkt, 0)
 	return err
@@ -188,9 +191,6 @@ func (c *Client) ListenAndServe(addr string) {
 	}
 	c.Conn = conn
 	defer func() { _ = conn.Close() }()
-	if c.Status != nil {
-		close(c.Status)
-	}
 
 	// init
 	if c.Retries == 0 {
@@ -206,11 +206,21 @@ func (c *Client) ListenAndServe(addr string) {
 		FileId: make(chan uint32), wrq: make(map[uint32]WriteReq, 0), fileData: make(map[uint32][]Data)}
 	go c.fileWriter.Loop()
 
+	if c.Status != nil {
+		close(c.Status)
+	}
+
 	c.SAddr, err = net.ResolveUDPAddr("udp", c.ServerAddr)
 	go func() {
 		// auto reconnect in case of server down
+		cnt := c.MessageCounter
 		for {
 			c.SendSign()
+			sentEnoughMessages := c.MessageCounter-cnt > 50
+			if sentEnoughMessages && c.SyncFunc != nil {
+				cnt = c.MessageCounter
+				c.SyncFunc()
+			}
 			time.Sleep(30 * time.Second)
 		}
 	}()
@@ -340,14 +350,16 @@ func Load(configName string) *Client {
 	}
 	file, err := os.Open(configName)
 	if err != nil {
-		panic(err)
+		log.Printf("[%s] open file failed: %v", configName, err)
+		return nil
 	}
 	defer file.Close()
 	var c Client
 	decoder := json.NewDecoder(file)
 	err = decoder.Decode(&c)
 	if err != nil {
-		panic(err)
+		log.Printf("[%s] decode failed: %v", configName, err)
+		return nil
 	}
 	return &c
 }

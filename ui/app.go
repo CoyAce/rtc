@@ -11,14 +11,13 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/widget"
-	"gioui.org/widget/material"
 	"gioui.org/x/component"
 	"gioui.org/x/explorer"
 )
 
-func Draw(window *app.Window, client *core.Client) error {
-	// theme defines the material design style
-	theme := fonts.NewTheme()
+func Draw(window *app.Window, c *core.Client) error {
+	// save client to global pointer
+	client = c
 	// ops are the operations from the UI
 	var ops op.Ops
 
@@ -33,20 +32,13 @@ func Draw(window *app.Window, client *core.Client) error {
 			window.Invalidate()
 		}
 	}()
-	client.SetCallback(func(req core.WriteReq) {
-		if req.Code == core.OpSyncIcon {
-			if avatarCache[req.UUID] == nil {
-				avatarCache[req.UUID] = &Avatar{UUID: req.UUID}
-			}
-			avatarCache[req.UUID].Reload()
-		}
-	})
+	// handle file received event
+	client.HandleFileWith(OnFileReceived)
+	// handle sync operation
+	client.SyncFunc = SyncCachedIcon
 	inputField := component.TextField{Editor: widget.Editor{Submit: true}}
 	messageEditor := MessageEditor{InputField: &inputField, Theme: theme}
-	settings := NewSettingsForm(material.NewTheme(), client, func(gtx layout.Context) {
-		modal.Dismiss(nil)
-	})
-	iconStack := NewIconStack(theme, settings)
+	iconStack := NewIconStack()
 	picker = explorer.NewExplorer(window)
 	// listen for events in the window.
 	for {
@@ -66,12 +58,12 @@ func Draw(window *app.Window, client *core.Client) error {
 			// ---------- Handle input ----------
 			if messageEditor.Submitted(gtx) {
 				msg := strings.TrimSpace(inputField.Text())
-				message := Message{Stateless, theme, client.FullID(), msg, client.FullID(), time.Now()}
-				if !client.Connected || client.SendText(msg) != nil {
-					messageList.ScrollToEnd = true
-				} else {
+				message := Message{Stateless, theme, client.FullID(),
+					msg, client.FullID(), time.Now()}
+				if client.Connected && client.SendText(msg) == nil {
 					message.State = Sent
 				}
+				messageList.ScrollToEnd = true
 				message.AddTo(messageList)
 				inputField.Clear()
 			}
@@ -89,6 +81,9 @@ func Draw(window *app.Window, client *core.Client) error {
 	}
 }
 
+// theme defines the material design style
+var client *core.Client
+var theme = fonts.NewTheme()
 var modal = ui.NewModalStack()
-var modalContent = ui.NewModalContent(func() { modal.Dismiss(nil) })
+var modalContent = ui.NewModalContent(theme, func() { modal.Dismiss(nil) })
 var picker *explorer.Explorer
