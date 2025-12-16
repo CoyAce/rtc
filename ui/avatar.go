@@ -16,6 +16,7 @@ import (
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"golang.org/x/exp/shiny/materialdesign/icons"
+	"golang.org/x/image/webp"
 )
 
 type Avatar struct {
@@ -44,12 +45,19 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 	}
 	if v.Editable && v.Clicked(gtx) {
 		go func() {
-			file, err := picker.ChooseFile(".jpg", ".png")
+			file, err := picker.ChooseFile(".jpg", ".png", ".webp")
 			if err != nil {
 				return
 			}
 			defer file.Close()
 			var img, _, _ = image.Decode(bufio.NewReader(file))
+			if img == nil {
+				// try with webp
+				img, _ = webp.Decode(bufio.NewReader(file))
+			}
+			if img == nil {
+				return
+			}
 			if img.Bounds().Dx() > 512 || img.Bounds().Dy() > 512 {
 				img = resizeImage(img, 512, 512)
 			}
