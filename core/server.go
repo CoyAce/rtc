@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"errors"
 	"log"
 	"net"
@@ -10,6 +11,7 @@ import (
 
 type Server struct {
 	SignMap map[string]Sign
+	WrqMap  map[uint32]WriteReq
 	Retries uint8         // the number of times to retry a failed transmission
 	Timeout time.Duration // the duration to wait for an acknowledgement
 }
@@ -31,6 +33,7 @@ func (s *Server) Serve(conn net.PacketConn) error {
 	}
 
 	s.SignMap = make(map[string]Sign)
+	s.WrqMap = make(map[uint32]WriteReq)
 
 	if s.Retries == 0 {
 		s.Retries = 3
@@ -54,26 +57,45 @@ func (s *Server) Serve(conn net.PacketConn) error {
 			return err
 		}
 
-		bytes := buf[:n]
+		pkt := buf[:n]
 		switch {
-		case sign.Unmarshal(bytes) == nil:
+		case sign.Unmarshal(pkt) == nil:
 			s.SignMap[addr.String()] = sign
 			s.ack(conn, addr, OpSign, 0)
 			log.Printf("[%s] set sign: [%s]", addr.String(), sign)
-		case msg.Unmarshal(bytes) == nil:
+		case msg.Unmarshal(pkt) == nil:
+			go s.handle(msg.Sign, pkt)
 			log.Printf("received msg [%s] from [%s]", string(msg.Payload), addr.String())
 			s.ack(conn, addr, OpSignedMSG, 0)
-			go s.handle(msg.Sign, bytes)
-		case wrq.Unmarshal(bytes) == nil:
+		case wrq.Unmarshal(pkt) == nil:
 			if wrq.Code == OpSyncIcon {
+				go s.handle(s.findSignByUUID(wrq.UUID), pkt)
+				s.WrqMap[wrq.FileId] = wrq
 				s.ack(conn, addr, OpSyncIcon, 0)
-				go s.handle(msg.Sign, bytes)
 			}
-		case data.Unmarshal(bytes) == nil:
+		case data.Unmarshal(pkt) == nil:
+			go s.handle(s.findSignByFileId(data.FileId), pkt)
 			s.ack(conn, addr, OpData, data.Block)
-			go s.handle(msg.Sign, bytes)
+			b := data.Payload.(*bytes.Buffer)
+			if b.Len() < BlockSize {
+				delete(s.WrqMap, wrq.FileId)
+			}
 		}
 	}
+}
+
+func (s *Server) findSignByUUID(uuid string) Sign {
+	for _, sign := range s.SignMap {
+		if sign.UUID == uuid {
+			return sign
+		}
+	}
+	return Sign{UUID: uuid}
+}
+
+func (s *Server) findSignByFileId(fileId uint32) Sign {
+	wrq := s.WrqMap[fileId]
+	return s.findSignByUUID(wrq.UUID)
 }
 
 func (s *Server) ack(conn net.PacketConn, clientAddr net.Addr, code OpCode, block uint32) {

@@ -141,7 +141,9 @@ func (c *Client) SyncIcon(img image.Image) error {
 	if err != nil {
 		return err
 	}
-	wrq := WriteReq{OpSyncIcon, Hash(unsafe.Pointer(&buf)), c.FullID(), "icon.png"}
+	hash := Hash(unsafe.Pointer(&buf))
+	log.Printf("icon file id: %v", hash)
+	wrq := WriteReq{OpSyncIcon, hash, c.FullID(), "icon.png"}
 	data := Data{FileId: wrq.FileId, Payload: bytes.NewReader(buf.Bytes())}
 
 	pktBuf := make([]byte, DatagramSize)
@@ -284,7 +286,8 @@ func (c *Client) serve(conn net.PacketConn) {
 			c.fileWriter.Wrq <- wrq
 		case data.Unmarshal(buf[:n]) == nil:
 			c.ack(conn, addr, OpData, data.Block)
-			log.Printf("received block: %v\n", data.Block)
+			//log.Printf("received block: %v\n", data.Block)
+			// assign memory for every data pkt, maybe optimized using pooled buffer
 			buf = make([]byte, DatagramSize)
 			c.fileWriter.FileData <- data
 			if n < DatagramSize {
