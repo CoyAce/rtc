@@ -76,7 +76,7 @@ func write(dir string, filename string, data []Data) []Data {
 		block++
 	}
 
-	mkdir(dir)
+	Mkdir(dir)
 	// 使用os.O_APPEND, os.O_CREATE, os.O_WRONLY标志
 	// os.O_APPEND: 追加模式，写入的数据会被追加到文件尾部
 	// os.O_CREATE: 如果文件不存在，则创建文件

@@ -66,6 +66,7 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 			v.selectedImage <- img
 
 			// save to file
+			core.Mkdir(core.GetDir(v.UUID))
 			iconFilePath := core.GetFileName(v.UUID, "icon.png")
 			out, err := os.Create(iconFilePath)
 			defer out.Close()
@@ -137,6 +138,7 @@ func (v *Avatar) Reload() {
 		file, err := os.Open(iconFilePath)
 		if err != nil {
 			log.Printf("failed to open icon file: %v", err)
+			return
 		}
 		defer file.Close()
 		img, err := png.Decode(file)

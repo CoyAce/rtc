@@ -6,13 +6,15 @@ import (
 	"strings"
 )
 
+var dataDir = "data/"
+
 func GetDir(uuid string) string {
-	return strings.Replace(uuid, "#", "_", -1)
+	return dataDir + strings.Replace(uuid, "#", "_", -1)
 }
 
 func GetFileName(uuid string, filename string) string {
 	if uuid == "" {
-		return filename
+		return dataDir + filename
 	}
 	return GetDir(uuid) + "/" + filename
 }
@@ -41,7 +43,7 @@ func removeDuplicates(data []Data) []Data {
 	return result
 }
 
-func mkdir(dir string) {
+func Mkdir(dir string) {
 	if len(dir) == 0 {
 		return
 	}
