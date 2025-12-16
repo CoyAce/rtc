@@ -38,7 +38,7 @@ func TestPNG(t *testing.T) {
 }
 
 func TestSendAndReceive(t *testing.T) {
-	//t.Skip("manual test")
+	t.Skip("manual test")
 	buf := new(bytes.Buffer)
 	png.Encode(buf, assets.AppIconImage)
 	data := Data{FileId: 0, Payload: bytes.NewReader(buf.Bytes())}

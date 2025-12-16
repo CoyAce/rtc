@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"log"
 	"os"
 	"strings"
@@ -52,4 +53,30 @@ func Mkdir(dir string) {
 	if err != nil {
 		log.Fatalf("Error creating directory: %v", err)
 	}
+}
+
+func writeString(b *bytes.Buffer, str string) error {
+	_, err := b.WriteString(str) // write str
+	if err != nil {
+		return err
+	}
+
+	err = b.WriteByte(0) // write 0 byte
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func readString(r *bytes.Buffer) (string, error) {
+	str, err := r.ReadString(0) //read filename
+	if err != nil {
+		return "", err
+	}
+
+	str = strings.TrimRight(str, "\x00") // remove the 0-byte
+	if len(str) == 0 {
+		return "", err
+	}
+	return str, nil
 }
