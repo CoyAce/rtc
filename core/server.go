@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"net"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -14,6 +15,7 @@ type Server struct {
 	WrqMap  map[uint32]WriteReq
 	Retries uint8         // the number of times to retry a failed transmission
 	Timeout time.Duration // the duration to wait for an acknowledgement
+	lock    sync.Mutex
 }
 
 func (s *Server) ListenAndServe(addr string) error {
@@ -115,7 +117,9 @@ func (s *Server) handle(sign Sign, bytes []byte) {
 			conn, err := net.Dial("udp", addr)
 			if err != nil {
 				log.Printf("[%s] dial failed: %v", addr, err)
+				s.lock.Lock()
 				delete(s.SignMap, addr)
+				s.lock.Unlock()
 				continue
 			}
 			defer func() { _ = conn.Close() }()
@@ -149,7 +153,9 @@ RETRY:
 				continue RETRY
 			}
 			if errors.Is(err, syscall.ECONNREFUSED) {
+				s.lock.Lock()
 				delete(s.SignMap, clientAddr.String())
+				s.lock.Unlock()
 				log.Printf("[%s] connection refused", clientAddr)
 			}
 			log.Printf("[%s] waiting for ACK: %v", clientAddr, err)
