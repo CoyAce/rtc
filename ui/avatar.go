@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"bufio"
 	"image"
 	"image/png"
 	"log"
@@ -48,8 +49,11 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 				return
 			}
 			defer file.Close()
+			var img, _, _ = image.Decode(bufio.NewReader(file))
+			if img.Bounds().Dx() > 512 || img.Bounds().Dy() > 512 {
+				img = resizeImage(img, 512, 512)
+			}
 
-			var img, _, _ = image.Decode(file)
 			defaultAvatar.Image = img
 			v.selectedImage <- img
 
@@ -133,4 +137,23 @@ func (v *Avatar) Reload() {
 		}
 		v.Image = img
 	}
+}
+
+func resizeImage(src image.Image, newWidth, newHeight int) image.Image {
+	// 创建一个新的RGBA图像，用于存放调整大小后的图像数据
+	dst := image.NewRGBA(image.Rect(0, 0, newWidth, newHeight))
+
+	// 计算缩放比例因子
+	scaleX := float64(newWidth) / float64(src.Bounds().Dx())
+	scaleY := float64(newHeight) / float64(src.Bounds().Dy())
+
+	for x := 0; x < newWidth; x++ {
+		for y := 0; y < newHeight; y++ {
+			// 计算源图像中对应的像素位置（插值）
+			srcX := int(float64(x) / scaleX)
+			srcY := int(float64(y) / scaleY)
+			dst.Set(x, y, src.At(srcX, srcY)) // 直接赋值，不考虑插值，结果可能不够平滑
+		}
+	}
+	return dst
 }

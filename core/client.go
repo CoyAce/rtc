@@ -89,7 +89,7 @@ func write(dir string, filename string, data []Data) []Data {
 
 	readers := make([]io.Reader, 0, i)
 	for _, d := range data[:i] {
-		log.Printf("block: %v", d.Block)
+		//log.Printf("block: %v", d.Block)
 		readers = append(readers, d.Payload)
 	}
 	multiReader := io.MultiReader(readers...)
