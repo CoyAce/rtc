@@ -3,6 +3,7 @@ package ui
 import (
 	"image"
 	"log"
+	"os"
 	"rtc/core"
 	ui "rtc/ui/layout"
 
@@ -47,7 +48,15 @@ func NewSettingsForm(theme *material.Theme, client *core.Client, onSuccess func(
 		submitButton:     IconButton{Theme: theme, Icon: submitIcon, Enabled: true},
 	}
 	s.submitButton.OnClick = func(gtx layout.Context) {
-		client.Nickname = s.nicknameEditor.Text()
+		if s.nicknameEditor.Text() != client.Nickname {
+			oldName := core.GetDir(client.FullID())
+			client.Nickname = s.nicknameEditor.Text()
+			newName := core.GetDir(client.FullID())
+			err := os.Rename(oldName, newName)
+			if err != nil {
+				log.Printf("Failed to rename: %v", err)
+			}
+		}
 		client.Sign = s.signEditor.Text()
 		client.ServerAddr = s.serverAddrEditor.Text()
 		client.SendSign()
