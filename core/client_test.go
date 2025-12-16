@@ -37,6 +37,14 @@ func TestPNG(t *testing.T) {
 	}
 }
 
+func TestConsecutive(t *testing.T) {
+	d := []Data{{Block: 1}, {Block: 2}, {Block: 3}, {Block: 5}}
+	i := findConsecutive(d)
+	if i != 3 {
+		t.Fatal("consecutive function error")
+	}
+}
+
 func TestSendAndReceive(t *testing.T) {
 	t.Skip("manual test")
 	buf := new(bytes.Buffer)

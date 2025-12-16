@@ -34,16 +34,7 @@ func (s *Server) Serve(conn net.PacketConn) error {
 		return errors.New("nil connection")
 	}
 
-	s.SignMap = make(map[string]Sign)
-	s.WrqMap = make(map[uint32]WriteReq)
-
-	if s.Retries == 0 {
-		s.Retries = 3
-	}
-
-	if s.Timeout == 0 {
-		s.Timeout = 6 * time.Second
-	}
+	s.init()
 
 	var (
 		sign Sign
@@ -86,6 +77,19 @@ func (s *Server) Serve(conn net.PacketConn) error {
 	}
 }
 
+func (s *Server) init() {
+	s.SignMap = make(map[string]Sign)
+	s.WrqMap = make(map[uint32]WriteReq)
+
+	if s.Retries == 0 {
+		s.Retries = 3
+	}
+
+	if s.Timeout == 0 {
+		s.Timeout = 6 * time.Second
+	}
+}
+
 func (s *Server) findSignByUUID(uuid string) Sign {
 	for _, sign := range s.SignMap {
 		if sign.UUID == uuid {
@@ -102,13 +106,12 @@ func (s *Server) findSignByFileId(fileId uint32) Sign {
 
 func (s *Server) ack(conn net.PacketConn, clientAddr net.Addr, code OpCode, block uint32) {
 	ack := Ack{SrcOp: code, Block: block}
-	bytes, err := ack.Marshal()
-	_, err = conn.WriteTo(bytes, clientAddr)
+	pkt, err := ack.Marshal()
+	_, err = conn.WriteTo(pkt, clientAddr)
 	if err != nil {
 		log.Printf("[%s] write failed: %v", clientAddr, err)
 		return
 	}
-	// log.Printf("[%s] write ack finished, soucre addr [%s]", clientAddr, conn.LocalAddr())
 }
 
 func (s *Server) handle(sign Sign, bytes []byte) {

@@ -10,7 +10,6 @@ import (
 	"log"
 	"net"
 	"os"
-	"sort"
 	"syscall"
 	"time"
 	"unsafe"
@@ -28,6 +27,7 @@ type FileWriter struct {
 func (f *FileWriter) Loop() {
 	for {
 		select {
+		// last block received, file transfer finished
 		case id := <-f.FileId:
 			req := f.wrq[id]
 			fileName := GetFileName(req.UUID, req.Filename)
@@ -35,10 +35,13 @@ func (f *FileWriter) Loop() {
 			delete(f.wrq, id)
 			delete(f.fileData, id)
 			if f.OnComplete != nil {
+				// for example, reload avatar
 				f.OnComplete(req)
 			}
+		// transfer start
 		case req := <-f.Wrq:
 			f.wrq[req.FileId] = req
+			// remove before append
 			RemoveFile(GetFileName(req.UUID, req.Filename))
 		case data := <-f.FileData:
 			f.fileData[data.FileId] = append(f.fileData[data.FileId], data)
@@ -47,6 +50,7 @@ func (f *FileWriter) Loop() {
 				req := f.wrq[data.FileId]
 				d := write(GetDir(req.UUID), GetFileName(req.UUID, req.Filename), f.fileData[data.FileId])
 				if d != nil {
+					// not consecutive, store for later use
 					f.fileData[data.FileId] = d
 				} else {
 					f.fileData[data.FileId] = make([]Data, 0)
@@ -57,26 +61,7 @@ func (f *FileWriter) Loop() {
 
 }
 
-func write(dir string, filename string, data []Data) []Data {
-	// handle number order error, data block may not ordered
-	if len(data) == 0 {
-		return nil
-	}
-	data = removeDuplicates(data)
-	sort.Slice(data, func(i, j int) bool {
-		return data[i].Block < data[j].Block
-	})
-	block := data[0].Block
-	var i = len(data)
-	for k, d := range data {
-		if d.Block != block {
-			i = k
-			break
-		}
-		block++
-	}
-
-	Mkdir(dir)
+func appendTo(filename string, data []Data) {
 	// 使用os.O_APPEND, os.O_CREATE, os.O_WRONLY标志
 	// os.O_APPEND: 追加模式，写入的数据会被追加到文件尾部
 	// os.O_CREATE: 如果文件不存在，则创建文件
@@ -87,8 +72,8 @@ func write(dir string, filename string, data []Data) []Data {
 	}
 	defer file.Close()
 
-	readers := make([]io.Reader, 0, i)
-	for _, d := range data[:i] {
+	readers := make([]io.Reader, 0, len(data))
+	for _, d := range data {
 		//log.Printf("block: %v", d.Block)
 		readers = append(readers, d.Payload)
 	}
@@ -97,10 +82,6 @@ func write(dir string, filename string, data []Data) []Data {
 	if _, err := io.Copy(file, multiReader); err != nil {
 		log.Fatalf("error writing to file: %v", err)
 	}
-	if i < len(data) {
-		return data[:i]
-	}
-	return nil
 }
 
 type Client struct {
@@ -143,10 +124,10 @@ func (c *Client) SyncIcon(img image.Image) error {
 	}
 	hash := Hash(unsafe.Pointer(&buf))
 	log.Printf("icon file id: %v", hash)
-	wrq := WriteReq{OpSyncIcon, hash, c.FullID(), "icon.png"}
-	data := Data{FileId: wrq.FileId, Payload: bytes.NewReader(buf.Bytes())}
 
 	pktBuf := make([]byte, DatagramSize)
+
+	wrq := WriteReq{OpSyncIcon, hash, c.FullID(), "icon.png"}
 	pkt, err := wrq.Marshal()
 	if err != nil {
 		log.Printf("[%v] write request marshal failed: %v", wrq, err)
@@ -156,6 +137,15 @@ func (c *Client) SyncIcon(img image.Image) error {
 		return err
 	}
 
+	data := Data{FileId: wrq.FileId, Payload: bytes.NewReader(buf.Bytes())}
+	err = c.sendData(conn, pktBuf, data)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) sendData(conn net.Conn, pktBuf []byte, data Data) error {
 	for n := DatagramSize; n == DatagramSize; {
 		pkt, err := data.Marshal()
 		if err != nil {
@@ -167,10 +157,6 @@ func (c *Client) SyncIcon(img image.Image) error {
 		}
 	}
 	return nil
-}
-
-func Hash(ptr unsafe.Pointer) uint32 {
-	return uint32(uintptr(ptr))
 }
 
 func (c *Client) SendText(text string) error {

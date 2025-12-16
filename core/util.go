@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"log"
 	"os"
+	"sort"
 	"strings"
+	"unsafe"
 )
 
 var dataDir = "data/"
@@ -79,4 +81,42 @@ func readString(r *bytes.Buffer) (string, error) {
 		return "", err
 	}
 	return str, nil
+}
+
+func Hash(ptr unsafe.Pointer) uint32 {
+	return uint32(uintptr(ptr))
+}
+
+// block sequence [1 2 3 5], return 3
+func findConsecutive(data []Data) int {
+	block := data[0].Block
+	var i = len(data)
+	for k, d := range data {
+		if d.Block != block {
+			i = k
+			break
+		}
+		block++
+	}
+	return i
+}
+
+func write(dir string, filename string, data []Data) []Data {
+	// handle number order error, data block may not ordered
+	if len(data) == 0 {
+		return nil
+	}
+	data = removeDuplicates(data)
+	sort.Slice(data, func(i, j int) bool {
+		return data[i].Block < data[j].Block
+	})
+	i := findConsecutive(data)
+
+	Mkdir(dir)
+	appendTo(filename, data[:i])
+	if i < len(data) {
+		// return leftover
+		return data[i:]
+	}
+	return nil
 }
