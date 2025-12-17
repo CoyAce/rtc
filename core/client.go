@@ -344,13 +344,14 @@ RETRY:
 }
 
 func Load(configName string) *Client {
-	_, err := os.Stat(configName)
+	filePath := getFilePath(configName)
+	_, err := os.Stat(filePath)
 	if os.IsNotExist(err) {
 		return nil
 	}
-	file, err := os.Open(configName)
+	file, err := os.Open(filePath)
 	if err != nil {
-		log.Printf("[%s] open file failed: %v", configName, err)
+		log.Printf("[%s] open file failed: %v", filePath, err)
 		return nil
 	}
 	defer file.Close()
@@ -358,22 +359,24 @@ func Load(configName string) *Client {
 	decoder := json.NewDecoder(file)
 	err = decoder.Decode(&c)
 	if err != nil {
-		log.Printf("[%s] decode failed: %v", configName, err)
+		log.Printf("[%s] decode failed: %v", filePath, err)
 		return nil
 	}
 	return &c
 }
 
 func (c *Client) Store() {
-	file, err := os.Create(c.ConfigName)
+	filePath := getFilePath(c.ConfigName)
+	Mkdir(GetDataDir())
+	file, err := os.Create(filePath)
 	if err != nil {
-		log.Printf("[%s] create file failed: %v", c.ConfigName, err)
+		log.Printf("[%s] create file failed: %v", filePath, err)
 	}
 	defer file.Close()
 
 	encoder := json.NewEncoder(file)
 	err = encoder.Encode(&c)
 	if err != nil {
-		log.Printf("[%s] encode file failed: %v", c.ConfigName, err)
+		log.Printf("[%s] encode file failed: %v", filePath, err)
 	}
 }

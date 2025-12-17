@@ -3,6 +3,7 @@ package ui
 import (
 	"image"
 	"log"
+	"net"
 	"os"
 	"rtc/core"
 	"time"
@@ -52,6 +53,7 @@ func NewSettingsForm(onSuccess func(gtx layout.Context)) *SettingsForm {
 		}
 		client.Sign = s.signEditor.Text()
 		client.ServerAddr = s.serverAddrEditor.Text()
+		client.SAddr, _ = net.ResolveUDPAddr("udp", client.ServerAddr)
 		client.SendSign()
 		client.Store()
 		s.onSuccess(gtx)

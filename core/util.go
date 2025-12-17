@@ -7,9 +7,11 @@ import (
 	"sort"
 	"strings"
 	"unsafe"
+
+	"gioui.org/app"
 )
 
-var dataDir = "data/"
+var dataDir = GetDataDir()
 
 func GetDir(uuid string) string {
 	if uuid == "" {
@@ -119,4 +121,14 @@ func write(dir string, filename string, data []Data) []Data {
 		return data[i:]
 	}
 	return nil
+}
+
+func getFilePath(configName string) string {
+	filePath := GetDataDir() + configName
+	return filePath
+}
+
+func GetDataDir() string {
+	dir, _ := app.DataDir()
+	return dir + "/coyace.rtc/"
 }

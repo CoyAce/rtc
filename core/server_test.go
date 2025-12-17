@@ -2,6 +2,7 @@ package core
 
 import (
 	"bytes"
+	"encoding/hex"
 	"net"
 	"testing"
 )
@@ -18,6 +19,7 @@ func TestListenPacketUDP(t *testing.T) {
 	uuid := "#00001"
 	clientSign := Sign{sign, uuid}
 	clientSignPkt, _ := clientSign.Marshal()
+	t.Logf("sign pkt: [%v]", hex.EncodeToString(clientSignPkt))
 
 	uuidA := "#00002"
 	clientASign := Sign{sign, uuidA}
