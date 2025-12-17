@@ -130,7 +130,7 @@ func (s *SettingsForm) drawInputArea(label string, widget layout.Widget) func(gt
 			layout.Flexed(0.6, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Spacing: layout.SpaceEnd}.Layout(gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						gtx.Constraints.Max.X = gtx.Dp(unit.Dp(175))
+						gtx.Constraints.Max.X = int(float32(gtx.Constraints.Max.X) * 0.8)
 						return widget(gtx)
 					}),
 				)
