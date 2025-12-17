@@ -7,6 +7,14 @@ import (
 	"testing"
 )
 
+func TestSignMarshal(t *testing.T) {
+	sign := "default"
+	uuid := "mock#00001"
+	s := Sign{Sign: sign, UUID: uuid}
+	pkt, _ := s.Marshal()
+	t.Logf("pkt: [%v]", hex.EncodeToString(pkt))
+}
+
 func TestListenPacketUDP(t *testing.T) {
 	// init data
 	signAck := Ack{SrcOp: OpSign, Block: 0}

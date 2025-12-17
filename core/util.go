@@ -4,20 +4,20 @@ import (
 	"bytes"
 	"log"
 	"os"
+	"runtime"
 	"sort"
 	"strings"
+	"time"
 	"unsafe"
 
 	"gioui.org/app"
 )
 
-var dataDir = GetDataDir()
-
 func GetDir(uuid string) string {
 	if uuid == "" {
-		return dataDir + "default"
+		return GetDataDir() + "default"
 	}
-	return dataDir + strings.Replace(uuid, "#", "_", -1)
+	return GetDataDir() + strings.Replace(uuid, "#", "_", -1)
 }
 
 func GetFileName(uuid string, filename string) string {
@@ -55,7 +55,7 @@ func Mkdir(dir string) {
 	// 使用 MkdirAll 确保目录存在
 	err := os.MkdirAll(dir, 0755)
 	if err != nil {
-		log.Fatalf("Error creating directory: %v", err)
+		log.Printf("Error creating directory: %v", err)
 	}
 }
 
@@ -129,6 +129,23 @@ func getFilePath(configName string) string {
 }
 
 func GetDataDir() string {
+	// app.DataDir() blocks on android
+	if runtime.GOOS == "android" {
+		status := make(chan struct{})
+		go func() {
+			// block call
+			app.DataDir()
+			status <- struct{}{}
+		}()
+		select {
+		case <-status:
+		case <-time.After(1000 * time.Millisecond):
+			return "/data/user/0/coyace.rtc/files/"
+		}
+	}
 	dir, _ := app.DataDir()
+	if runtime.GOOS == "android" {
+		return dir
+	}
 	return dir + "/coyace.rtc/"
 }
