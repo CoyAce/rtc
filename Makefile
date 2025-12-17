@@ -36,7 +36,7 @@ windows-arm64:
 
 # go install gioui.org/cmd/gogio@latest
 android:
-	#gogio -x -work -target android -minsdk 22 -targetsdk 36 -version $(VERSION).11 -name GOST+ -signkey build/sign.keystore -signpass android -appid gost.plus -o $(BINDIR)/$(NAME)-$(VERSION).aab .
+	#gogio -x -work -target android -minsdk 22 -targetsdk 36 -version $(VERSION).11 -name Rtc -signkey build/sign.keystore -signpass android -appid coyace.rtc -o $(BINDIR)/$(NAME)-$(VERSION).aab .
 	gogio -x -work -target android -arch amd64 -minsdk 22 -targetsdk 36 -version $(VERSION).1 -name Rtc -appid coyace.rtc -o $(NAME)-$(VERSION).apk .
 
 gz_releases=$(addsuffix .gz, $(PLATFORM_LIST))

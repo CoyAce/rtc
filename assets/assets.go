@@ -9,7 +9,7 @@ import (
 
 //go:embed icon.png
 
-// AppIcon is encoded protonet's icon in png format
+// AppIcon is app's icon in png format
 var AppIcon []byte
 
 // AppIconImage is decoded Image representing AppIcon
