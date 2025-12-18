@@ -139,7 +139,7 @@ func GetDataDir() string {
 		}()
 		select {
 		case <-status:
-		case <-time.After(1000 * time.Millisecond):
+		case <-time.After(500 * time.Millisecond):
 			return "/data/user/0/coyace.rtc/files/"
 		}
 	}

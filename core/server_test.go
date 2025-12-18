@@ -15,6 +15,15 @@ func TestSignMarshal(t *testing.T) {
 	t.Logf("pkt: [%v]", hex.EncodeToString(pkt))
 }
 
+func TestMsgMarshal(t *testing.T) {
+	sign := "default"
+	uuid := "mock#00001"
+	s := Sign{Sign: sign, UUID: uuid}
+	msg := SignedMessage{s, []byte("hello")}
+	pkt, _ := msg.Marshal()
+	t.Logf("pkt: [%v]", hex.EncodeToString(pkt))
+}
+
 func TestListenPacketUDP(t *testing.T) {
 	// init data
 	signAck := Ack{SrcOp: OpSign, Block: 0}
