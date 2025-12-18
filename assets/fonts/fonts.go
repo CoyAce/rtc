@@ -10,92 +10,116 @@ import (
 	"gioui.org/widget/material"
 )
 
-//go:embed black.ttf
+//go:embed NotoEmoji-Black.ttf
+var notoEmojiBlack []byte
 
-var customBlack []byte
+//go:embed NotoSansSC-Black.ttf
+var notoSansSCBlack []byte
 
-//go:embed black-italic.ttf
+//go:embed NotoEmoji-Black-Italic.ttf
+var notoEmojiBlackItalic []byte
 
-var customBlackItalic []byte
+//go:embed NotoEmoji-Bold.ttf
+var notoEmojiBold []byte
 
-//go:embed bold.ttf
+//go:embed NotoSansSC-Bold.ttf
+var notoSansSCBold []byte
 
-var customBold []byte
+//go:embed NotoEmoji-Bold-Italic.ttf
+var notoEmojiBoldItalic []byte
 
-//go:embed bold-italic.ttf
+//go:embed NotoEmoji-Light.ttf
+var notoEmojiLight []byte
 
-var customBoldItalic []byte
+//go:embed NotoSansSC-Light.ttf
+var notoSansSCLight []byte
 
-//go:embed light.ttf
+//go:embed NotoEmoji-Light-Italic.ttf
+var notoEmojiLightItalic []byte
 
-var customLight []byte
+//go:embed NotoEmoji-Medium.ttf
+var notoEmojiMedium []byte
 
-//go:embed light-italic.ttf
+//go:embed NotoSansSC-Medium.ttf
+var notoSansSCMedium []byte
 
-var customLightItalic []byte
+//go:embed NotoEmoji-Medium-Italic.ttf
+var notoEmojiMediumItalic []byte
 
-//go:embed medium.ttf
+//go:embed NotoEmoji-Regular.ttf
+var notoEmojiRegular []byte
 
-var customMedium []byte
+//go:embed NotoSansSC-Regular.ttf
+var notoSansSCRegular []byte
 
-//go:embed medium-italic.ttf
+//go:embed NotoEmoji-Regular-Italic.ttf
+var notoEmojiRegularItalic []byte
 
-var customMediumItalic []byte
+//go:embed NotoEmoji-Thin.ttf
+var notoEmojiThin []byte
 
-//go:embed regular.ttf
+//go:embed NotoSansSC-Thin.ttf
+var notoSansSCThin []byte
 
-var customRegular []byte
+//go:embed NotoEmoji-Thin-Italic.ttf
+var notoEmojiThinItalic []byte
 
-//go:embed regular-italic.ttf
+var black, _ = opentype.Parse(notoEmojiBlack)
+var scBlack, _ = opentype.Parse(notoSansSCBlack)
+var blackItalic, _ = opentype.Parse(notoEmojiBlackItalic)
+var bold, _ = opentype.Parse(notoEmojiBold)
+var scBold, _ = opentype.Parse(notoSansSCBold)
+var boldItalic, _ = opentype.Parse(notoEmojiBoldItalic)
+var light, _ = opentype.Parse(notoEmojiLight)
+var scLight, _ = opentype.Parse(notoSansSCLight)
+var lightItalic, _ = opentype.Parse(notoEmojiLightItalic)
+var medium, _ = opentype.Parse(notoEmojiMedium)
+var scMedium, _ = opentype.Parse(notoSansSCMedium)
+var mediumItalic, _ = opentype.Parse(notoEmojiMediumItalic)
+var regular, _ = opentype.Parse(notoEmojiRegular)
+var scRegular, _ = opentype.Parse(notoSansSCRegular)
+var regularItalic, _ = opentype.Parse(notoEmojiRegularItalic)
+var thin, _ = opentype.Parse(notoEmojiThin)
+var scThin, _ = opentype.Parse(notoSansSCThin)
+var thinItalic, _ = opentype.Parse(notoEmojiThinItalic)
 
-var customRegularItalic []byte
-
-//go:embed thin.ttf
-
-var customThin []byte
-
-//go:embed thin-italic.ttf
-
-var customThinItalic []byte
-
-var black, _ = opentype.Parse(customBlack)
-var blackItalic, _ = opentype.Parse(customBlackItalic)
-var bold, _ = opentype.Parse(customBold)
-var boldItalic, _ = opentype.Parse(customBoldItalic)
-var light, _ = opentype.Parse(customLight)
-var lightItalic, _ = opentype.Parse(customLightItalic)
-var medium, _ = opentype.Parse(customMedium)
-var mediumItalic, _ = opentype.Parse(customMediumItalic)
-var regular, _ = opentype.Parse(customRegular)
-var regularItalic, _ = opentype.Parse(customRegularItalic)
-var thin, _ = opentype.Parse(customThin)
-var thinItalic, _ = opentype.Parse(customThinItalic)
-
-var BlackFont = font.Font{Weight: font.Black, Style: font.Regular}
-var blackItalicFont = font.Font{Weight: font.Black, Style: font.Italic}
-var boldFont = font.Font{Weight: font.Bold, Style: font.Regular}
-var boldItalicFont = font.Font{Weight: font.Bold, Style: font.Italic}
-var lightFont = font.Font{Weight: font.Light, Style: font.Regular}
-var lightItalicFont = font.Font{Weight: font.Light, Style: font.Italic}
-var mediumFont = font.Font{Weight: font.Medium, Style: font.Regular}
-var mediumItalicFont = font.Font{Weight: font.Medium, Style: font.Italic}
-var regularFont = font.Font{Weight: font.Normal, Style: font.Regular}
-var regularItalicFont = font.Font{Weight: font.Normal, Style: font.Italic}
-var thinFont = font.Font{Weight: font.Thin, Style: font.Regular}
-var thinItalicFont = font.Font{Weight: font.Thin, Style: font.Italic}
+var blackFont = font.Font{Typeface: "emoji", Weight: font.Black, Style: font.Regular}
+var scBlackFont = font.Font{Typeface: "sans-serif", Weight: font.Black, Style: font.Regular}
+var blackItalicFont = font.Font{Typeface: "emoji", Weight: font.Black, Style: font.Italic}
+var boldFont = font.Font{Typeface: "emoji", Weight: font.Bold, Style: font.Regular}
+var scBoldFont = font.Font{Typeface: "sans-serif", Weight: font.Bold, Style: font.Regular}
+var boldItalicFont = font.Font{Typeface: "emoji", Weight: font.Bold, Style: font.Italic}
+var lightFont = font.Font{Typeface: "emoji", Weight: font.Light, Style: font.Regular}
+var scLightFont = font.Font{Typeface: "sans-serif", Weight: font.Light, Style: font.Regular}
+var lightItalicFont = font.Font{Typeface: "emoji", Weight: font.Light, Style: font.Italic}
+var mediumFont = font.Font{Typeface: "emoji", Weight: font.Medium, Style: font.Regular}
+var scMediumFont = font.Font{Typeface: "sans-serif", Weight: font.Medium, Style: font.Regular}
+var mediumItalicFont = font.Font{Typeface: "emoji", Weight: font.Medium, Style: font.Italic}
+var regularFont = font.Font{Typeface: "emoji", Weight: font.Normal, Style: font.Regular}
+var scRegularFont = font.Font{Typeface: "sans-serif", Weight: font.Normal, Style: font.Regular}
+var regularItalicFont = font.Font{Typeface: "emoji", Weight: font.Normal, Style: font.Italic}
+var thinFont = font.Font{Typeface: "emoji", Weight: font.Thin, Style: font.Regular}
+var scThinFont = font.Font{Typeface: "sans-serif", Weight: font.Thin, Style: font.Regular}
+var thinItalicFont = font.Font{Typeface: "emoji", Weight: font.Thin, Style: font.Italic}
 
 var collection = []text.FontFace{
-	{Font: BlackFont, Face: black},
+	{Font: blackFont, Face: black},
+	{Font: scBlackFont, Face: scBlack},
 	{Font: blackItalicFont, Face: blackItalic},
 	{Font: boldFont, Face: bold},
+	{Font: scBoldFont, Face: scBold},
 	{Font: boldItalicFont, Face: boldItalic},
 	{Font: lightFont, Face: light},
+	{Font: scLightFont, Face: scLight},
 	{Font: lightItalicFont, Face: lightItalic},
 	{Font: mediumFont, Face: medium},
+	{Font: scMediumFont, Face: scMedium},
 	{Font: mediumItalicFont, Face: mediumItalic},
 	{Font: regularFont, Face: regular},
+	{Font: scRegularFont, Face: scRegular},
 	{Font: regularItalicFont, Face: regularItalic},
 	{Font: thinFont, Face: thin},
+	{Font: scThinFont, Face: scThin},
 	{Font: thinItalicFont, Face: thinItalic},
 }
 var AppColor = color.NRGBA{R: 102, G: 117, B: 127, A: 255}
