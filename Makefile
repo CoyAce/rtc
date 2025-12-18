@@ -52,5 +52,5 @@ $(zip_releases): %.zip : %
 release: $(gz_releases) $(zip_releases) android
 
 clean:
-	rm *.syso -f
-	rm $(BIN_DIR)/* -rf
+	rm -f *.syso
+	rm -rf $(BIN_DIR)/*

@@ -7,7 +7,6 @@ import (
 	"runtime"
 	"sort"
 	"strings"
-	"time"
 	"unsafe"
 
 	"gioui.org/app"
@@ -129,20 +128,6 @@ func getFilePath(configName string) string {
 }
 
 func GetDataDir() string {
-	// app.DataDir() blocks on android
-	if runtime.GOOS == "android" {
-		status := make(chan struct{})
-		go func() {
-			// block call
-			app.DataDir()
-			status <- struct{}{}
-		}()
-		select {
-		case <-status:
-		case <-time.After(500 * time.Millisecond):
-			return "/data/user/0/coyace.rtc/files/"
-		}
-	}
 	dir, _ := app.DataDir()
 	if runtime.GOOS == "android" {
 		return dir
