@@ -249,7 +249,7 @@ func (m *Message) drawName(gtx layout.Context) layout.Dimensions {
 func (l *MessageList) Layout(gtx layout.Context) layout.Dimensions {
 	// Process events using the key, &messageList
 	l.getFocusAndResetIconStackIfClicked(gtx)
-	l.resetScrollToEndIfScrolled(gtx)
+	l.resetScrollToEndIfScrolledOrDragging(gtx)
 	l.processScrollToEnd()
 	// We visualize the text using a list where each paragraph is a separate item.
 	dimensions := l.List.Layout(gtx, len(l.Messages), func(gtx layout.Context, index int) layout.Dimensions {
@@ -280,7 +280,10 @@ func (l *MessageList) processScrollToEnd() {
 	}
 }
 
-func (l *MessageList) resetScrollToEndIfScrolled(gtx layout.Context) {
+func (l *MessageList) resetScrollToEndIfScrolledOrDragging(gtx layout.Context) {
+	if l.Dragging() {
+		l.ScrollToEnd = false
+	}
 	for {
 		_, ok := gtx.Event(
 			pointer.Filter{
