@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"rtc/assets/fonts"
 	"rtc/core"
 	"time"
 
@@ -33,7 +34,7 @@ type SettingsForm struct {
 func NewSettingsForm(onSuccess func(gtx layout.Context)) *SettingsForm {
 	submitIcon, _ := widget.NewIcon(icons.ActionDone)
 	s := &SettingsForm{
-		Theme:            theme,
+		Theme:            fonts.NewTheme(),
 		avatar:           Avatar{UUID: client.FullID(), Size: 64, Editable: true, Theme: theme, OnChange: SyncSelectedIcon},
 		onSuccess:        onSuccess,
 		nicknameEditor:   &component.TextField{Editor: widget.Editor{}},
@@ -41,6 +42,7 @@ func NewSettingsForm(onSuccess func(gtx layout.Context)) *SettingsForm {
 		serverAddrEditor: &component.TextField{Editor: widget.Editor{}},
 		submitButton:     IconButton{Theme: theme, Icon: submitIcon, Enabled: true},
 	}
+	s.Theme.TextSize = 0.75 * s.Theme.TextSize
 	s.submitButton.OnClick = func(gtx layout.Context) {
 		if s.nicknameEditor.Text() != client.Nickname {
 			oldName := core.GetDir(client.FullID())
@@ -63,13 +65,13 @@ func NewSettingsForm(onSuccess func(gtx layout.Context)) *SettingsForm {
 
 func (s *SettingsForm) Layout(gtx layout.Context) layout.Dimensions {
 	s.processClick(gtx)
-	if len(s.nicknameEditor.Text()) == 0 {
+	if len(s.nicknameEditor.Text()) == 0 && !gtx.Focused(&s.nicknameEditor.Editor) {
 		s.nicknameEditor.SetText(client.Nickname)
 	}
-	if len(s.signEditor.Text()) == 0 {
-		s.signEditor.SetText(string(client.Sign))
+	if len(s.signEditor.Text()) == 0 && !gtx.Focused(&s.signEditor.Editor) {
+		s.signEditor.SetText(client.Sign)
 	}
-	if len(s.serverAddrEditor.Text()) == 0 {
+	if len(s.serverAddrEditor.Text()) == 0 && !gtx.Focused(&s.serverAddrEditor.Editor) {
 		s.serverAddrEditor.SetText(client.ServerAddr)
 	}
 	gtx.Constraints.Min.X = gtx.Constraints.Max.X
@@ -124,7 +126,8 @@ func (s *SettingsForm) drawInputArea(label string, widget layout.Widget) func(gt
 			layout.Flexed(0.4, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Spacing: layout.SpaceStart}.Layout(gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return material.Label(s.Theme, s.TextSize, label).Layout(gtx)
+						gtx.Constraints.Max.X = int(float32(gtx.Constraints.Max.X) * 0.8)
+						return material.Label(s.Theme, s.TextSize*1.07, label).Layout(gtx)
 					}),
 				)
 			}),
