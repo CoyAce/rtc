@@ -1,4 +1,5 @@
 data/*
+bin/*
 .idea
 .DS_Store
 rtc
