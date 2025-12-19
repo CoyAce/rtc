@@ -1,5 +1,5 @@
 # https://gioui.org/doc/install
-NAME=rtc
+NAME=RTC
 BIN_DIR=bin
 VERSION=$(shell cat assets/assets.go | grep 'Version =' | sed 's/.*\"\(.*\)\".*/\1/g')
 GO_BUILD=CGO_ENABLED=0 go build --ldflags="-s -w" -v -x -a
@@ -40,7 +40,7 @@ windows-arm64:
 
 # go install gioui.org/cmd/gogio@latest
 android:
-	gogio -x -work -target android -arch arm64,amd64 -minsdk 22 -targetsdk 35 -version $(VERSION).1 -name Rtc -appid coyace.rtc -o $(BIN_DIR)/$(NAME)-$(VERSION).apk .
+	gogio -x -work -target android -arch arm64,amd64 -minsdk 22 -targetsdk 35 -version $(VERSION).1 -name RTC -appid coyace.rtc -o $(BIN_DIR)/$(NAME)-$(VERSION).apk .
 
 gz_releases=$(addsuffix .gz, $(PLATFORM_LIST))
 zip_releases=$(addsuffix .zip, $(WINDOWS_ARCH_LIST))
