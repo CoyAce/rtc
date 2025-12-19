@@ -25,15 +25,19 @@ var SyncCachedIcon = func() {
 		log.Printf("avatar not found in cache")
 		return
 	}
-	err := client.SyncIcon(avatar.Image)
-	if err != nil {
-		log.Printf("Failed to sync icon: %v", err)
-	}
+	go func() {
+		err := client.SyncIcon(avatar.Image)
+		if err != nil {
+			log.Printf("Failed to sync icon: %v", err)
+		}
+	}()
 }
 
 var SyncSelectedIcon = func(img image.Image) {
-	err := client.SyncIcon(img)
-	if err != nil {
-		log.Printf("Failed to sync icon: %v", err)
-	}
+	go func() {
+		err := client.SyncIcon(img)
+		if err != nil {
+			log.Printf("Failed to sync icon: %v", err)
+		}
+	}()
 }
