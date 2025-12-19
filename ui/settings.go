@@ -3,12 +3,13 @@ package ui
 import (
 	"image"
 	"log"
-	"net"
 	"os"
 	"rtc/assets/fonts"
 	"rtc/core"
+	ui "rtc/ui/layout"
 	"time"
 
+	"gioui.org/font"
 	"gioui.org/io/event"
 	"gioui.org/io/key"
 	"gioui.org/io/pointer"
@@ -18,12 +19,12 @@ import (
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"gioui.org/x/component"
-	"golang.org/x/exp/shiny/materialdesign/icons"
 )
 
 type SettingsForm struct {
 	*material.Theme
 	avatar           Avatar
+	modalContent     *ui.ModalContent
 	onSuccess        func(gtx layout.Context)
 	nicknameEditor   *component.TextField
 	signEditor       *component.TextField
@@ -32,7 +33,6 @@ type SettingsForm struct {
 }
 
 func NewSettingsForm(onSuccess func(gtx layout.Context)) *SettingsForm {
-	submitIcon, _ := widget.NewIcon(icons.ActionDone)
 	s := &SettingsForm{
 		Theme:            fonts.NewTheme(),
 		avatar:           Avatar{UUID: client.FullID(), Size: 64, Editable: true, Theme: theme, OnChange: SyncSelectedIcon},
@@ -40,27 +40,54 @@ func NewSettingsForm(onSuccess func(gtx layout.Context)) *SettingsForm {
 		nicknameEditor:   &component.TextField{Editor: widget.Editor{}},
 		signEditor:       &component.TextField{Editor: widget.Editor{}},
 		serverAddrEditor: &component.TextField{Editor: widget.Editor{}},
-		submitButton:     IconButton{Theme: theme, Icon: submitIcon, Enabled: true},
+		submitButton:     IconButton{Theme: theme, Icon: actionDoneIcon, Enabled: true},
 	}
 	s.Theme.TextSize = 0.75 * s.Theme.TextSize
 	s.submitButton.OnClick = func(gtx layout.Context) {
-		if s.nicknameEditor.Text() != client.Nickname {
-			oldName := core.GetDir(client.FullID())
-			client.Nickname = s.nicknameEditor.Text()
-			newName := core.GetDir(client.FullID())
-			err := os.Rename(oldName, newName)
-			if err != nil {
-				log.Printf("Failed to rename: %v", err)
-			}
+		oldUUID := client.FullID()
+		nicknameChanged := s.nicknameEditor.Text() != client.Nickname
+		if nicknameChanged {
+			client.SetNickName(s.nicknameEditor.Text())
+			newUUID := client.FullID()
+			renameOldPathToNewPath(oldUUID, newUUID)
+			// update cache
+			moveOldCacheEntryToNewCache(oldUUID, newUUID)
 		}
-		client.Sign = s.signEditor.Text()
-		client.ServerAddr = s.serverAddrEditor.Text()
-		client.SAddr, _ = net.ResolveUDPAddr("udp", client.ServerAddr)
+		client.SetSign(s.signEditor.Text())
+		client.SetServerAddr(s.serverAddrEditor.Text())
+		// SendSign first, bind uuid to sign
 		client.SendSign()
+		if nicknameChanged {
+			// then sync icon
+			SyncSelectedIcon(s.avatar.Image)
+		}
 		client.Store()
 		s.onSuccess(gtx)
 	}
+	s.modalContent = ui.NewModalContent(theme, func() {
+		modal.Dismiss(nil)
+		s.nicknameEditor.Clear()
+		s.signEditor.Clear()
+		s.serverAddrEditor.Clear()
+	})
 	return s
+}
+
+func moveOldCacheEntryToNewCache(oldUUID string, newUUID string) {
+	avatar := avatarCache[oldUUID]
+	if avatar != nil {
+		avatarCache[newUUID] = avatar
+		delete(avatarCache, oldUUID)
+	}
+}
+
+func renameOldPathToNewPath(oldUUID string, newUUID string) {
+	oldPath := core.GetDir(oldUUID)
+	newPath := core.GetDir(newUUID)
+	err := os.Rename(oldPath, newPath)
+	if err != nil {
+		log.Printf("Failed to rename: %v", err)
+	}
 }
 
 func (s *SettingsForm) Layout(gtx layout.Context) layout.Dimensions {
@@ -122,12 +149,14 @@ func (s *SettingsForm) processClick(gtx layout.Context) {
 
 func (s *SettingsForm) drawInputArea(label string, widget layout.Widget) func(gtx layout.Context) layout.Dimensions {
 	return func(gtx layout.Context) layout.Dimensions {
-		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Baseline}.Layout(gtx,
 			layout.Flexed(0.4, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Spacing: layout.SpaceStart}.Layout(gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						gtx.Constraints.Max.X = int(float32(gtx.Constraints.Max.X) * 0.8)
-						return material.Label(s.Theme, s.TextSize*1.07, label).Layout(gtx)
+						labelWidget := material.Label(s.Theme, s.TextSize, label)
+						labelWidget.Font.Weight = font.Bold
+						return labelWidget.Layout(gtx)
 					}),
 				)
 			}),
@@ -145,17 +174,15 @@ func (s *SettingsForm) drawInputArea(label string, widget layout.Widget) func(gt
 
 func (s *SettingsForm) ShowWithModal(gtx layout.Context) {
 	iconStackAnimation.Disappear(gtx.Now)
-	modal.Show(ZoomInWithModalContent(s.Layout), nil, component.VisibilityAnimation{
+	modal.Show(s.ZoomInWithModalContent, nil, component.VisibilityAnimation{
 		Duration: time.Millisecond * 250,
 		State:    component.Invisible,
 		Started:  time.Time{},
 	})
 }
 
-func ZoomInWithModalContent(widget layout.Widget) func(gtx layout.Context) layout.Dimensions {
-	return func(gtx layout.Context) layout.Dimensions {
-		gtx.Constraints.Max.X = int(float32(gtx.Constraints.Max.X) * 0.85)
-		gtx.Constraints.Max.Y = int(float32(gtx.Constraints.Max.Y) * 0.85)
-		return modalContent.DrawContent(gtx, widget)
-	}
+func (s *SettingsForm) ZoomInWithModalContent(gtx layout.Context) layout.Dimensions {
+	gtx.Constraints.Max.X = int(float32(gtx.Constraints.Max.X) * 0.85)
+	gtx.Constraints.Max.Y = int(float32(gtx.Constraints.Max.Y) * 0.85)
+	return s.modalContent.DrawContent(gtx, s.Layout)
 }

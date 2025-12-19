@@ -68,6 +68,7 @@ type IconButton struct {
 	button  widget.Clickable
 }
 
+var actionDoneIcon, _ = widget.NewIcon(icons.ActionDone)
 var submitIcon, _ = widget.NewIcon(icons.ContentSend)
 var expandIcon, _ = widget.NewIcon(icons.NavigationUnfoldMore)
 var collapseIcon, _ = widget.NewIcon(icons.NavigationUnfoldLess)

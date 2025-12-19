@@ -304,6 +304,19 @@ func (c *Client) ack(conn net.PacketConn, clientAddr net.Addr, code OpCode, bloc
 	}
 }
 
+func (c *Client) SetNickName(nickname string) {
+	c.Nickname = nickname
+}
+
+func (c *Client) SetSign(sign string) {
+	c.Sign = sign
+}
+
+func (c *Client) SetServerAddr(addr string) {
+	c.ServerAddr = addr
+	c.SAddr, _ = net.ResolveUDPAddr("udp", addr)
+}
+
 func (c *Client) sendPacket(conn net.Conn, buf []byte, bytes []byte, block uint32) (int, error) {
 	var ackPkt Ack
 RETRY:

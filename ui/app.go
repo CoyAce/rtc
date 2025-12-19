@@ -85,5 +85,4 @@ func Draw(window *app.Window, c *core.Client) error {
 var client *core.Client
 var theme = fonts.NewTheme()
 var modal = ui.NewModalStack()
-var modalContent = ui.NewModalContent(theme, func() { modal.Dismiss(nil) })
 var picker *explorer.Explorer
