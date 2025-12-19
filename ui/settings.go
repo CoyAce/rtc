@@ -51,7 +51,7 @@ func NewSettingsForm(onSuccess func(gtx layout.Context)) *SettingsForm {
 			newUUID := client.FullID()
 			renameOldPathToNewPath(oldUUID, newUUID)
 			// update cache
-			moveOldCacheEntryToNewCache(oldUUID, newUUID)
+			copyOldCacheEntryToNewCache(oldUUID, newUUID)
 		}
 		client.SetSign(s.signEditor.Text())
 		client.SetServerAddr(s.serverAddrEditor.Text())
@@ -73,11 +73,10 @@ func NewSettingsForm(onSuccess func(gtx layout.Context)) *SettingsForm {
 	return s
 }
 
-func moveOldCacheEntryToNewCache(oldUUID string, newUUID string) {
+func copyOldCacheEntryToNewCache(oldUUID string, newUUID string) {
 	avatar := avatarCache[oldUUID]
 	if avatar != nil {
 		avatarCache[newUUID] = avatar
-		delete(avatarCache, oldUUID)
 	}
 }
 
