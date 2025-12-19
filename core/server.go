@@ -117,20 +117,24 @@ func (s *Server) ack(conn net.PacketConn, clientAddr net.Addr, code OpCode, bloc
 func (s *Server) handle(sign Sign, bytes []byte) {
 	for addr, v := range s.SignMap {
 		if v.Sign == sign.Sign && v.UUID != sign.UUID {
-			conn, err := net.Dial("udp", addr)
-			if err != nil {
-				log.Printf("[%s] dial failed: %v", addr, err)
-				s.lock.Lock()
-				delete(s.SignMap, addr)
-				s.lock.Unlock()
-				continue
-			}
-			defer func() { _ = conn.Close() }()
-
-			ad, _ := net.ResolveUDPAddr("udp", addr)
-			s.dispatch(ad, conn, bytes)
+			// use goroutine to avoid blocking by slow connection
+			go s.connectAndDispatch(addr, bytes)
 		}
 	}
+}
+
+func (s *Server) connectAndDispatch(addr string, bytes []byte) {
+	conn, err := net.Dial("udp", addr)
+	if err != nil {
+		log.Printf("[%s] dial failed: %v", addr, err)
+		s.lock.Lock()
+		delete(s.SignMap, addr)
+		s.lock.Unlock()
+	}
+	defer func() { _ = conn.Close() }()
+
+	ad, _ := net.ResolveUDPAddr("udp", addr)
+	s.dispatch(ad, conn, bytes)
 }
 
 func (s *Server) dispatch(clientAddr net.Addr, conn net.Conn, bytes []byte) {
