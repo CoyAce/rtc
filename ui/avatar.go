@@ -62,7 +62,6 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 				img = resizeImage(img, 512, 512)
 			}
 
-			defaultAvatar.Image = img
 			v.selectedImage <- img
 
 			// save to file

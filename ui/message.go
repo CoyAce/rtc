@@ -83,8 +83,6 @@ var iconStackAnimation = component.VisibilityAnimation{
 	Started:  time.Time{},
 }
 
-var defaultAvatar Avatar
-
 func NewIconStack() *IconStack {
 	settings := NewSettingsForm(OnSettingsSubmit)
 	return &IconStack{Theme: theme,

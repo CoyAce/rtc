@@ -20,7 +20,12 @@ var OnSettingsSubmit = func(gtx layout.Context) {
 	modal.Dismiss(nil)
 }
 var SyncCachedIcon = func() {
-	err := client.SyncIcon(avatarCache[client.FullID()].Image)
+	avatar := avatarCache[client.FullID()]
+	if avatar == nil || avatar.Image == nil {
+		log.Printf("avatar not found in cache")
+		return
+	}
+	err := client.SyncIcon(avatar.Image)
 	if err != nil {
 		log.Printf("Failed to sync icon: %v", err)
 	}
