@@ -75,7 +75,7 @@ func main() {
 
 	go func() {
 		w := new(app.Window)
-		w.Option(app.Title("rtc"))
+		w.Option(app.Title("RTC"))
 		w.Option(app.Size(unit.Dp(463), unit.Dp(750)))
 		w.Option(app.MinSize(unit.Dp(463)/1.5, unit.Dp(750)/1.5))
 		if err := ui.Draw(w, c); err != nil {
