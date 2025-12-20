@@ -213,12 +213,13 @@ func (c *Client) ListenAndServe(addr string) {
 	c.SAddr, err = net.ResolveUDPAddr("udp", c.ServerAddr)
 	go func() {
 		// auto reconnect in case of server down
-		cnt := c.MessageCounter
+		var threshold uint32 = 5
 		for {
 			c.SendSign()
-			sentEnoughMessages := c.MessageCounter-cnt > 50
+			sentEnoughMessages := c.MessageCounter > threshold
 			if sentEnoughMessages && c.SyncFunc != nil {
-				cnt = c.MessageCounter
+				c.MessageCounter = 0
+				threshold++
 				c.SyncFunc()
 			}
 			time.Sleep(30 * time.Second)
