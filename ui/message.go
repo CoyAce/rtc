@@ -62,6 +62,7 @@ func (a *MessageKeeper) Loop() {
 
 func (a *MessageKeeper) Append() {
 	filename := core.GetFileName(client.FullID(), "message.log")
+	core.Mkdir(core.GetDir(client.FullID()))
 	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Printf("error opening file: %v", err)
