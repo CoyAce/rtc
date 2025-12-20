@@ -39,6 +39,7 @@ const (
 
 type Message struct {
 	State
+	editor *widget.Editor
 	*material.Theme
 	UUID      string
 	Text      string
@@ -173,8 +174,7 @@ func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
 		d := layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Min.X = 0
 			gtx.Constraints.Max.X = int(float32(gtx.Constraints.Max.X) / 1.5)
-			bd := material.Body1(m.Theme, m.Text)
-			return bd.Layout(gtx)
+			return material.Editor(m.Theme, m.editor, "hint").Layout(gtx)
 		})
 		call := macro.Stop()
 		// draw border
