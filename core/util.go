@@ -14,9 +14,9 @@ import (
 
 func GetDir(uuid string) string {
 	if uuid == "" {
-		return GetDataDir() + "default"
+		return GetDataDir() + "/default"
 	}
-	return GetDataDir() + strings.Replace(uuid, "#", "_", -1)
+	return GetDataDir() + "/" + strings.Replace(uuid, "#", "_", -1)
 }
 
 func GetFileName(uuid string, filename string) string {
