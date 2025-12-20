@@ -10,6 +10,7 @@ import (
 	"os"
 	"rtc/core"
 	ui "rtc/ui/layout"
+	view "rtc/ui/layout/component"
 	"time"
 
 	"gioui.org/font"
@@ -132,7 +133,7 @@ type Message struct {
 
 type MessageEditor struct {
 	*material.Theme
-	InputField     *ui.TextField
+	InputField     *view.TextField
 	submitButton   widget.Clickable
 	expandButton   widget.Clickable
 	collapseButton widget.Clickable
@@ -486,7 +487,7 @@ func (e *MessageEditor) Submitted(gtx layout.Context) bool {
 func (e *MessageEditor) submittedByCarriageReturn(gtx layout.Context) (submit bool) {
 	for {
 		ev, ok := e.InputField.Editor.Update(gtx)
-		if _, submit = ev.(widget.SubmitEvent); submit {
+		if _, submit = ev.(ui.SubmitEvent); submit {
 			break
 		}
 		if !ok {

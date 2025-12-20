@@ -1,8 +1,10 @@
-package layout
+package component
 
 import (
 	"image"
 	"image/color"
+	ui "rtc/ui/layout"
+	m "rtc/ui/layout/material"
 	"strconv"
 	"time"
 
@@ -24,7 +26,7 @@ import (
 // described here: https://material.io/components/text-fields
 type TextField struct {
 	// Editor contains the edit buffer.
-	widget.Editor
+	ui.Editor
 	// click detects when the mouse pointer clicks or hovers
 	// within the textfield.
 	click gesture.Click
@@ -309,7 +311,7 @@ func (in *TextField) Layout(gtx layout.Context, th *material.Theme, hint string)
 									return layout.Dimensions{}
 								}),
 								layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-									return material.Editor(th, &in.Editor, "").Layout(gtx)
+									return m.Editor(th, &in.Editor, "").Layout(gtx)
 								}),
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 									if in.IsActive() && in.Suffix != nil {

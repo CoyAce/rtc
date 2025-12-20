@@ -4,6 +4,7 @@ import (
 	"rtc/assets/fonts"
 	"rtc/core"
 	ui "rtc/ui/layout"
+	"rtc/ui/layout/component"
 	"strings"
 	"time"
 
@@ -42,7 +43,7 @@ func Draw(window *app.Window, c *core.Client) error {
 	client.HandleFileWith(OnFileReceived)
 	// handle sync operation
 	client.SyncFunc = SyncCachedIcon
-	inputField := ui.TextField{Editor: widget.Editor{Submit: true}}
+	inputField := component.TextField{Editor: ui.Editor{Submit: true}}
 	messageEditor := MessageEditor{InputField: &inputField, Theme: theme}
 	iconStack := NewIconStack()
 	picker = explorer.NewExplorer(window)
