@@ -1,9 +1,14 @@
 package ui
 
 import (
+	"bufio"
+	"encoding/json"
 	"image"
 	"image/color"
+	"log"
 	"math"
+	"os"
+	"rtc/core"
 	"time"
 
 	"gioui.org/font"
@@ -29,6 +34,82 @@ type MessageList struct {
 	FirstVisible bool
 }
 
+type MessageKeeper struct {
+	MessageChannel chan *Message
+	buffer         []*Message
+	ready          chan struct{}
+	timer          *time.Timer
+}
+
+func (a *MessageKeeper) Loop() {
+	a.ready = make(chan struct{}, 1)
+	a.timer = time.NewTimer(time.Second)
+	for {
+		select {
+		case msg := <-a.MessageChannel:
+			a.buffer = append(a.buffer, msg)
+		case <-a.timer.C:
+			a.timer.Reset(time.Second)
+			a.ready <- struct{}{}
+		case <-a.ready:
+			if len(a.buffer) == 0 {
+				continue
+			}
+			a.Append()
+		}
+	}
+}
+
+func (a *MessageKeeper) Append() {
+	filename := core.GetFileName(client.FullID(), "message.log")
+	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Printf("error opening file: %v", err)
+	}
+	defer file.Close()
+	for _, msg := range a.buffer {
+		a.writeJson(file, msg)
+	}
+	a.buffer = a.buffer[:0]
+}
+
+func (a *MessageKeeper) writeJson(file *os.File, msg *Message) {
+	s, err := json.Marshal(msg)
+	if err != nil {
+		log.Printf("error marshalling message: %v", err)
+		return
+	}
+	_, err = file.WriteString(string(s) + "\n")
+	if err != nil {
+		log.Printf("error writing to file: %v", err)
+	}
+}
+
+func (a *MessageKeeper) Messages() []Message {
+	filename := core.GetFileName(client.FullID(), "message.log")
+	f, err := os.Open(filename)
+	if err != nil {
+		log.Printf("error opening file: %v", err)
+		return []Message{}
+	}
+	ret := make([]Message, 0)
+	s := bufio.NewScanner(f)
+	for s.Scan() {
+		var msg Message
+		line := s.Bytes()
+		err := json.Unmarshal(line, &msg)
+		if err != nil {
+			log.Printf("error unmarshalling message: %v", err)
+		}
+		ed := widget.Editor{ReadOnly: true}
+		ed.SetText(msg.Text)
+		msg.editor = &ed
+		msg.Theme = theme
+		ret = append(ret, msg)
+	}
+	return ret
+}
+
 type State uint16
 
 const (
@@ -39,12 +120,12 @@ const (
 
 type Message struct {
 	State
-	editor *widget.Editor
-	*material.Theme
-	UUID      string
-	Text      string
-	Sender    string
-	CreatedAt time.Time
+	editor          *widget.Editor
+	*material.Theme `json:"-"`
+	UUID            string
+	Text            string
+	Sender          string
+	CreatedAt       time.Time
 }
 
 type MessageEditor struct {
@@ -143,6 +224,10 @@ func (m *Message) isMe() bool {
 
 func (m *Message) AddTo(list *MessageList) {
 	list.Messages = append(list.Messages, *m)
+}
+
+func (m *Message) SendTo(messageAppender *MessageKeeper) {
+	messageAppender.MessageChannel <- m
 }
 
 func (m *Message) drawMessage(gtx layout.Context) layout.Dimensions {

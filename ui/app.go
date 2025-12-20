@@ -21,7 +21,10 @@ func Draw(window *app.Window, c *core.Client) error {
 	// ops are the operations from the UI
 	var ops op.Ops
 
-	var messageList = &MessageList{List: layout.List{Axis: layout.Vertical}, Theme: theme}
+	var messageList = &MessageList{List: layout.List{Axis: layout.Vertical}, Theme: theme, ScrollToEnd: true}
+	var messageKeeper = &MessageKeeper{MessageChannel: make(chan *Message, 1)}
+	messageList.Messages = messageKeeper.Messages()
+	go messageKeeper.Loop()
 	// listen for events in the messages channel
 	go func() {
 		for m := range client.SignedMessages {
@@ -31,6 +34,7 @@ func Draw(window *app.Window, c *core.Client) error {
 			message := Message{Sent, &ed, theme, client.FullID(),
 				text, m.Sign.UUID, time.Now()}
 			message.AddTo(messageList)
+			message.SendTo(messageKeeper)
 			messageList.ScrollToEnd = true
 			window.Invalidate()
 		}
@@ -51,6 +55,8 @@ func Draw(window *app.Window, c *core.Client) error {
 		switch e := event.(type) {
 		// this is sent when the application is closed
 		case app.DestroyEvent:
+			client.Store()
+			messageKeeper.Append()
 			return e.Err
 
 		// this is sent when the application should re-render.
@@ -72,6 +78,7 @@ func Draw(window *app.Window, c *core.Client) error {
 					}
 					messageList.ScrollToEnd = true
 					message.AddTo(messageList)
+					message.SendTo(messageKeeper)
 				}()
 			}
 
