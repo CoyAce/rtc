@@ -11,7 +11,6 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/widget"
-	"gioui.org/x/component"
 	"gioui.org/x/explorer"
 )
 
@@ -43,7 +42,7 @@ func Draw(window *app.Window, c *core.Client) error {
 	client.HandleFileWith(OnFileReceived)
 	// handle sync operation
 	client.SyncFunc = SyncCachedIcon
-	inputField := component.TextField{Editor: widget.Editor{Submit: true}}
+	inputField := ui.TextField{Editor: widget.Editor{Submit: true}}
 	messageEditor := MessageEditor{InputField: &inputField, Theme: theme}
 	iconStack := NewIconStack()
 	picker = explorer.NewExplorer(window)

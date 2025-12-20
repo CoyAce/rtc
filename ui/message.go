@@ -9,6 +9,7 @@ import (
 	"math"
 	"os"
 	"rtc/core"
+	ui "rtc/ui/layout"
 	"time"
 
 	"gioui.org/font"
@@ -131,7 +132,7 @@ type Message struct {
 
 type MessageEditor struct {
 	*material.Theme
-	InputField     *component.TextField
+	InputField     *ui.TextField
 	submitButton   widget.Clickable
 	expandButton   widget.Clickable
 	collapseButton widget.Clickable
