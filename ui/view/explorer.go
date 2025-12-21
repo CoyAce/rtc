@@ -6,12 +6,21 @@ import (
 	"io"
 	"log"
 	"os"
+	"rtc/ui/native"
+	"runtime"
 
-	"gioui.org/x/explorer"
+	"gioui.org/io/event"
 	"golang.org/x/image/webp"
 )
 
-var DefaultPicker *explorer.Explorer
+var DefaultPicker Picker
+
+type Picker interface {
+	ListenEvents(evt event.Event)
+	ChooseFile(extensions ...string) (io.ReadCloser, error)
+	ChooseFiles(extensions ...string) ([]io.ReadCloser, error)
+	CreateFile(name string) (io.WriteCloser, error)
+}
 
 func ChooseImageAndDecode() (image.Image, string, error) {
 	file, err := DefaultPicker.ChooseFile(".jpg", ".jpeg", ".png", ".webp")
@@ -21,6 +30,11 @@ func ChooseImageAndDecode() (image.Image, string, error) {
 	var filename string
 	if f, ok := file.(*os.File); ok {
 		filename = f.Name()
+	}
+	if runtime.GOOS == "android" {
+		if f, ok := file.(*native.File); ok {
+			filename = f.Name()
+		}
 	}
 	defer file.Close()
 	img, err := decodeImage(file)

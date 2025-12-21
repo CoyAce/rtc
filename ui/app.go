@@ -5,7 +5,9 @@ import (
 	"rtc/core"
 	ui "rtc/ui/layout"
 	"rtc/ui/layout/component"
+	"rtc/ui/native"
 	"rtc/ui/view"
+	"runtime"
 	"strings"
 	"time"
 
@@ -67,6 +69,9 @@ func Draw(window *app.Window, c *core.Client) error {
 	messageEditor := view.MessageEditor{InputField: &inputField, Theme: fonts.DefaultTheme}
 	iconStack := view.NewIconStack()
 	view.DefaultPicker = explorer.NewExplorer(window)
+	if runtime.GOOS == "android" {
+		view.DefaultPicker = native.NewExplorer(window)
+	}
 	// listen for events in the window.
 	for {
 		event := window.Event()
