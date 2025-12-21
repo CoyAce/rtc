@@ -5,6 +5,7 @@ import (
 	"rtc/core"
 	ui "rtc/ui/layout"
 	"rtc/ui/layout/component"
+	"rtc/ui/view"
 	"strings"
 	"time"
 
@@ -17,21 +18,21 @@ import (
 
 func Draw(window *app.Window, c *core.Client) error {
 	// save client to global pointer
-	client = c
+	core.DefaultClient = c
 	// ops are the operations from the UI
 	var ops op.Ops
 
-	var messageList = &MessageList{List: layout.List{Axis: layout.Vertical}, Theme: theme, ScrollToEnd: true}
-	var messageKeeper = &MessageKeeper{MessageChannel: make(chan *Message, 1)}
+	var messageList = &view.MessageList{List: layout.List{Axis: layout.Vertical}, Theme: fonts.DefaultTheme, ScrollToEnd: true}
+	var messageKeeper = &view.MessageKeeper{MessageChannel: make(chan *view.Message, 1)}
 	messageList.Messages = messageKeeper.Messages()
 	go messageKeeper.Loop()
 	// listen for events in the messages channel
 	go func() {
-		for m := range client.SignedMessages {
+		for m := range core.DefaultClient.SignedMessages {
 			text := string(m.Payload)
 			ed := widget.Editor{ReadOnly: true}
 			ed.SetText(text)
-			message := Message{Sent, &ed, theme, client.FullID(),
+			message := view.Message{view.Sent, &ed, fonts.DefaultTheme, core.DefaultClient.FullID(),
 				text, m.Sign.UUID, time.Now()}
 			message.AddTo(messageList)
 			message.SendTo(messageKeeper)
@@ -40,22 +41,22 @@ func Draw(window *app.Window, c *core.Client) error {
 		}
 	}()
 	// handle file received event
-	client.HandleFileWith(OnFileReceived)
+	core.DefaultClient.HandleFileWith(view.OnFileReceived)
 	// handle sync operation
-	client.SyncFunc = SyncCachedIcon
+	core.DefaultClient.SyncFunc = view.SyncCachedIcon
 	inputField := component.TextField{Editor: ui.Editor{Submit: true}}
-	messageEditor := MessageEditor{InputField: &inputField, Theme: theme}
-	iconStack := NewIconStack()
-	picker = explorer.NewExplorer(window)
+	messageEditor := view.MessageEditor{InputField: &inputField, Theme: fonts.DefaultTheme}
+	iconStack := view.NewIconStack()
+	view.DefaultPicker = explorer.NewExplorer(window)
 	// listen for events in the window.
 	for {
 		event := window.Event()
-		picker.ListenEvents(event)
+		view.DefaultPicker.ListenEvents(event)
 		// detect what type of event
 		switch e := event.(type) {
 		// this is sent when the application is closed
 		case app.DestroyEvent:
-			client.Store()
+			core.DefaultClient.Store()
 			messageKeeper.Append()
 			return e.Err
 
@@ -71,10 +72,10 @@ func Draw(window *app.Window, c *core.Client) error {
 				go func() {
 					ed := widget.Editor{ReadOnly: true}
 					ed.SetText(msg)
-					message := Message{Stateless, &ed, theme, client.FullID(),
-						msg, client.FullID(), time.Now()}
-					if client.Connected && client.SendText(msg) == nil {
-						message.State = Sent
+					message := view.Message{view.Stateless, &ed, fonts.DefaultTheme, core.DefaultClient.FullID(),
+						msg, core.DefaultClient.FullID(), time.Now()}
+					if core.DefaultClient.Connected && core.DefaultClient.SendText(msg) == nil {
+						message.State = view.Sent
 					}
 					messageList.ScrollToEnd = true
 					message.AddTo(messageList)
@@ -87,16 +88,10 @@ func Draw(window *app.Window, c *core.Client) error {
 				layout.Rigid(messageEditor.Layout),
 			)
 			iconStack.Layout(gtx)
-			modal.Layout(gtx)
+			ui.DefaultModal.Layout(gtx)
 
 			// Pass the drawing operations to the GPU.
 			e.Frame(gtx.Ops)
 		}
 	}
 }
-
-// theme defines the material design style
-var client *core.Client
-var theme = fonts.NewTheme()
-var modal = ui.NewModalStack()
-var picker *explorer.Explorer

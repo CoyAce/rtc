@@ -129,3 +129,5 @@ func (m *appModal) Dismiss(afterDismiss func()) {
 	m.Animation.Disappear(time.Now())
 	m.afterDismiss = afterDismiss
 }
+
+var DefaultModal = NewModalStack()

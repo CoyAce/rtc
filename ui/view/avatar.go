@@ -1,4 +1,4 @@
-package ui
+package view
 
 import (
 	"bufio"
@@ -45,7 +45,7 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 	}
 	if v.Editable && v.Clicked(gtx) {
 		go func() {
-			file, err := picker.ChooseFile(".jpg", ".png", ".webp")
+			file, err := DefaultPicker.ChooseFile(".jpg", ".png", ".webp")
 			if err != nil {
 				return
 			}
@@ -65,8 +65,8 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 			v.selectedImage <- img
 
 			// save to file
-			core.Mkdir(core.GetDir(client.FullID()))
-			iconFilePath := core.GetFileName(client.FullID(), "icon.png")
+			core.Mkdir(core.GetDir(core.DefaultClient.FullID()))
+			iconFilePath := core.GetFileName(core.DefaultClient.FullID(), "icon.png")
 			out, err := os.Create(iconFilePath)
 			defer out.Close()
 			if err != nil {
@@ -88,12 +88,12 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 		case img, ok := <-v.selectedImage:
 			if ok {
 				v.Image = img
-				avatar := avatarCache[client.FullID()]
+				avatar := AvatarCache[core.DefaultClient.FullID()]
 				if avatar != nil {
 					avatar.Image = img
 				} else {
-					avatar = &Avatar{UUID: client.FullID(), Image: img}
-					avatarCache[client.FullID()] = avatar
+					avatar = &Avatar{UUID: core.DefaultClient.FullID(), Image: img}
+					AvatarCache[core.DefaultClient.FullID()] = avatar
 				}
 			}
 		default:
@@ -170,3 +170,5 @@ func resizeImage(src image.Image, newWidth, newHeight int) image.Image {
 	}
 	return dst
 }
+
+var AvatarCache = make(map[string]*Avatar)

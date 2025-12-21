@@ -127,3 +127,6 @@ func merge() []text.FontFace {
 	}
 	return ret
 }
+
+// theme defines the material design style
+var DefaultTheme = NewTheme()

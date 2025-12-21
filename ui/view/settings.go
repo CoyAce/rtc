@@ -1,4 +1,4 @@
-package ui
+package view
 
 import (
 	"image"
@@ -6,8 +6,9 @@ import (
 	"os"
 	"rtc/assets/fonts"
 	"rtc/core"
-	ui "rtc/ui/layout"
 	"time"
+
+	modal "rtc/ui/layout"
 
 	"gioui.org/font"
 	"gioui.org/io/event"
@@ -24,7 +25,7 @@ import (
 type SettingsForm struct {
 	*material.Theme
 	avatar           Avatar
-	modalContent     *ui.ModalContent
+	modalContent     *modal.ModalContent
 	onSuccess        func(gtx layout.Context)
 	nicknameEditor   *component.TextField
 	signEditor       *component.TextField
@@ -35,37 +36,37 @@ type SettingsForm struct {
 func NewSettingsForm(onSuccess func(gtx layout.Context)) *SettingsForm {
 	s := &SettingsForm{
 		Theme:            fonts.NewTheme(),
-		avatar:           Avatar{UUID: client.FullID(), Size: 64, Editable: true, Theme: theme, OnChange: SyncSelectedIcon},
+		avatar:           Avatar{UUID: core.DefaultClient.FullID(), Size: 64, Editable: true, Theme: fonts.DefaultTheme, OnChange: SyncSelectedIcon},
 		onSuccess:        onSuccess,
 		nicknameEditor:   &component.TextField{Editor: widget.Editor{}},
 		signEditor:       &component.TextField{Editor: widget.Editor{}},
 		serverAddrEditor: &component.TextField{Editor: widget.Editor{}},
-		submitButton:     IconButton{Theme: theme, Icon: actionDoneIcon, Enabled: true},
+		submitButton:     IconButton{Theme: fonts.DefaultTheme, Icon: actionDoneIcon, Enabled: true},
 	}
 	s.Theme.TextSize = 0.75 * s.Theme.TextSize
 	s.submitButton.OnClick = func(gtx layout.Context) {
-		oldUUID := client.FullID()
-		nicknameChanged := s.nicknameEditor.Text() != client.Nickname
+		oldUUID := core.DefaultClient.FullID()
+		nicknameChanged := s.nicknameEditor.Text() != core.DefaultClient.Nickname
 		if nicknameChanged {
-			client.SetNickName(s.nicknameEditor.Text())
-			newUUID := client.FullID()
+			core.DefaultClient.SetNickName(s.nicknameEditor.Text())
+			newUUID := core.DefaultClient.FullID()
 			renameOldPathToNewPath(oldUUID, newUUID)
 			// update cache
 			copyOldCacheEntryToNewCache(oldUUID, newUUID)
 		}
-		client.SetSign(s.signEditor.Text())
-		client.SetServerAddr(s.serverAddrEditor.Text())
+		core.DefaultClient.SetSign(s.signEditor.Text())
+		core.DefaultClient.SetServerAddr(s.serverAddrEditor.Text())
 		// SendSign first, bind uuid to sign
-		client.SendSign()
+		core.DefaultClient.SendSign()
 		if nicknameChanged {
 			// then sync icon
 			SyncSelectedIcon(s.avatar.Image)
 		}
-		client.Store()
+		core.DefaultClient.Store()
 		s.onSuccess(gtx)
 	}
-	s.modalContent = ui.NewModalContent(theme, func() {
-		modal.Dismiss(nil)
+	s.modalContent = modal.NewModalContent(fonts.DefaultTheme, func() {
+		modal.DefaultModal.Dismiss(nil)
 		s.nicknameEditor.Clear()
 		s.signEditor.Clear()
 		s.serverAddrEditor.Clear()
@@ -74,9 +75,9 @@ func NewSettingsForm(onSuccess func(gtx layout.Context)) *SettingsForm {
 }
 
 func copyOldCacheEntryToNewCache(oldUUID string, newUUID string) {
-	avatar := avatarCache[oldUUID]
+	avatar := AvatarCache[oldUUID]
 	if avatar != nil {
-		avatarCache[newUUID] = avatar
+		AvatarCache[newUUID] = avatar
 	}
 }
 
@@ -92,13 +93,13 @@ func renameOldPathToNewPath(oldUUID string, newUUID string) {
 func (s *SettingsForm) Layout(gtx layout.Context) layout.Dimensions {
 	s.processClick(gtx)
 	if len(s.nicknameEditor.Text()) == 0 && !gtx.Focused(&s.nicknameEditor.Editor) {
-		s.nicknameEditor.SetText(client.Nickname)
+		s.nicknameEditor.SetText(core.DefaultClient.Nickname)
 	}
 	if len(s.signEditor.Text()) == 0 && !gtx.Focused(&s.signEditor.Editor) {
-		s.signEditor.SetText(client.Sign)
+		s.signEditor.SetText(core.DefaultClient.Sign)
 	}
 	if len(s.serverAddrEditor.Text()) == 0 && !gtx.Focused(&s.serverAddrEditor.Editor) {
-		s.serverAddrEditor.SetText(client.ServerAddr)
+		s.serverAddrEditor.SetText(core.DefaultClient.ServerAddr)
 	}
 	gtx.Constraints.Min.X = gtx.Constraints.Max.X
 	dimensions := layout.Flex{Spacing: layout.SpaceSides}.Layout(gtx,
@@ -173,7 +174,7 @@ func (s *SettingsForm) drawInputArea(label string, widget layout.Widget) func(gt
 
 func (s *SettingsForm) ShowWithModal(gtx layout.Context) {
 	iconStackAnimation.Disappear(gtx.Now)
-	modal.Show(s.ZoomInWithModalContent, nil, component.VisibilityAnimation{
+	modal.DefaultModal.Show(s.ZoomInWithModalContent, nil, component.VisibilityAnimation{
 		Duration: time.Millisecond * 250,
 		State:    component.Invisible,
 		Started:  time.Time{},

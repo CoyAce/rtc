@@ -1,4 +1,4 @@
-package ui
+package view
 
 import (
 	"rtc/core"
@@ -6,9 +6,9 @@ import (
 )
 
 func TestMessagePersistence(t *testing.T) {
-	client = &core.Client{UUID: "#00001"}
-	core.Mkdir(core.GetDir(client.FullID()))
-	core.RemoveFile(core.GetFileName(client.FullID(), "message.log"))
+	core.DefaultClient = &core.Client{UUID: "#00001"}
+	core.Mkdir(core.GetDir(core.DefaultClient.FullID()))
+	core.RemoveFile(core.GetFileName(core.DefaultClient.FullID(), "message.log"))
 	mk := MessageKeeper{MessageChannel: make(chan *Message, 1)}
 	go mk.Loop()
 	mk.MessageChannel <- &Message{Text: "hello world", Sender: "test#00001", UUID: "#00001"}

@@ -1,4 +1,4 @@
-package ui
+package view
 
 import (
 	"bufio"
@@ -8,9 +8,10 @@ import (
 	"log"
 	"math"
 	"os"
+	"rtc/assets/fonts"
 	"rtc/core"
-	ui "rtc/ui/layout"
-	view "rtc/ui/layout/component"
+	editor "rtc/ui/layout"
+	text "rtc/ui/layout/component"
 	"time"
 
 	"gioui.org/font"
@@ -64,7 +65,7 @@ func (a *MessageKeeper) Loop() {
 }
 
 func (a *MessageKeeper) Append() {
-	filename := core.GetFileName(client.FullID(), "message.log")
+	filename := core.GetFileName(core.DefaultClient.FullID(), "message.log")
 	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Printf("error opening file: %v", err)
@@ -89,7 +90,7 @@ func (a *MessageKeeper) writeJson(file *os.File, msg *Message) {
 }
 
 func (a *MessageKeeper) Messages() []Message {
-	filename := core.GetFileName(client.FullID(), "message.log")
+	filename := core.GetFileName(core.DefaultClient.FullID(), "message.log")
 	f, err := os.Open(filename)
 	if err != nil {
 		log.Printf("error opening file: %v", err)
@@ -106,8 +107,8 @@ func (a *MessageKeeper) Messages() []Message {
 		}
 		ed := widget.Editor{ReadOnly: true}
 		ed.SetText(msg.Text)
-		msg.editor = &ed
-		msg.Theme = theme
+		msg.Editor = &ed
+		msg.Theme = fonts.DefaultTheme
 		ret = append(ret, msg)
 	}
 	return ret
@@ -123,7 +124,7 @@ const (
 
 type Message struct {
 	State
-	editor          *widget.Editor
+	Editor          *widget.Editor
 	*material.Theme `json:"-"`
 	UUID            string
 	Text            string
@@ -133,50 +134,21 @@ type Message struct {
 
 type MessageEditor struct {
 	*material.Theme
-	InputField     *view.TextField
+	InputField     *text.TextField
 	submitButton   widget.Clickable
 	expandButton   widget.Clickable
 	collapseButton widget.Clickable
 }
 
-type IconStack struct {
-	*material.Theme
-	IconButtons []*IconButton
-	button      widget.Clickable
-}
-
-type IconButton struct {
-	*material.Theme
-	Icon    *widget.Icon
-	Enabled bool
-	OnClick func(gtx layout.Context)
-	button  widget.Clickable
-}
-
-var actionDoneIcon, _ = widget.NewIcon(icons.ActionDone)
-var submitIcon, _ = widget.NewIcon(icons.ContentSend)
-var expandIcon, _ = widget.NewIcon(icons.NavigationUnfoldMore)
-var collapseIcon, _ = widget.NewIcon(icons.NavigationUnfoldLess)
-var voiceMessageIcon, _ = widget.NewIcon(icons.AVMic)
-var audioCallIcon, _ = widget.NewIcon(icons.CommunicationPhone)
-var videoCallIcon, _ = widget.NewIcon(icons.AVVideoCall)
-var settingsIcon, _ = widget.NewIcon(icons.ActionSettings)
-var avatarCache = make(map[string]*Avatar)
-
-var iconStackAnimation = component.VisibilityAnimation{
-	Duration: time.Millisecond * 250,
-	State:    component.Invisible,
-	Started:  time.Time{},
-}
-
 func NewIconStack() *IconStack {
 	settings := NewSettingsForm(OnSettingsSubmit)
-	return &IconStack{Theme: theme,
+	return &IconStack{Theme: fonts.DefaultTheme,
 		IconButtons: []*IconButton{
-			{Theme: theme, Icon: settingsIcon, Enabled: true, OnClick: settings.ShowWithModal},
-			{Theme: theme, Icon: videoCallIcon},
-			{Theme: theme, Icon: audioCallIcon},
-			{Theme: theme, Icon: voiceMessageIcon},
+			{Theme: fonts.DefaultTheme, Icon: settingsIcon, Enabled: true, OnClick: settings.ShowWithModal},
+			{Theme: fonts.DefaultTheme, Icon: videoCallIcon},
+			{Theme: fonts.DefaultTheme, Icon: audioCallIcon},
+			{Theme: fonts.DefaultTheme, Icon: voiceMessageIcon},
+			{Theme: fonts.DefaultTheme, Icon: photoLibraryIcon, Enabled: true},
 		},
 	}
 }
@@ -213,10 +185,10 @@ func (m *Message) Layout(gtx layout.Context) (d layout.Dimensions) {
 }
 
 func (m *Message) drawAvatar(gtx layout.Context, uuid string) layout.Dimensions {
-	avatar := avatarCache[uuid]
+	avatar := AvatarCache[uuid]
 	if avatar == nil {
 		avatar = &Avatar{UUID: uuid}
-		avatarCache[uuid] = avatar
+		AvatarCache[uuid] = avatar
 	}
 	return avatar.Layout(gtx)
 }
@@ -262,7 +234,7 @@ func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
 		d := layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Min.X = 0
 			gtx.Constraints.Max.X = int(float32(gtx.Constraints.Max.X) / 1.5)
-			return material.Editor(m.Theme, m.editor, "hint").Layout(gtx)
+			return material.Editor(m.Theme, m.Editor, "hint").Layout(gtx)
 		})
 		call := macro.Stop()
 		// draw border
@@ -487,7 +459,7 @@ func (e *MessageEditor) Submitted(gtx layout.Context) bool {
 func (e *MessageEditor) submittedByCarriageReturn(gtx layout.Context) (submit bool) {
 	for {
 		ev, ok := e.InputField.Editor.Update(gtx)
-		if _, submit = ev.(ui.SubmitEvent); submit {
+		if _, submit = ev.(editor.SubmitEvent); submit {
 			break
 		}
 		if !ok {
@@ -495,51 +467,4 @@ func (e *MessageEditor) submittedByCarriageReturn(gtx layout.Context) (submit bo
 		}
 	}
 	return submit
-}
-
-func (s *IconStack) Layout(gtx layout.Context) layout.Dimensions {
-	layout.Stack{Alignment: layout.SE}.Layout(gtx,
-		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-			offset := image.Pt(-gtx.Dp(8), -gtx.Dp(57))
-			op.Offset(offset).Add(gtx.Ops)
-			progress := iconStackAnimation.Revealed(gtx)
-			macro := op.Record(gtx.Ops)
-			d := s.button.Layout(gtx, s.drawIconStackItems)
-			call := macro.Stop()
-			d.Size.Y = int(float32(d.Size.Y) * progress)
-			component.Rect{Size: d.Size, Color: color.NRGBA{}}.Layout(gtx)
-			defer clip.Rect{Max: d.Size}.Push(gtx.Ops).Pop()
-			call.Add(gtx.Ops)
-			return d
-		}),
-	)
-	return layout.Dimensions{}
-}
-
-func (s *IconStack) drawIconStackItems(gtx layout.Context) layout.Dimensions {
-	flex := layout.Flex{Axis: layout.Vertical}
-	var children []layout.FlexChild
-	for _, button := range s.IconButtons {
-		children = append(children, layout.Rigid(button.Layout))
-		children = append(children, layout.Rigid(layout.Spacer{Height: unit.Dp(8)}.Layout))
-	}
-	return flex.Layout(gtx, children...)
-}
-
-func (b *IconButton) Layout(gtx layout.Context) layout.Dimensions {
-	if b.button.Clicked(gtx) && b.OnClick != nil {
-		b.OnClick(gtx)
-	}
-	bg := b.Theme.ContrastBg
-	if !b.Enabled {
-		bg = color.NRGBA(colornames.Grey500)
-	}
-	return material.IconButtonStyle{
-		Background: bg,
-		Color:      b.Theme.ContrastFg,
-		Icon:       b.Icon,
-		Size:       unit.Dp(24.0),
-		Button:     &b.button,
-		Inset:      layout.UniformInset(unit.Dp(9)),
-	}.Layout(gtx)
 }

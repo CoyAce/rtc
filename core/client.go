@@ -400,3 +400,5 @@ func (c *Client) Store() {
 		log.Printf("[%s] encode file failed: %v", filePath, err)
 	}
 }
+
+var DefaultClient *Client
