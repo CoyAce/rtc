@@ -45,13 +45,14 @@ type MessageKeeper struct {
 
 func (a *MessageKeeper) Loop() {
 	a.ready = make(chan struct{}, 1)
-	a.timer = time.NewTimer(time.Second)
+	duration := time.Second
+	a.timer = time.NewTimer(duration)
 	for {
+		a.timer.Reset(duration)
 		select {
 		case msg := <-a.MessageChannel:
 			a.buffer = append(a.buffer, msg)
 		case <-a.timer.C:
-			a.timer.Reset(time.Second)
 			a.ready <- struct{}{}
 		case <-a.ready:
 			if len(a.buffer) == 0 {
@@ -64,7 +65,6 @@ func (a *MessageKeeper) Loop() {
 
 func (a *MessageKeeper) Append() {
 	filename := core.GetFileName(client.FullID(), "message.log")
-	core.Mkdir(core.GetDir(client.FullID()))
 	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Printf("error opening file: %v", err)

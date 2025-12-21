@@ -193,13 +193,7 @@ func (c *Client) ListenAndServe(addr string) {
 	defer func() { _ = conn.Close() }()
 
 	// init
-	if c.Retries == 0 {
-		c.Retries = 3
-	}
-
-	if c.Timeout == 0 {
-		c.Timeout = 6 * time.Second
-	}
+	c.init()
 
 	c.SignedMessages = make(chan SignedMessage)
 	c.fileWriter = &FileWriter{Wrq: make(chan WriteReq), FileData: make(chan Data),
@@ -228,6 +222,18 @@ func (c *Client) ListenAndServe(addr string) {
 
 	log.Printf("Listening on %s ...\n", conn.LocalAddr())
 	c.serve(conn)
+}
+
+func (c *Client) init() {
+	if c.Retries == 0 {
+		c.Retries = 3
+	}
+
+	if c.Timeout == 0 {
+		c.Timeout = 6 * time.Second
+	}
+
+	Mkdir(GetDir(c.FullID()))
 }
 
 func (c *Client) SendSign() {
