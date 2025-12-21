@@ -119,6 +119,7 @@ type State uint16
 
 const (
 	Stateless State = iota
+	Failed
 	Sent
 	Read
 )
@@ -220,7 +221,7 @@ func (m *Message) drawMessage(gtx layout.Context) layout.Dimensions {
 			}
 			return flex.Layout(gtx,
 				layout.Rigid(m.drawState),
-				layout.Rigid(layout.Spacer{Width: unit.Dp(2)}.Layout),
+				layout.Rigid(layout.Spacer{Width: unit.Dp(4)}.Layout),
 				layout.Rigid(m.drawContent),
 			)
 		}),
@@ -309,6 +310,9 @@ func (m *Message) drawState(gtx layout.Context) layout.Dimensions {
 		var icon *widget.Icon
 		switch m.State {
 		case Stateless:
+			loader := material.LoaderStyle{Color: fonts.DefaultTheme.ContrastBg}
+			return loader.Layout(gtx)
+		case Failed:
 			icon, _ = widget.NewIcon(icons.AlertErrorOutline)
 			iconColor = color.NRGBA(colornames.Red500)
 		case Sent:

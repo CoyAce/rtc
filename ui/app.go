@@ -95,10 +95,12 @@ func Draw(window *app.Window, c *core.Client) error {
 						Theme: fonts.DefaultTheme,
 						UUID:  core.DefaultClient.FullID(), Type: view.Text,
 						Text: msg, Sender: core.DefaultClient.FullID(), CreatedAt: time.Now()}
+					view.MessageBox <- &message
 					if core.DefaultClient.Connected && core.DefaultClient.SendText(msg) == nil {
 						message.State = view.Sent
+					} else {
+						message.State = view.Failed
 					}
-					view.MessageBox <- &message
 				}()
 			}
 
