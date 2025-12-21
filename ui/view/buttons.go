@@ -3,6 +3,10 @@ package view
 import (
 	"image"
 	"image/color"
+	"log"
+	"path/filepath"
+	"rtc/assets/fonts"
+	"rtc/core"
 	"time"
 
 	"gioui.org/layout"
@@ -80,4 +84,38 @@ var iconStackAnimation = component.VisibilityAnimation{
 	Duration: time.Millisecond * 250,
 	State:    component.Invisible,
 	Started:  time.Time{},
+}
+
+func NewIconStack() *IconStack {
+	settings := NewSettingsForm(OnSettingsSubmit)
+	return &IconStack{Theme: fonts.DefaultTheme,
+		IconButtons: []*IconButton{
+			{Theme: fonts.DefaultTheme, Icon: settingsIcon, Enabled: true, OnClick: settings.ShowWithModal},
+			{Theme: fonts.DefaultTheme, Icon: videoCallIcon},
+			{Theme: fonts.DefaultTheme, Icon: audioCallIcon},
+			{Theme: fonts.DefaultTheme, Icon: voiceMessageIcon},
+			{Theme: fonts.DefaultTheme, Icon: photoLibraryIcon, Enabled: true, OnClick: func(gtx layout.Context) {
+				iconStackAnimation.Disappear(gtx.Now)
+				go func() {
+					img, absolutePath, err := ChooseImageAndDecode()
+					if err != nil {
+						log.Printf("choose image failed, %v", err)
+						return
+					}
+					filename := filepath.Base(absolutePath)
+					imageCache[absolutePath] = img
+					message := &Message{State: Stateless, Theme: fonts.DefaultTheme,
+						UUID: core.DefaultClient.FullID(), Type: Image, Filename: absolutePath,
+						Sender: core.DefaultClient.FullID(), CreatedAt: time.Now()}
+					MessageBox <- message
+					err = core.DefaultClient.SendImage(img, filename)
+					if err != nil {
+						log.Printf("send image failed, %v", err)
+					} else {
+						message.State = Sent
+					}
+				}()
+			}},
+		},
+	}
 }

@@ -22,26 +22,45 @@ func Draw(window *app.Window, c *core.Client) error {
 	// ops are the operations from the UI
 	var ops op.Ops
 
-	var messageList = &view.MessageList{List: layout.List{Axis: layout.Vertical}, Theme: fonts.DefaultTheme, ScrollToEnd: true}
+	var messageList = &view.MessageList{List: layout.List{Axis: layout.Vertical},
+		Theme: fonts.DefaultTheme, ScrollToEnd: true}
 	var messageKeeper = &view.MessageKeeper{MessageChannel: make(chan *view.Message, 1)}
 	messageList.Messages = messageKeeper.Messages()
 	go messageKeeper.Loop()
 	// listen for events in the messages channel
 	go func() {
-		for m := range core.DefaultClient.SignedMessages {
-			text := string(m.Payload)
-			ed := widget.Editor{ReadOnly: true}
-			ed.SetText(text)
-			message := view.Message{view.Sent, &ed, fonts.DefaultTheme, core.DefaultClient.FullID(),
-				text, m.Sign.UUID, time.Now()}
+		for {
+			var message *view.Message
+			select {
+			case m := <-view.MessageBox:
+				message = m
+			case m := <-c.SignedMessages:
+				text := string(m.Payload)
+				ed := widget.Editor{ReadOnly: true}
+				ed.SetText(text)
+				message = &view.Message{State: view.Sent, Editor: &ed, Theme: fonts.DefaultTheme,
+					UUID: core.DefaultClient.FullID(), Type: view.Text,
+					Text: text, Sender: m.Sign.UUID, CreatedAt: time.Now()}
+			case m := <-c.FileMessages:
+				if m.Code == core.OpSyncIcon {
+					if view.AvatarCache[m.UUID] == nil {
+						view.AvatarCache[m.UUID] = &view.Avatar{UUID: m.UUID}
+					}
+					view.AvatarCache[m.UUID].Reload()
+					continue
+				}
+				if m.Code == core.OpSendImage {
+					message = &view.Message{State: view.Sent, Theme: fonts.DefaultTheme,
+						UUID: core.DefaultClient.FullID(), Type: view.Image, Filename: m.Filename,
+						Sender: m.UUID, CreatedAt: time.Now()}
+				}
+			}
 			message.AddTo(messageList)
 			message.SendTo(messageKeeper)
 			messageList.ScrollToEnd = true
 			window.Invalidate()
 		}
 	}()
-	// handle file received event
-	core.DefaultClient.HandleFileWith(view.OnFileReceived)
 	// handle sync operation
 	core.DefaultClient.SyncFunc = view.SyncCachedIcon
 	inputField := component.TextField{Editor: ui.Editor{Submit: true}}
@@ -72,14 +91,14 @@ func Draw(window *app.Window, c *core.Client) error {
 				go func() {
 					ed := widget.Editor{ReadOnly: true}
 					ed.SetText(msg)
-					message := view.Message{view.Stateless, &ed, fonts.DefaultTheme, core.DefaultClient.FullID(),
-						msg, core.DefaultClient.FullID(), time.Now()}
+					message := view.Message{State: view.Stateless, Editor: &ed,
+						Theme: fonts.DefaultTheme,
+						UUID:  core.DefaultClient.FullID(), Type: view.Text,
+						Text: msg, Sender: core.DefaultClient.FullID(), CreatedAt: time.Now()}
 					if core.DefaultClient.Connected && core.DefaultClient.SendText(msg) == nil {
 						message.State = view.Sent
 					}
-					messageList.ScrollToEnd = true
-					message.AddTo(messageList)
-					message.SendTo(messageKeeper)
+					view.MessageBox <- &message
 				}()
 			}
 

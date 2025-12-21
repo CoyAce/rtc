@@ -61,11 +61,9 @@ func (s *Server) Serve(conn net.PacketConn) error {
 			log.Printf("received msg [%s] from [%s]", string(msg.Payload), addr.String())
 			s.ack(conn, addr, OpSignedMSG, 0)
 		case wrq.Unmarshal(pkt) == nil:
-			if wrq.Code == OpSyncIcon {
-				go s.handle(s.findSignByUUID(wrq.UUID), pkt)
-				s.WrqMap[wrq.FileId] = wrq
-				s.ack(conn, addr, OpSyncIcon, 0)
-			}
+			go s.handle(s.findSignByUUID(wrq.UUID), pkt)
+			s.WrqMap[wrq.FileId] = wrq
+			s.ack(conn, addr, wrq.Code, 0)
 		case data.Unmarshal(pkt) == nil:
 			go s.handle(s.findSignByFileId(data.FileId), pkt)
 			s.ack(conn, addr, OpData, data.Block)

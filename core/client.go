@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"image"
+	"image/jpeg"
 	"image/png"
 	"io"
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 	"syscall"
 	"time"
 	"unsafe"
@@ -30,25 +32,26 @@ func (f *FileWriter) Loop() {
 		// last block received, file transfer finished
 		case id := <-f.FileId:
 			req := f.wrq[id]
-			fileName := GetFileName(req.UUID, req.Filename)
-			write(GetDir(req.UUID), fileName, f.fileData[id])
+			filePath := GetFilePath(req.UUID, req.Filename)
+			write(filePath, f.fileData[id])
 			delete(f.wrq, id)
 			delete(f.fileData, id)
 			if f.OnComplete != nil {
 				// for example, reload avatar
 				f.OnComplete(req)
 			}
+			DefaultClient.FileMessages <- req
 		// transfer start
 		case req := <-f.Wrq:
 			f.wrq[req.FileId] = req
 			// remove before append
-			RemoveFile(GetFileName(req.UUID, req.Filename))
+			RemoveFile(GetFilePath(req.UUID, req.Filename))
 		case data := <-f.FileData:
 			f.fileData[data.FileId] = append(f.fileData[data.FileId], data)
 			// received ~100kb
 			if len(f.fileData[data.FileId]) >= 70 {
 				req := f.wrq[data.FileId]
-				d := write(GetDir(req.UUID), GetFileName(req.UUID, req.Filename), f.fileData[data.FileId])
+				d := write(GetFilePath(req.UUID, req.Filename), f.fileData[data.FileId])
 				if d != nil {
 					// not consecutive, store for later use
 					f.fileData[data.FileId] = d
@@ -61,12 +64,12 @@ func (f *FileWriter) Loop() {
 
 }
 
-func appendTo(filename string, data []Data) {
+func appendTo(filePath string, data []Data) {
 	// 使用os.O_APPEND, os.O_CREATE, os.O_WRONLY标志
 	// os.O_APPEND: 追加模式，写入的数据会被追加到文件尾部
 	// os.O_CREATE: 如果文件不存在，则创建文件
 	// os.O_WRONLY: 以只写模式打开文件
-	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Fatalf("error opening file: %v", err)
 	}
@@ -89,6 +92,7 @@ type Client struct {
 	ConfigName     string `json:"-"`
 	Nickname       string
 	SignedMessages chan SignedMessage `json:"-"`
+	FileMessages   chan WriteReq      `json:"-"`
 	Status         chan struct{}      `json:"-"`
 	Conn           net.PacketConn     `json:"-"`
 	Connected      bool               `json:"-"`
@@ -113,6 +117,14 @@ func (c *Client) HandleFileWith(callback func(req WriteReq)) {
 }
 
 func (c *Client) SyncIcon(img image.Image) error {
+	return c.sendImage(img, OpSyncIcon, "icon.png")
+}
+
+func (c *Client) SendImage(img image.Image, filename string) error {
+	return c.sendImage(img, OpSendImage, filename)
+}
+
+func (c *Client) sendImage(img image.Image, code OpCode, filename string) error {
 	conn, err := net.Dial("udp", c.ServerAddr)
 	if err != nil {
 		log.Printf("[%s] dial failed: %v", c.ServerAddr, err)
@@ -120,16 +132,28 @@ func (c *Client) SyncIcon(img image.Image) error {
 	defer func() { _ = conn.Close() }()
 
 	buf := new(bytes.Buffer)
-	err = png.Encode(buf, img)
-	if err != nil {
-		return err
+	ext := filepath.Ext(filename)
+	switch ext {
+	case ".webp":
+		filename = filepath.Base(filename) + ".png"
+		fallthrough
+	case ".png":
+		err = png.Encode(buf, img)
+		if err != nil {
+			return err
+		}
+	case ".jpg", ".jpeg":
+		err = jpeg.Encode(buf, img, nil)
+		if err != nil {
+			return err
+		}
 	}
 	hash := Hash(unsafe.Pointer(&buf))
 	log.Printf("icon file id: %v", hash)
 
 	pktBuf := make([]byte, DatagramSize)
 
-	wrq := WriteReq{OpSyncIcon, hash, c.FullID(), "icon.png"}
+	wrq := WriteReq{code, hash, c.FullID(), filename}
 	pkt, err := wrq.Marshal()
 	if err != nil {
 		log.Printf("[%v] write request marshal failed: %v", wrq, err)
@@ -195,9 +219,6 @@ func (c *Client) ListenAndServe(addr string) {
 	// init
 	c.init()
 
-	c.SignedMessages = make(chan SignedMessage)
-	c.fileWriter = &FileWriter{Wrq: make(chan WriteReq), FileData: make(chan Data),
-		FileId: make(chan uint32), wrq: make(map[uint32]WriteReq, 0), fileData: make(map[uint32][]Data)}
 	go c.fileWriter.Loop()
 
 	if c.Status != nil {
@@ -234,6 +255,12 @@ func (c *Client) init() {
 	}
 
 	Mkdir(GetDir(c.FullID()))
+
+	c.SignedMessages = make(chan SignedMessage, 100)
+	c.FileMessages = make(chan WriteReq, 100)
+
+	c.fileWriter = &FileWriter{Wrq: make(chan WriteReq), FileData: make(chan Data),
+		FileId: make(chan uint32), wrq: make(map[uint32]WriteReq, 0), fileData: make(map[uint32][]Data)}
 }
 
 func (c *Client) SendSign() {

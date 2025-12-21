@@ -21,6 +21,7 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
+	"gioui.org/op/paint"
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
@@ -32,7 +33,7 @@ import (
 type MessageList struct {
 	layout.List
 	*material.Theme
-	Messages     []Message
+	Messages     []*Message
 	ScrollToEnd  bool
 	FirstVisible bool
 }
@@ -65,8 +66,8 @@ func (a *MessageKeeper) Loop() {
 }
 
 func (a *MessageKeeper) Append() {
-	filename := core.GetFileName(core.DefaultClient.FullID(), "message.log")
-	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	filePath := core.GetFilePath(core.DefaultClient.FullID(), "message.log")
+	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Printf("error opening file: %v", err)
 	}
@@ -89,14 +90,14 @@ func (a *MessageKeeper) writeJson(file *os.File, msg *Message) {
 	}
 }
 
-func (a *MessageKeeper) Messages() []Message {
-	filename := core.GetFileName(core.DefaultClient.FullID(), "message.log")
-	f, err := os.Open(filename)
+func (a *MessageKeeper) Messages() []*Message {
+	filePath := core.GetFilePath(core.DefaultClient.FullID(), "message.log")
+	f, err := os.Open(filePath)
 	if err != nil {
 		log.Printf("error opening file: %v", err)
-		return []Message{}
+		return []*Message{}
 	}
-	ret := make([]Message, 0)
+	ret := make([]*Message, 0)
 	s := bufio.NewScanner(f)
 	for s.Scan() {
 		var msg Message
@@ -109,7 +110,7 @@ func (a *MessageKeeper) Messages() []Message {
 		ed.SetText(msg.Text)
 		msg.Editor = &ed
 		msg.Theme = fonts.DefaultTheme
-		ret = append(ret, msg)
+		ret = append(ret, &msg)
 	}
 	return ret
 }
@@ -122,10 +123,19 @@ const (
 	Read
 )
 
+type MessageType uint16
+
+const (
+	Text MessageType = iota
+	Image
+)
+
 type Message struct {
 	State
 	Editor          *widget.Editor
 	*material.Theme `json:"-"`
+	Filename        string
+	Type            MessageType
 	UUID            string
 	Text            string
 	Sender          string
@@ -140,21 +150,11 @@ type MessageEditor struct {
 	collapseButton widget.Clickable
 }
 
-func NewIconStack() *IconStack {
-	settings := NewSettingsForm(OnSettingsSubmit)
-	return &IconStack{Theme: fonts.DefaultTheme,
-		IconButtons: []*IconButton{
-			{Theme: fonts.DefaultTheme, Icon: settingsIcon, Enabled: true, OnClick: settings.ShowWithModal},
-			{Theme: fonts.DefaultTheme, Icon: videoCallIcon},
-			{Theme: fonts.DefaultTheme, Icon: audioCallIcon},
-			{Theme: fonts.DefaultTheme, Icon: voiceMessageIcon},
-			{Theme: fonts.DefaultTheme, Icon: photoLibraryIcon, Enabled: true},
-		},
-	}
-}
-
 func (m *Message) Layout(gtx layout.Context) (d layout.Dimensions) {
-	if m.Text == "" {
+	if m.Type == Text && m.Text == "" {
+		return d
+	}
+	if m.Type == Image && m.Filename == "" {
 		return d
 	}
 
@@ -198,7 +198,7 @@ func (m *Message) isMe() bool {
 }
 
 func (m *Message) AddTo(list *MessageList) {
-	list.Messages = append(list.Messages, *m)
+	list.Messages = append(list.Messages, m)
 }
 
 func (m *Message) SendTo(messageAppender *MessageKeeper) {
@@ -228,7 +228,11 @@ func (m *Message) drawMessage(gtx layout.Context) layout.Dimensions {
 }
 
 func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
-	if m.Text != "" {
+	switch m.Type {
+	case Text:
+		if m.Text == "" {
+			return layout.Dimensions{}
+		}
 		// calculate text size for later use
 		macro := op.Record(gtx.Ops)
 		d := layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -237,26 +241,66 @@ func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
 			return material.Editor(m.Theme, m.Editor, "hint").Layout(gtx)
 		})
 		call := macro.Stop()
-		// draw border
-		bgColor := m.Theme.ContrastBg
-		radius := gtx.Dp(16)
-		sE, sW, nW, nE := radius, radius, radius, radius
-		if m.isMe() {
-			nE = 0
-			bgColor.A = 128
-		} else {
-			nW = 0
-			bgColor.A = 50
-		}
-		defer clip.RRect{Rect: image.Rectangle{
-			Max: d.Size,
-		}, SE: sE, SW: sW, NW: nW, NE: nE}.Push(gtx.Ops).Pop()
-		component.Rect{Color: bgColor, Size: d.Size}.Layout(gtx)
-		// draw text
-		call.Add(gtx.Ops)
+		m.drawBorder(gtx, d, call)
 		return d
+	case Image:
+		if m.Filename == "" {
+			return layout.Dimensions{}
+		}
+		var filePath = m.Filename
+		if !m.isMe() {
+			filePath = core.GetFilePath(m.Sender, m.Filename)
+		}
+		img, err := LoadImage(filePath)
+		if err != nil {
+			log.Printf("load image failed: %v", err)
+			return layout.Dimensions{}
+		}
+		return m.drawImage(gtx, img)
 	}
 	return layout.Dimensions{}
+}
+
+func (m *Message) drawImage(gtx layout.Context, img image.Image) layout.Dimensions {
+	v := float32(gtx.Constraints.Max.X) * 0.3
+	dx := img.Bounds().Dx()
+	dy := img.Bounds().Dy()
+	var point image.Point
+	if dx < dy {
+		point = image.Point{X: gtx.Dp(unit.Dp(v)), Y: gtx.Dp(unit.Dp(float32(dy) / float32(dx) * v))}
+	} else {
+		point = image.Point{X: gtx.Dp(unit.Dp(float32(dx) / float32(dy) * v)), Y: gtx.Dp(unit.Dp(v))}
+	}
+	gtx.Constraints.Max = point
+	macro := op.Record(gtx.Ops)
+	d := layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		imgOps := paint.NewImageOp(img)
+		return widget.Image{Src: imgOps, Fit: widget.Fill, Position: layout.Center, Scale: 0}.Layout(gtx)
+
+	})
+	call := macro.Stop()
+	m.drawBorder(gtx, d, call)
+	return d
+}
+
+func (m *Message) drawBorder(gtx layout.Context, d layout.Dimensions, call op.CallOp) {
+	// draw border
+	bgColor := m.Theme.ContrastBg
+	radius := gtx.Dp(16)
+	sE, sW, nW, nE := radius, radius, radius, radius
+	if m.isMe() {
+		nE = 0
+		bgColor.A = 128
+	} else {
+		nW = 0
+		bgColor.A = 50
+	}
+	defer clip.RRect{Rect: image.Rectangle{
+		Max: d.Size,
+	}, SE: sE, SW: sW, NW: nW, NE: nE}.Push(gtx.Ops).Pop()
+	component.Rect{Color: bgColor, Size: d.Size}.Layout(gtx)
+	// draw text
+	call.Add(gtx.Ops)
 }
 
 func (m *Message) drawState(gtx layout.Context) layout.Dimensions {
@@ -468,3 +512,5 @@ func (e *MessageEditor) submittedByCarriageReturn(gtx layout.Context) (submit bo
 	}
 	return submit
 }
+
+var MessageBox = make(chan *Message, 10)

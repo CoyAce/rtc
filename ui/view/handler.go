@@ -10,14 +10,6 @@ import (
 	"gioui.org/layout"
 )
 
-var OnFileReceived = func(req core.WriteReq) {
-	if req.Code == core.OpSyncIcon {
-		if AvatarCache[req.UUID] == nil {
-			AvatarCache[req.UUID] = &Avatar{UUID: req.UUID}
-		}
-		AvatarCache[req.UUID].Reload()
-	}
-}
 var OnSettingsSubmit = func(gtx layout.Context) {
 	modal.DefaultModal.Dismiss(nil)
 }

@@ -2,8 +2,11 @@ package core
 
 import (
 	"bytes"
+	"image"
+	"image/png"
 	"log"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
@@ -19,7 +22,7 @@ func GetDir(uuid string) string {
 	return GetDataDir() + "/" + strings.Replace(uuid, "#", "_", -1)
 }
 
-func GetFileName(uuid string, filename string) string {
+func GetFilePath(uuid string, filename string) string {
 	return GetDir(uuid) + "/" + filename
 }
 
@@ -102,7 +105,7 @@ func findConsecutive(data []Data) int {
 	return i
 }
 
-func write(dir string, filename string, data []Data) []Data {
+func write(filePath string, data []Data) []Data {
 	// handle number order error, data block may not ordered
 	if len(data) == 0 {
 		return nil
@@ -113,8 +116,9 @@ func write(dir string, filename string, data []Data) []Data {
 	})
 	i := findConsecutive(data)
 
+	dir := filepath.Dir(filePath)
 	Mkdir(dir)
-	appendTo(filename, data[:i])
+	appendTo(filePath, data[:i])
 	if i < len(data) {
 		// return leftover
 		return data[i:]
@@ -133,4 +137,18 @@ func GetDataDir() string {
 		return dir
 	}
 	return dir + "/coyace.rtc/"
+}
+
+func Save(img image.Image, filename string) {
+	filePath := GetFilePath(DefaultClient.FullID(), filename)
+	Mkdir(filepath.Dir(filePath))
+	file, err := os.Create(filePath)
+	defer file.Close()
+	if err != nil {
+		log.Printf("create file failed, %v", err)
+	}
+	err = png.Encode(file, img)
+	if err != nil {
+		log.Printf("encode file failed", err)
+	}
 }

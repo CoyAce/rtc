@@ -1,11 +1,8 @@
 package view
 
 import (
-	"bufio"
 	"image"
-	"image/png"
 	"log"
-	"os"
 	"rtc/assets"
 	"rtc/core"
 
@@ -16,7 +13,6 @@ import (
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"golang.org/x/exp/shiny/materialdesign/icons"
-	"golang.org/x/image/webp"
 )
 
 type Avatar struct {
@@ -45,17 +41,8 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 	}
 	if v.Editable && v.Clicked(gtx) {
 		go func() {
-			file, err := DefaultPicker.ChooseFile(".jpg", ".png", ".webp")
+			img, _, err := ChooseImageAndDecode()
 			if err != nil {
-				return
-			}
-			defer file.Close()
-			var img, _, _ = image.Decode(bufio.NewReader(file))
-			if img == nil {
-				// try with webp
-				img, _ = webp.Decode(bufio.NewReader(file))
-			}
-			if img == nil {
 				return
 			}
 			if img.Bounds().Dx() > 512 || img.Bounds().Dy() > 512 {
@@ -65,17 +52,7 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 			v.selectedImage <- img
 
 			// save to file
-			core.Mkdir(core.GetDir(core.DefaultClient.FullID()))
-			iconFilePath := core.GetFileName(core.DefaultClient.FullID(), "icon.png")
-			out, err := os.Create(iconFilePath)
-			defer out.Close()
-			if err != nil {
-				log.Fatal(err)
-			}
-			err = png.Encode(out, img)
-			if err != nil {
-				log.Fatal(err)
-			}
+			core.Save(img, "icon.png")
 
 			// sync to server
 			if v.OnChange != nil {
@@ -129,25 +106,15 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 }
 
 func (v *Avatar) Reload() {
-	iconFilePath := core.GetFileName(v.UUID, "icon.png")
-	_, err := os.Stat(iconFilePath)
-	if os.IsNotExist(err) {
-		v.Image = assets.AppIconImage
-	} else {
-		file, err := os.Open(iconFilePath)
-		if err != nil {
-			log.Printf("failed to open icon file: %v", err)
-			return
+	filePath := core.GetFilePath(v.UUID, "icon.png")
+	img, err := LoadImage(filePath)
+	if err != nil {
+		log.Printf("failed to decode icon: %v", err)
+		if v.Image == nil {
+			v.Image = assets.AppIconImage
 		}
-		defer file.Close()
-		img, err := png.Decode(file)
-		if err != nil {
-			log.Printf("failed to decode icon: %v", err)
-			if v.Image == nil {
-				v.Image = assets.AppIconImage
-			}
-			return
-		}
+	}
+	if img != nil {
 		v.Image = img
 	}
 }

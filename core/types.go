@@ -23,6 +23,7 @@ const (
 	OpAck
 	OpErr
 	OpSyncIcon
+	OpSendImage
 )
 
 type WriteReq struct {
@@ -37,7 +38,7 @@ func (q *WriteReq) Marshal() ([]byte, error) {
 	b := new(bytes.Buffer)
 	b.Grow(size)
 
-	if q.Code != OpWRQ && q.Code != OpSyncIcon {
+	if q.Code != OpWRQ && q.Code != OpSyncIcon && q.Code != OpSendImage {
 		return nil, errors.New("invalid WRQ")
 	}
 
@@ -72,7 +73,7 @@ func (q *WriteReq) Unmarshal(p []byte) error {
 		return err
 	}
 
-	if q.Code != OpWRQ && q.Code != OpSyncIcon {
+	if q.Code != OpWRQ && q.Code != OpSyncIcon && q.Code != OpSendImage {
 		return errors.New("invalid WRQ")
 	}
 
