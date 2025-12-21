@@ -83,7 +83,7 @@ func appendTo(filePath string, data []Data) {
 	multiReader := io.MultiReader(readers...)
 	// 使用io.Copy将multiReader的内容写入文件
 	if _, err := io.Copy(file, multiReader); err != nil {
-		log.Fatalf("error writing to file: %v", err)
+		log.Printf("error writing to file: %v", err)
 	}
 }
 

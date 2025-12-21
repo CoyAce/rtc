@@ -2,6 +2,8 @@ package com.coyace.rtc.explorer;
 
 import android.content.Context;
 import android.content.Intent;
+import android.database.Cursor;
+import android.provider.OpenableColumns;
 import android.view.View;
 import android.app.Activity;
 import android.Manifest;
@@ -59,7 +61,7 @@ public class explorer_android {
                         try {
                             Uri uri = data.getData();
                             InputStream f = activity.getApplicationContext().getContentResolver().openInputStream(uri);
-                            explorer_android.ImportCallback(f, requestCode, uri.getPath(), "");
+                            explorer_android.ImportCallback(f, requestCode, getFileNameFromUri(uri), "");
                         } catch (Exception e) {
                             explorer_android.ImportCallback(null, requestCode, "", e.toString());
                             return;
@@ -84,6 +86,28 @@ public class explorer_android {
                 }
             });
 
+        }
+
+        private String getFileNameFromUri(Uri uri) {
+            String result = null;
+            if (uri.getScheme().equals("content")) {
+                Cursor cursor = this.context.getContentResolver().query(uri, null, null, null, null);
+                try {
+                    if (cursor != null && cursor.moveToFirst()) {
+                        result = cursor.getString(cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME));
+                    }
+                } finally {
+                    cursor.close();
+                }
+            }
+            if (result == null) {
+                result = uri.getPath();
+                int cut = result.lastIndexOf('/');
+                if (cut != -1) {
+                    result = result.substring(cut + 1);
+                }
+            }
+            return result;
         }
     }
 

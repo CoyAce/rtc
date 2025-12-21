@@ -137,13 +137,13 @@ func (e *Explorer) importFiles(_ ...string) ([]io.ReadCloser, error) {
 }
 
 //export Java_com_coyace_rtc_explorer_explorer_1android_ImportCallback
-func Java_org_gioui_x_explorer_explorer_1android_ImportCallback(env *C.JNIEnv, _ C.jclass, stream C.jobject, id C.jint, filename C.jstring, err C.jstring) {
+func Java_com_coyace_rtc_explorer_explorer_1android_ImportCallback(env *C.JNIEnv, _ C.jclass, stream C.jobject, id C.jint, filename C.jstring, err C.jstring) {
 	fileCallback(env, stream, id, filename, err)
 }
 
 //export Java_com_coyace_rtc_explorer_explorer_1android_ExportCallback
-func Java_org_gioui_x_explorer_explorer_1android_ExportCallback(env *C.JNIEnv, _ C.jclass, stream C.jobject, id C.jint, err C.jstring) {
-	fileCallback(env, stream, id, "", err)
+func Java_com_coyace_rtc_explorer_explorer_1android_ExportCallback(env *C.JNIEnv, _ C.jclass, stream C.jobject, id C.jint, filename C.jstring, err C.jstring) {
+	fileCallback(env, stream, id, filename, err)
 }
 
 func fileCallback(env *C.JNIEnv, stream C.jobject, id C.jint, filename C.jstring, err C.jstring) {
