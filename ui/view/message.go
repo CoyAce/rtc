@@ -263,14 +263,14 @@ func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
 }
 
 func (m *Message) drawImage(gtx layout.Context, img image.Image) layout.Dimensions {
-	v := float32(gtx.Constraints.Max.X) * 0.3
+	v := float32(gtx.Constraints.Max.X) * 0.382
 	dx := img.Bounds().Dx()
 	dy := img.Bounds().Dy()
 	var point image.Point
 	if dx < dy {
-		point = image.Point{X: gtx.Dp(unit.Dp(v)), Y: gtx.Dp(unit.Dp(float32(dy) / float32(dx) * v))}
+		point = image.Point{X: int(v), Y: int(float32(dy) / float32(dx) * v)}
 	} else {
-		point = image.Point{X: gtx.Dp(unit.Dp(float32(dx) / float32(dy) * v)), Y: gtx.Dp(unit.Dp(v))}
+		point = image.Point{X: int(float32(dx) / float32(dy) * v), Y: int(v)}
 	}
 	gtx.Constraints.Max = point
 	macro := op.Record(gtx.Ops)

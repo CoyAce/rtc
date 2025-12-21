@@ -71,7 +71,7 @@ func appendTo(filePath string, data []Data) {
 	// os.O_WRONLY: 以只写模式打开文件
 	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		log.Fatalf("error opening file: %v", err)
+		log.Printf("error opening file: %v", err)
 	}
 	defer file.Close()
 
