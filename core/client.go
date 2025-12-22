@@ -363,6 +363,7 @@ RETRY:
 			if errors.Is(err, syscall.ECONNREFUSED) {
 				c.Connected = false
 				log.Printf("[%s] connection refused", c.ServerAddr)
+				return 0, err
 			}
 			log.Printf("[%s] waiting for ACK: %v", c.ServerAddr, err)
 			continue

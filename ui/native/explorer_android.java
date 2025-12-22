@@ -1,5 +1,6 @@
 package com.coyace.rtc.explorer;
 
+import android.util.Log;
 import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
@@ -108,7 +109,7 @@ public class explorer_android {
                     return new FileInfo(displayName, size);
                 }
             } catch (Exception e) {
-                System.err.println("get file info failed, " + e.getMessage());
+                Log.w("explorer", "get file info failed, " + e.getMessage());
             }
             return null;
         }

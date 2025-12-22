@@ -7,7 +7,7 @@ import (
 
 func TestMessagePersistence(t *testing.T) {
 	core.DefaultClient = &core.Client{UUID: "#00001"}
-	core.Mkdir(GetDir(core.DefaultClient.FullID()))
+	core.Mkdir(core.GetDir(core.DefaultClient.FullID()))
 	core.RemoveFile(core.GetFilePath(core.DefaultClient.FullID(), "message.log"))
 	mk := MessageKeeper{MessageChannel: make(chan *Message, 1)}
 	go mk.Loop()
