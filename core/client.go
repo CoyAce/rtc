@@ -5,13 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"image"
-	"image/jpeg"
-	"image/png"
 	"io"
 	"log"
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 	"unsafe"
@@ -121,6 +120,9 @@ func (c *Client) SyncIcon(img image.Image) error {
 }
 
 func (c *Client) SendImage(img image.Image, filename string) error {
+	if filepath.Ext(filename) == ".webp" {
+		filename = strings.TrimSuffix(filepath.Base(filename), ".webp") + ".png"
+	}
 	return c.sendImage(img, OpSendImage, filename)
 }
 
@@ -132,21 +134,9 @@ func (c *Client) sendImage(img image.Image, code OpCode, filename string) error 
 	defer func() { _ = conn.Close() }()
 
 	buf := new(bytes.Buffer)
-	ext := filepath.Ext(filename)
-	switch ext {
-	case ".webp":
-		filename = filepath.Base(filename) + ".png"
-		fallthrough
-	case ".png":
-		err = png.Encode(buf, img)
-		if err != nil {
-			return err
-		}
-	case ".jpg", ".jpeg":
-		err = jpeg.Encode(buf, img, nil)
-		if err != nil {
-			return err
-		}
+	err = Encode(img, filename, buf)
+	if err != nil {
+		return err
 	}
 	hash := Hash(unsafe.Pointer(&buf))
 	log.Printf("icon file id: %v", hash)

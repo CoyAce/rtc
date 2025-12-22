@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"rtc/assets/fonts"
 	"rtc/core"
+	"runtime"
+	"strings"
 	"time"
 
 	"gioui.org/layout"
@@ -103,6 +105,14 @@ func NewIconStack() *IconStack {
 						return
 					}
 					filename := filepath.Base(absolutePath)
+					// android get displayName, need copy to user space
+					if runtime.GOOS == "android" {
+						if filepath.Ext(filename) == ".webp" {
+							filename = strings.TrimSuffix(filepath.Base(filename), ".webp") + ".png"
+						}
+						absolutePath = core.GetFilePath(core.DefaultClient.FullID(), filename)
+						go core.Save(img, filename)
+					}
 					imageCache[absolutePath] = img
 					message := &Message{State: Stateless, Theme: fonts.DefaultTheme,
 						UUID: core.DefaultClient.FullID(), Type: Image, Filename: absolutePath,

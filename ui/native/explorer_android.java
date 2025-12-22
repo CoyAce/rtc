@@ -13,6 +13,7 @@ import android.app.Fragment;
 import android.app.FragmentManager;
 import android.app.FragmentTransaction;
 
+import java.io.File;
 import java.io.InputStream;
 import java.io.OutputStream;
 
@@ -30,9 +31,19 @@ public class explorer_android {
     static List<Integer> export_codes = new ArrayList<Integer>();
 
     // Functions defined on Golang.
-    static public native void ImportCallback(InputStream f, int id, String filePath, String err);
+    static public native void ImportCallback(InputStream f, int id, FileInfo fileInfo, String err);
 
-    static public native void ExportCallback(OutputStream f, int id, String filePath, String err);
+    static public native void ExportCallback(OutputStream f, int id, FileInfo fileInfo, String err);
+
+    public static class FileInfo {
+        FileInfo(String displayName, long size) {
+            this.displayName = displayName;
+            this.size = size;
+        }
+
+        String displayName;
+        long size;
+    }
 
     public static class explorer_android_fragment extends Fragment {
         Context context;
@@ -54,16 +65,16 @@ public class explorer_android {
                     if (import_codes.contains(Integer.valueOf(requestCode))) {
                         import_codes.remove(Integer.valueOf(requestCode));
                         if (resultCode != Activity.RESULT_OK) {
-                            explorer_android.ImportCallback(null, requestCode, "", "");
+                            explorer_android.ImportCallback(null, requestCode, null, "");
                             activity.getFragmentManager().popBackStack();
                             return;
                         }
                         try {
                             Uri uri = data.getData();
                             InputStream f = activity.getApplicationContext().getContentResolver().openInputStream(uri);
-                            explorer_android.ImportCallback(f, requestCode, getFileNameFromUri(uri), "");
+                            explorer_android.ImportCallback(f, requestCode, getFileInfoFromContentUri(uri), "");
                         } catch (Exception e) {
-                            explorer_android.ImportCallback(null, requestCode, "", e.toString());
+                            explorer_android.ImportCallback(null, requestCode, null, e.toString());
                             return;
                         }
                     }
@@ -71,15 +82,15 @@ public class explorer_android {
                     if (export_codes.contains(Integer.valueOf(requestCode))) {
                         export_codes.remove(Integer.valueOf(requestCode));
                         if (resultCode != Activity.RESULT_OK) {
-                            explorer_android.ExportCallback(null, requestCode, "", "");
+                            explorer_android.ExportCallback(null, requestCode, null, "");
                             activity.getFragmentManager().popBackStack();
                             return;
                         }
                         try {
                             OutputStream f = activity.getApplicationContext().getContentResolver().openOutputStream(data.getData(), "wt");
-                            explorer_android.ExportCallback(f, requestCode, "", "");
+                            explorer_android.ExportCallback(f, requestCode, null, "");
                         } catch (Exception e) {
-                            explorer_android.ExportCallback(null, requestCode, "", e.toString());
+                            explorer_android.ExportCallback(null, requestCode, null, e.toString());
                             return;
                         }
                     }
@@ -88,26 +99,27 @@ public class explorer_android {
 
         }
 
-        private String getFileNameFromUri(Uri uri) {
-            String result = null;
-            if (uri.getScheme().equals("content")) {
-                Cursor cursor = this.context.getContentResolver().query(uri, null, null, null, null);
-                try {
-                    if (cursor != null && cursor.moveToFirst()) {
-                        result = cursor.getString(cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME));
-                    }
-                } finally {
-                    cursor.close();
+        private FileInfo getFileInfoFromContentUri(Uri uri) {
+            String[] projection = {OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE};
+            try (Cursor cursor = context.getContentResolver().query(uri, projection, null, null, null)) {
+                if (cursor != null && cursor.moveToFirst()) {
+                    String displayName = cursor.getString(cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME));
+                    long size = cursor.getLong(cursor.getColumnIndex(OpenableColumns.SIZE));
+                    return new FileInfo(displayName, size);
                 }
+            } catch (Exception e) {
+                System.err.println("get file info failed, " + e.getMessage());
             }
-            if (result == null) {
-                result = uri.getPath();
-                int cut = result.lastIndexOf('/');
-                if (cut != -1) {
-                    result = result.substring(cut + 1);
-                }
+            return null;
+        }
+
+        private FileInfo getFileInfoFromFileUri(Uri uri) {
+            String filePath = uri.getPath();
+            if (filePath != null) {
+                File file = new File(filePath);
+                return new FileInfo(file.getAbsolutePath(), file.length());
             }
-            return result;
+            return null;
         }
     }
 

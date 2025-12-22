@@ -33,6 +33,7 @@ func ChooseImageAndDecode() (image.Image, string, error) {
 	}
 	if runtime.GOOS == "android" {
 		if f, ok := file.(*native.File); ok {
+			log.Printf("file name: %v, size: %v", f.Name(), f.Size())
 			filename = f.Name()
 		}
 	}

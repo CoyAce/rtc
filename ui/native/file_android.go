@@ -14,6 +14,7 @@ import (
 type File struct {
 	stream    jni.Object
 	name      string
+	size      int64
 	libObject jni.Object
 	libClass  jni.Class
 
@@ -27,8 +28,8 @@ type File struct {
 	isClosed        bool
 }
 
-func newFile(env jni.Env, filePath string, stream jni.Object) (*File, error) {
-	f := &File{stream: stream, name: filePath}
+func newFile(env jni.Env, name string, size int64, stream jni.Object) (*File, error) {
+	f := &File{stream: stream, name: name, size: size}
 
 	class, err := jni.LoadClass(env, jni.ClassLoaderFor(env, jni.Object(app.AppContext())), "com.coyace.rtc/explorer/file_android")
 	if err != nil {
@@ -57,6 +58,8 @@ func newFile(env jni.Env, filePath string, stream jni.Object) (*File, error) {
 }
 
 func (f *File) Name() string { return f.name }
+
+func (f *File) Size() int64 { return f.size }
 
 func (f *File) Read(b []byte) (n int, err error) {
 	if f == nil || f.isClosed {

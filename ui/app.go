@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"log"
 	"rtc/assets/fonts"
 	"rtc/core"
 	ui "rtc/ui/layout"
@@ -35,6 +36,10 @@ func Draw(window *app.Window, c *core.Client) error {
 			var message *view.Message
 			select {
 			case m := <-view.MessageBox:
+				if m == nil {
+					log.Printf("nil message")
+					continue
+				}
 				message = m
 			case m := <-c.SignedMessages:
 				text := string(m.Payload)

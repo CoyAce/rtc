@@ -49,3 +49,4 @@ func (f *File) Close() error {
 	return ErrNotAvailable
 }
 func (f *File) Name() string { return "" }
+func (f *File) Size() int64  { return 0 }

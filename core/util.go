@@ -3,7 +3,9 @@ package core
 import (
 	"bytes"
 	"image"
+	"image/jpeg"
 	"image/png"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -140,15 +142,40 @@ func GetDataDir() string {
 }
 
 func Save(img image.Image, filename string) {
+	if filepath.Ext(filename) == ".webp" {
+		filename = strings.TrimSuffix(filepath.Base(filename), ".webp") + ".png"
+	}
 	filePath := GetFilePath(DefaultClient.FullID(), filename)
+	_, err := os.Stat(filePath)
+	if !os.IsNotExist(err) {
+		return
+	}
 	Mkdir(filepath.Dir(filePath))
 	file, err := os.Create(filePath)
 	defer file.Close()
 	if err != nil {
 		log.Printf("create file failed, %v", err)
 	}
-	err = png.Encode(file, img)
+	err = Encode(img, filePath, file)
 	if err != nil {
-		log.Printf("encode file failed", err)
+		log.Printf("encode file failed, %v", err)
 	}
+	log.Printf("%s saved to %s", filename, filePath)
+}
+
+func Encode(img image.Image, filename string, w io.Writer) error {
+	ext := filepath.Ext(filename)
+	switch ext {
+	case ".png", ".webp":
+		err := png.Encode(w, img)
+		if err != nil {
+			return err
+		}
+	case ".jpg", ".jpeg":
+		err := jpeg.Encode(w, img, nil)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

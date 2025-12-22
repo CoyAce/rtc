@@ -110,6 +110,9 @@ func (a *MessageKeeper) Messages() []*Message {
 		ed.SetText(msg.Text)
 		msg.Editor = &ed
 		msg.Theme = fonts.DefaultTheme
+		if msg.State == Stateless {
+			msg.State = Failed
+		}
 		ret = append(ret, &msg)
 	}
 	return ret
@@ -255,11 +258,22 @@ func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
 		img, err := LoadImage(filePath)
 		if err != nil {
 			log.Printf("load image failed: %v", err)
-			return layout.Dimensions{}
+			return m.drawBrokenImage(gtx)
 		}
 		return m.drawImage(gtx, img)
 	}
 	return layout.Dimensions{}
+}
+
+func (m *Message) drawBrokenImage(gtx layout.Context) layout.Dimensions {
+	v := float32(gtx.Constraints.Max.X) * 0.382
+	point := image.Point{X: int(v), Y: int(v)}
+	gtx.Constraints.Min = point
+	macro := op.Record(gtx.Ops)
+	d := imageBroken.Layout(gtx, m.Theme.ContrastFg)
+	call := macro.Stop()
+	m.drawBorder(gtx, d, call)
+	return d
 }
 
 func (m *Message) drawImage(gtx layout.Context, img image.Image) layout.Dimensions {
