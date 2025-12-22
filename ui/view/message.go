@@ -267,8 +267,7 @@ func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
 
 func (m *Message) drawBrokenImage(gtx layout.Context) layout.Dimensions {
 	v := float32(gtx.Constraints.Max.X) * 0.382
-	point := image.Point{X: int(v), Y: int(v)}
-	gtx.Constraints.Min = point
+	gtx.Constraints.Min.X = int(v)
 	macro := op.Record(gtx.Ops)
 	d := imageBroken.Layout(gtx, m.Theme.ContrastFg)
 	call := macro.Stop()
@@ -288,7 +287,7 @@ func (m *Message) drawImage(gtx layout.Context, img image.Image) layout.Dimensio
 	}
 	gtx.Constraints.Max = point
 	macro := op.Record(gtx.Ops)
-	d := layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+	d := layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		imgOps := paint.NewImageOp(img)
 		return widget.Image{Src: imgOps, Fit: widget.Fill, Position: layout.Center, Scale: 0}.Layout(gtx)
 
