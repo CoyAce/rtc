@@ -402,9 +402,12 @@ func (l *MessageList) processScrollToEnd() {
 }
 
 func (l *MessageList) resetScrollToEndIfScrolledOrDragging(gtx layout.Context) {
-	if l.Dragging() {
+	if l.Dragging() || l.Scrolling(gtx) {
 		l.ScrollToEnd = false
 	}
+}
+
+func (l *MessageList) Scrolling(gtx layout.Context) bool {
 	for {
 		_, ok := gtx.Event(
 			pointer.Filter{
@@ -416,8 +419,9 @@ func (l *MessageList) resetScrollToEndIfScrolledOrDragging(gtx layout.Context) {
 		if !ok {
 			break
 		}
-		l.ScrollToEnd = false
+		return true
 	}
+	return false
 }
 
 func (l *MessageList) getFocusAndResetIconStackIfClicked(gtx layout.Context) {
