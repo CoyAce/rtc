@@ -67,7 +67,7 @@ func (e *explorer) init(env jni.Env) error {
 	e.exportFile = jni.GetMethodID(env, e.libClass, "exportFile", "(Landroid/view/View;Ljava/lang/String;I)V")
 
 	fileInfoClass, err := jni.LoadClass(env, jni.ClassLoaderFor(env, jni.Object(app.AppContext())), "com/coyace/rtc/explorer/explorer_android$FileInfo")
-	absolutePathId = jni.GetFieldID(env, fileInfoClass, "displayName", "Ljava/lang/String;")
+	displayNameId = jni.GetFieldID(env, fileInfoClass, "displayName", "Ljava/lang/String;")
 	sizeId = jni.GetFieldID(env, fileInfoClass, "size", "J")
 
 	return nil
@@ -162,7 +162,7 @@ func fileCallback(env *C.JNIEnv, stream C.jobject, id C.jint, fileInfo C.jobject
 				}
 			}
 		} else {
-			name := jni.GoString(env, jni.String(uintptr(jni.GetObjectField(env, jni.Object(uintptr(fileInfo)), absolutePathId))))
+			name := jni.GoString(env, jni.String(uintptr(jni.GetObjectField(env, jni.Object(uintptr(fileInfo)), displayNameId))))
 			size := jni.GetLongField(env, jni.Object(uintptr(fileInfo)), sizeId)
 			res.file, res.error = newFile(env, name, size, jni.NewGlobalRef(env, jni.Object(uintptr(stream))))
 		}
@@ -171,8 +171,8 @@ func fileCallback(env *C.JNIEnv, stream C.jobject, id C.jint, fileInfo C.jobject
 }
 
 var (
-	absolutePathId jni.FieldID
-	sizeId         jni.FieldID
-	_              io.ReadCloser  = (*File)(nil)
-	_              io.WriteCloser = (*File)(nil)
+	displayNameId jni.FieldID
+	sizeId        jni.FieldID
+	_             io.ReadCloser  = (*File)(nil)
+	_             io.WriteCloser = (*File)(nil)
 )
