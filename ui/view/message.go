@@ -10,7 +10,7 @@ import (
 	"os"
 	"rtc/assets/fonts"
 	"rtc/core"
-	editor "rtc/ui/layout"
+	ui "rtc/ui/layout"
 	text "rtc/ui/layout/component"
 	"time"
 
@@ -31,7 +31,7 @@ import (
 )
 
 type MessageList struct {
-	layout.List
+	ui.List
 	*material.Theme
 	Messages     []*Message
 	ScrollToEnd  bool
@@ -396,7 +396,7 @@ func (l *MessageList) scrollToEndIfFirstAndLastItemVisible() {
 func (l *MessageList) processScrollToEnd() {
 	l.List.ScrollToEnd = l.FirstVisible || l.ScrollToEnd
 	if l.ScrollToEnd {
-		l.List.Position = layout.Position{BeforeEnd: false}
+		l.List.Position = ui.Position{BeforeEnd: false}
 	}
 }
 
@@ -524,7 +524,7 @@ func (e *MessageEditor) Submitted(gtx layout.Context) bool {
 func (e *MessageEditor) submittedByCarriageReturn(gtx layout.Context) (submit bool) {
 	for {
 		ev, ok := e.InputField.Editor.Update(gtx)
-		if _, submit = ev.(editor.SubmitEvent); submit {
+		if _, submit = ev.(ui.SubmitEvent); submit {
 			break
 		}
 		if !ok {
