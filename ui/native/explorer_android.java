@@ -14,7 +14,6 @@ import android.app.Fragment;
 import android.app.FragmentManager;
 import android.app.FragmentTransaction;
 
-import java.io.File;
 import java.io.InputStream;
 import java.io.OutputStream;
 
@@ -110,15 +109,6 @@ public class explorer_android {
                 }
             } catch (Exception e) {
                 Log.w("explorer", "get file info failed, " + e.getMessage());
-            }
-            return null;
-        }
-
-        private FileInfo getFileInfoFromFileUri(Uri uri) {
-            String filePath = uri.getPath();
-            if (filePath != null) {
-                File file = new File(filePath);
-                return new FileInfo(file.getAbsolutePath(), file.length());
             }
             return null;
         }
