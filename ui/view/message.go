@@ -8,6 +8,7 @@ import (
 	"log"
 	"math"
 	"os"
+	"rtc/assets"
 	"rtc/assets/fonts"
 	"rtc/core"
 	ui "rtc/ui/layout"
@@ -33,9 +34,7 @@ import (
 type MessageList struct {
 	ui.List
 	*material.Theme
-	Messages     []*Message
-	ScrollToEnd  bool
-	FirstVisible bool
+	Messages []*Message
 }
 
 type MessageKeeper struct {
@@ -256,11 +255,10 @@ func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
 			filePath = core.GetFilePath(m.Sender, m.Filename)
 		}
 		img, err := LoadImage(filePath)
-		if err != nil {
-			log.Printf("load image failed: %v", err)
+		if err != nil || img == &assets.AppIconImage {
 			return m.drawBrokenImage(gtx)
 		}
-		return m.drawImage(gtx, img)
+		return m.drawImage(gtx, *img)
 	}
 	return layout.Dimensions{}
 }
@@ -369,7 +367,6 @@ func (m *Message) drawName(gtx layout.Context) layout.Dimensions {
 func (l *MessageList) Layout(gtx layout.Context) layout.Dimensions {
 	// Process events using the key, &messageList
 	l.getFocusAndResetIconStackIfClicked(gtx)
-	l.resetScrollToEndIfScrolledOrDragging(gtx)
 	l.processScrollToEnd()
 	// We visualize the text using a list where each paragraph is a separate item.
 	dimensions := l.List.Layout(gtx, len(l.Messages), func(gtx layout.Context, index int) layout.Dimensions {
@@ -387,40 +384,22 @@ func (l *MessageList) Layout(gtx layout.Context) layout.Dimensions {
 
 func (l *MessageList) scrollToEndIfFirstAndLastItemVisible() {
 	// at end of list
-	if !l.List.Position.BeforeEnd {
+	if !l.Position.BeforeEnd {
 		// if at end and first item visible, scroll to end
-		l.FirstVisible = l.List.Position.First == 0
+		// or else, enable scroll by unset ScrollToEnd
+		l.ScrollToEnd = l.Position.First == 0
+		l.Position.BeforeEnd = true
+		// received new message, not displayed
+		if l.Position.First+l.Position.Count < len(l.Messages) {
+			l.ScrollToEnd = true
+		}
 	}
 }
 
 func (l *MessageList) processScrollToEnd() {
-	l.List.ScrollToEnd = l.FirstVisible || l.ScrollToEnd
 	if l.ScrollToEnd {
-		l.List.Position = ui.Position{BeforeEnd: false}
+		l.Position = ui.Position{BeforeEnd: false}
 	}
-}
-
-func (l *MessageList) resetScrollToEndIfScrolledOrDragging(gtx layout.Context) {
-	if l.Dragging() || l.Scrolling(gtx) {
-		l.ScrollToEnd = false
-	}
-}
-
-func (l *MessageList) Scrolling(gtx layout.Context) bool {
-	for {
-		_, ok := gtx.Event(
-			pointer.Filter{
-				Target:  l,
-				Kinds:   pointer.Scroll,
-				ScrollY: pointer.ScrollRange{Min: -1, Max: +1},
-			},
-		)
-		if !ok {
-			break
-		}
-		return true
-	}
-	return false
 }
 
 func (l *MessageList) getFocusAndResetIconStackIfClicked(gtx layout.Context) {

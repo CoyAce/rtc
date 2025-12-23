@@ -113,7 +113,7 @@ func NewIconStack() *IconStack {
 						absolutePath = core.GetFilePath(core.DefaultClient.FullID(), filename)
 						go core.Save(img, filename)
 					}
-					imageCache[absolutePath] = img
+					imageCache[absolutePath] = &img
 					message := &Message{State: Stateless, Theme: fonts.DefaultTheme,
 						UUID: core.DefaultClient.FullID(), Type: Image, Filename: absolutePath,
 						Sender: core.DefaultClient.FullID(), CreatedAt: time.Now()}

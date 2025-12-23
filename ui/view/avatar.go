@@ -115,7 +115,7 @@ func (v *Avatar) Reload() {
 		}
 	}
 	if img != nil {
-		v.Image = img
+		v.Image = *img
 	}
 }
 

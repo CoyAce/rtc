@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"rtc/assets"
 	"rtc/ui/native"
 	"runtime"
 
@@ -54,12 +55,14 @@ func decodeImage(file io.ReadCloser) (image.Image, error) {
 	return img, err
 }
 
-func LoadImage(filePath string) (image.Image, error) {
+func LoadImage(filePath string) (*image.Image, error) {
 	if imageCache[filePath] != nil {
 		return imageCache[filePath], nil
 	}
 	_, err := os.Stat(filePath)
 	if os.IsNotExist(err) {
+		imageCache[filePath] = &assets.AppIconImage
+		log.Printf("load image failed: %v", err)
 		return nil, err
 	}
 	file, err := os.Open(filePath)
@@ -70,11 +73,12 @@ func LoadImage(filePath string) (image.Image, error) {
 
 	img, err := decodeImage(file)
 	if err != nil {
+		imageCache[filePath] = &assets.AppIconImage
 		log.Printf("failed to decode image: %v", err)
 		return nil, err
 	}
-	imageCache[filePath] = img
-	return img, nil
+	imageCache[filePath] = &img
+	return &img, nil
 }
 
-var imageCache = map[string]image.Image{}
+var imageCache = map[string]*image.Image{}

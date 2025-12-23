@@ -25,8 +25,8 @@ func Draw(window *app.Window, c *core.Client) error {
 	// ops are the operations from the UI
 	var ops op.Ops
 
-	var messageList = &view.MessageList{List: ui.List{Axis: ui.Vertical},
-		Theme: fonts.DefaultTheme, ScrollToEnd: true}
+	var messageList = &view.MessageList{List: ui.List{Axis: ui.Vertical, ScrollToEnd: true},
+		Theme: fonts.DefaultTheme}
 	var messageKeeper = &view.MessageKeeper{MessageChannel: make(chan *view.Message, 1)}
 	messageList.Messages = messageKeeper.Messages()
 	go messageKeeper.Loop()
