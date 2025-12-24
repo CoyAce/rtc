@@ -212,10 +212,19 @@ func (l *List) nextDir() iterationDir {
 	_, vsize := l.Axis.mainConstraint(l.cs)
 	last := l.Position.First + len(l.children)
 	// Clamp offset.
-	if l.maxSize-l.Position.Offset < vsize && last == l.len {
-		l.Position.Offset = l.maxSize - vsize
+	lastVisible := last == l.len
+	// l.maxSize = s1 + s2
+	//--------leading edge of children, offset: - vsize + l.maxSize
+	// child1  size: s1
+	//--------offset: - vsize + s2
+	// child2  size: s2
+	//--------bottom edge, offset: - vsize
+	leadingEdgeOfChildren := l.maxSize - vsize
+	if lastVisible && l.Position.Offset > leadingEdgeOfChildren {
+		l.Position.Offset = leadingEdgeOfChildren
 	}
-	if l.Position.Offset < 0 && l.Position.First == 0 {
+	firstVisible := l.Position.First == 0
+	if firstVisible && l.Position.Offset < 0 {
 		l.Position.Offset = 0
 	}
 	// Lay out an extra (invisible) child at each end to enable focus to
