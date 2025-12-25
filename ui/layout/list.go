@@ -209,46 +209,71 @@ func (l *List) more() bool {
 }
 
 func (l *List) nextDir() iterationDir {
-	_, vsize := l.Axis.mainConstraint(l.cs)
-	last := l.Position.First + len(l.children)
-	// Clamp offset.
-	lastVisible := last == l.len
-	// l.maxSize = s1 + s2
-	//--------leading edge of children, offset: - vsize + l.maxSize
+	//-----------------------------position.offset
+	// l.maxSize = s1 + s2        |		  |
+	//--------top edge, offset: 0 |       |
+	// backward space             | forward space
+	//--------position.offset     |       |
+	// forward space              |       |
+	//--------leading edge of children, offset: - viewSize + l.maxSize
 	// child1  size: s1
-	//--------offset: - vsize + s2
+	//--------offset: - viewSize + s2
 	// child2  size: s2
-	//--------bottom edge, offset: - vsize
-	leadingEdgeOfChildren := l.maxSize - vsize
-	if lastVisible && l.Position.Offset > leadingEdgeOfChildren {
-		l.Position.Offset = leadingEdgeOfChildren
-	}
-	firstVisible := l.Position.First == 0
-	if firstVisible && l.Position.Offset < 0 {
-		l.Position.Offset = 0
-	}
-	// Lay out an extra (invisible) child at each end to enable focus to
-	// move to them, triggering automatic scroll.
-	firstSize, lastSize := 0, 0
-	if len(l.children) > 0 {
-		if l.Position.First > 0 {
-			firstChild := l.children[0]
-			firstSize = l.Axis.Convert(firstChild.size).X
-		}
-		if last < l.len {
-			lastChild := l.children[len(l.children)-1]
-			lastSize = l.Axis.Convert(lastChild.size).X
-		}
-	}
+	//--------bottom edge, offset: - viewSize
+	l.tryAlignToBottomEdge()
+	l.tryAlignToTopEdge()
 	switch {
 	case len(l.children) == l.len:
 		return iterateNone
-	case l.maxSize-l.Position.Offset-lastSize < vsize:
+	case l.forwardSpaceAvailable():
 		return iterateForward
-	case l.Position.Offset-firstSize < 0:
+	case l.backwardSpaceAvailable():
 		return iterateBackward
 	}
 	return iterateNone
+}
+
+func (l *List) tryAlignToTopEdge() {
+	if l.firstElemVisible() && l.backwardSpaceAvailable() {
+		l.clearBackwardSpace()
+	}
+}
+
+func (l *List) tryAlignToBottomEdge() {
+	if l.lastElemVisible() && l.forwardSpaceAvailable() {
+		l.clearForwardSpace()
+	}
+}
+
+func (l *List) firstElemVisible() bool {
+	return l.Position.First == 0
+}
+
+func (l *List) lastElemVisible() bool {
+	last := l.Position.First + len(l.children)
+	lastVisible := last == l.len
+	return lastVisible
+}
+
+func (l *List) backwardSpaceAvailable() bool {
+	return l.Position.Offset < 0
+}
+
+func (l *List) forwardSpaceAvailable() bool {
+	return l.Position.Offset > l.leadingEdgeOfChildren()
+}
+
+func (l *List) clearBackwardSpace() {
+	l.Position.Offset = 0
+}
+
+func (l *List) clearForwardSpace() {
+	l.Position.Offset = l.leadingEdgeOfChildren()
+}
+
+func (l *List) leadingEdgeOfChildren() int {
+	_, viewSize := l.Axis.mainConstraint(l.cs)
+	return l.maxSize - viewSize
 }
 
 // End the current child by specifying its dimensions.
