@@ -131,6 +131,7 @@ type MessageType uint16
 const (
 	Text MessageType = iota
 	Image
+	GIF
 )
 
 type Message struct {
@@ -255,10 +256,23 @@ func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
 			filePath = core.GetFilePath(m.Sender, m.Filename)
 		}
 		img, err := LoadImage(filePath)
-		if err != nil || img == &assets.AppIconImage {
+		if err != nil || img == nil || img == &assets.AppIconImage {
 			return m.drawBrokenImage(gtx)
 		}
 		return m.drawImage(gtx, *img)
+	case GIF:
+		if m.Filename == "" {
+			return layout.Dimensions{}
+		}
+		var filePath = m.Filename
+		if !m.isMe() {
+			filePath = core.GetFilePath(m.Sender, m.Filename)
+		}
+		gif, err := LoadGif(filePath)
+		if err != nil || gif == nil || gif == &EmptyGif {
+			return m.drawBrokenImage(gtx)
+		}
+		return gif.Layout(gtx)
 	}
 	return layout.Dimensions{}
 }

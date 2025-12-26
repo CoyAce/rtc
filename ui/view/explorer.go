@@ -3,6 +3,7 @@ package view
 import (
 	"bufio"
 	"image"
+	"image/gif"
 	"io"
 	"log"
 	"os"
@@ -24,7 +25,7 @@ type Picker interface {
 }
 
 func ChooseImageAndDecode() (image.Image, string, error) {
-	file, err := DefaultPicker.ChooseFile(".jpg", ".jpeg", ".png", ".webp")
+	file, err := DefaultPicker.ChooseFile(".jpg", ".jpeg", ".png", ".webp", ".gif")
 	if err != nil {
 		return nil, "", err
 	}
@@ -59,14 +60,10 @@ func LoadImage(filePath string) (*image.Image, error) {
 	if imageCache[filePath] != nil {
 		return imageCache[filePath], nil
 	}
-	_, err := os.Stat(filePath)
-	if os.IsNotExist(err) {
-		imageCache[filePath] = &assets.AppIconImage
-		log.Printf("load image failed: %v", err)
-		return nil, err
-	}
 	file, err := os.Open(filePath)
 	if err != nil {
+		imageCache[filePath] = &assets.AppIconImage
+		log.Printf("open file error: %v", err)
 		return nil, err
 	}
 	defer file.Close()
@@ -81,4 +78,30 @@ func LoadImage(filePath string) (*image.Image, error) {
 	return &img, nil
 }
 
+func LoadGif(filePath string) (*Gif, error) {
+	if gifCache[filePath] != nil {
+		return gifCache[filePath], nil
+	}
+	file, err := os.Open(filePath)
+	if err != nil {
+		gifCache[filePath] = &EmptyGif
+		log.Printf("open file error: %v", err)
+		return nil, err
+	}
+	defer file.Close()
+
+	gif, err := gif.DecodeAll(file)
+	if err != nil {
+		gifCache[filePath] = &EmptyGif
+		log.Printf("failed to decode gif: %v", err)
+		return nil, err
+	}
+
+	ret := &Gif{GIF: gif}
+	gifCache[filePath] = ret
+	return ret, nil
+}
+
 var imageCache = map[string]*image.Image{}
+var gifCache = map[string]*Gif{}
+var EmptyGif Gif

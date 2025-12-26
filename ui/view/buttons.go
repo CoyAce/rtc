@@ -117,10 +117,14 @@ func NewIconStack() *IconStack {
 					message := &Message{State: Stateless, Theme: fonts.DefaultTheme,
 						UUID: core.DefaultClient.FullID(), Type: Image, Filename: absolutePath,
 						Sender: core.DefaultClient.FullID(), CreatedAt: time.Now()}
+					if filepath.Ext(filename) == ".gif" {
+						message.Type = GIF
+					}
 					MessageBox <- message
 					err = core.DefaultClient.SendImage(img, filename)
 					if err != nil {
 						log.Printf("send image failed, %v", err)
+						message.State = Failed
 					} else {
 						message.State = Sent
 					}
