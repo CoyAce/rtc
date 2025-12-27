@@ -272,9 +272,19 @@ func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
 		if err != nil || gif == nil || gif == &EmptyGif {
 			return m.drawBrokenImage(gtx)
 		}
-		return gif.Layout(gtx)
+		return m.drawGif(gtx, gif)
 	}
 	return layout.Dimensions{}
+}
+
+func (m *Message) drawGif(gtx layout.Context, gif *Gif) layout.Dimensions {
+	v := float32(gtx.Constraints.Max.X) * 0.382
+	gtx.Constraints.Min.X = int(v)
+	macro := op.Record(gtx.Ops)
+	d := gif.Layout(gtx)
+	call := macro.Stop()
+	m.drawBorder(gtx, d, call)
+	return d
 }
 
 func (m *Message) drawBrokenImage(gtx layout.Context) layout.Dimensions {
@@ -299,11 +309,8 @@ func (m *Message) drawImage(gtx layout.Context, img image.Image) layout.Dimensio
 	}
 	gtx.Constraints.Max = point
 	macro := op.Record(gtx.Ops)
-	d := layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		imgOps := paint.NewImageOp(img)
-		return widget.Image{Src: imgOps, Fit: widget.Fill, Position: layout.Center, Scale: 0}.Layout(gtx)
-
-	})
+	imgOps := paint.NewImageOp(img)
+	d := widget.Image{Src: imgOps, Fit: widget.Contain, Position: layout.Center, Scale: 0}.Layout(gtx)
 	call := macro.Stop()
 	m.drawBorder(gtx, d, call)
 	return d
