@@ -3,19 +3,20 @@ package view
 import (
 	"image"
 	"image/color"
+	"image/draw"
 	"image/gif"
 	"time"
 
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/paint"
-	"gioui.org/x/component"
 )
 
 type Gif struct {
 	*gif.GIF
 	index     int
 	nextFrame time.Time
+	frames    []image.Image
 }
 
 func (g *Gif) Layout(gtx layout.Context) layout.Dimensions {
@@ -29,43 +30,52 @@ func (g *Gif) Layout(gtx layout.Context) layout.Dimensions {
 		delay = time.Duration(10*g.Delay[g.index]) * time.Millisecond
 		g.nextFrame = time.Now().Add(delay)
 	}
-	// other frames
-	for i := 0; i < g.index; i++ {
-		img := g.Image[i]
-		switch g.Disposal[i] {
-		default:
-			fallthrough
-		case gif.DisposalNone:
-			// 不做特殊处理，下一帧直接叠加在当前帧之上
-			transition := op.Offset(img.Rect.Min).Push(gtx.Ops)
-			paint.NewImageOp(img).Add(gtx.Ops)
-			paint.PaintOp{}.Add(gtx.Ops)
-			transition.Pop()
-		case gif.DisposalBackground:
-			// 清除当前帧覆盖的区域，并用背景色填充
-			var bgColor color.Color = color.Transparent
-			if palette, ok := g.Config.ColorModel.(color.Palette); ok {
-				bgColor = palette[g.BackgroundIndex]
-			}
-			// background
-			R, G, B, A := bgColor.RGBA()
-			transition := op.Offset(img.Rect.Min).Push(gtx.Ops)
-			component.Rect{Color: color.NRGBA{uint8(R), uint8(G), uint8(B), uint8(A)},
-				Size: img.Bounds().Size()}.Layout(gtx)
-			transition.Pop()
-		case gif.DisposalPrevious:
-			continue
-		}
+
+	currentFrameCached := len(g.frames) > g.index
+	if currentFrameCached {
+		paint.NewImageOp(g.frames[g.index]).Add(gtx.Ops)
+	} else {
+		canvas := g.extractFrame()
+		g.frames = append(g.frames, canvas)
+
+		paint.NewImageOp(canvas).Add(gtx.Ops)
 	}
-	// current frame
-	img := g.Image[g.index]
-	transition := op.Offset(img.Rect.Min).Push(gtx.Ops)
-	paint.NewImageOp(img).Add(gtx.Ops)
 	paint.PaintOp{}.Add(gtx.Ops)
-	transition.Pop()
 
 	nextFrame := gtx.Now.Add(delay)
 	gtx.Execute(op.InvalidateCmd{At: nextFrame})
 
 	return layout.Dimensions{Size: gtx.Constraints.Max}
+}
+
+func (g *Gif) extractFrame() *image.RGBA {
+	canvas := image.NewRGBA(image.Rect(0, 0, g.Config.Width, g.Config.Height))
+	prev := g.index - 1
+LOOP:
+	if prev >= 0 {
+		prevFrame := g.frames[prev]
+		switch g.Disposal[prev] {
+		default:
+			fallthrough
+		case gif.DisposalNone:
+			// 不做特殊处理，直接叠加
+			draw.Draw(canvas, prevFrame.Bounds(), prevFrame, image.Point{}, draw.Over)
+		case gif.DisposalBackground:
+			// 清除帧覆盖的区域，并用背景色填充
+			draw.Draw(canvas, prevFrame.Bounds(), prevFrame, image.Point{}, draw.Over)
+			var bgColor color.Color = color.Transparent
+			if palette, ok := g.Config.ColorModel.(color.Palette); ok {
+				bgColor = palette[g.BackgroundIndex]
+			}
+			draw.Draw(canvas, g.Image[prev].Bounds(), &image.Uniform{C: bgColor}, g.Image[prev].Bounds().Min, draw.Src)
+		case gif.DisposalPrevious:
+			// 恢复到前一帧的状态
+			prev--
+			goto LOOP
+		}
+	}
+	// current frame
+	frame := g.Image[g.index]
+	draw.Draw(canvas, frame.Bounds(), frame, frame.Bounds().Min, draw.Over)
+	return canvas
 }
