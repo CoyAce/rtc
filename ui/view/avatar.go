@@ -8,6 +8,7 @@ import (
 	"rtc/core"
 
 	"gioui.org/layout"
+	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
@@ -100,20 +101,32 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 	gtx.Constraints.Min, gtx.Constraints.Max = v.point, v.point
 	return layout.Stack{Alignment: layout.Center}.Layout(gtx,
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-			return v.Clickable.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				defer clip.UniformRRect(image.Rectangle{
-					Max: image.Point{
-						X: gtx.Constraints.Max.X,
-						Y: gtx.Constraints.Max.Y,
-					},
-				}, gtx.Constraints.Max.X/2).Push(gtx.Ops).Pop()
+			return v.Clickable.Layout(gtx, func(gtx layout.Context) (d layout.Dimensions) {
+				macro := op.Record(gtx.Ops)
 				if v.AvatarType == IMG || v.AvatarType == Default {
 					imgOps := paint.NewImageOp(v.Image)
 					imgWidget := widget.Image{Src: imgOps, Fit: widget.Fill, Position: layout.Center, Scale: 0}
-					return imgWidget.Layout(gtx)
+					d = imgWidget.Layout(gtx)
+				} else {
+					gtx.Constraints.Min.X = gtx.Constraints.Max.X
+					d = v.Gif.Layout(gtx)
 				}
-				gtx.Constraints.Min.X = gtx.Constraints.Max.X
-				return v.Gif.Layout(gtx)
+				call := macro.Stop()
+				xSpace := d.Size.X - gtx.Constraints.Max.X
+				ySpace := d.Size.Y - gtx.Constraints.Max.Y
+				defer op.Offset(image.Point{X: -xSpace / 2, Y: -ySpace / 2}).Push(gtx.Ops).Pop()
+				defer clip.UniformRRect(image.Rectangle{
+					Min: image.Point{
+						X: xSpace / 2,
+						Y: ySpace / 2,
+					},
+					Max: image.Point{
+						X: xSpace/2 + gtx.Constraints.Max.X,
+						Y: ySpace/2 + gtx.Constraints.Max.Y,
+					},
+				}, gtx.Constraints.Max.X/2).Push(gtx.Ops).Pop()
+				call.Add(gtx.Ops)
+				return layout.Dimensions{Size: gtx.Constraints.Max}
 			})
 		}),
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
