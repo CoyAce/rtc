@@ -22,17 +22,21 @@ all: clean release
 #	GOOS=linux GOARCH=arm64 CGO_ENABLED=1 go build --ldflags="-s -w" -v -x -a -o $(BIN_DIR)/$(NAME)-$(VERSION)-$@ $(GO_FILES)
 
 macos-amd64:
-	gogio -x -work -target macos -arch amd64 -o $(BIN_DIR)/$(NAME)-$(VERSION)-$@.app .
+	mkdir -p $(BIN_DIR)/$(VERSION)/$@
+	gogio -x -work -target macos -arch amd64 -o $(BIN_DIR)/$(VERSION)/$@/$(NAME).app .
 
 macos-arm64:
-	gogio -x -work -target macos -arch arm64 -o $(BIN_DIR)/$(NAME)-$(VERSION)-$@.app .
+	mkdir -p $(BIN_DIR)/$(VERSION)/$@
+	gogio -x -work -target macos -arch arm64 -o $(BIN_DIR)/$(VERSION)/$@/$(NAME).app .
 
 windows-amd64:
-	gogio -x -work -target windows -arch amd64 -o $(BIN_DIR)/$(NAME)-$(VERSION)-$@.exe .
+	mkdir -p $(BIN_DIR)/$(VERSION)/$@
+	gogio -x -work -target windows -arch amd64 -o $(BIN_DIR)/$(VERSION)/$@/$(NAME).exe .
 	rm -f *.syso
 
 windows-arm64:
-	gogio -x -work -target windows -arch arm64 -o $(BIN_DIR)/$(NAME)-$(VERSION)-$@.exe .
+	mkdir -p $(BIN_DIR)/$(VERSION)/$@
+	gogio -x -work -target windows -arch arm64 -o $(BIN_DIR)/$(VERSION)/$@/$(NAME).exe .
 	rm -f *.syso
 
 #ios:
@@ -50,7 +54,7 @@ $(gz_releases): %.gz : %
 	gzip -f -S .gz $(BIN_DIR)/$(NAME)-$(VERSION)-$(basename $@)
 
 $(zip_releases): %.zip : %
-	zip -m -j $(BIN_DIR)/$(NAME)-$(VERSION)-$(basename $@).zip $(BIN_DIR)/$(NAME)-$(VERSION)-$(basename $@).exe
+	zip -m -j $(BIN_DIR)/$(VERSION)/$(NAME)-$(VERSION)-$(basename $@).zip $(BIN_DIR)/$(VERSION)/$(basename $@)/$(NAME).exe
 
 
 release: $(gz_releases) $(zip_releases) android macos-amd64 macos-arm64
