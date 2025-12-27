@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"rtc/assets"
 	"rtc/ui/native"
 	"runtime"
@@ -24,10 +25,10 @@ type Picker interface {
 	CreateFile(name string) (io.WriteCloser, error)
 }
 
-func ChooseImageAndDecode() (image.Image, string, error) {
+func ChooseImageAndDecode() (image.Image, *gif.GIF, string, error) {
 	file, err := DefaultPicker.ChooseFile(".jpg", ".jpeg", ".png", ".webp", ".gif")
 	if err != nil {
-		return nil, "", err
+		return nil, nil, "", err
 	}
 	var filename string
 	if f, ok := file.(*os.File); ok {
@@ -40,11 +41,28 @@ func ChooseImageAndDecode() (image.Image, string, error) {
 		}
 	}
 	defer file.Close()
+
+	if filepath.Ext(filename) == ".gif" {
+		img, err := decodeGif(file)
+		if err != nil {
+			return nil, nil, filename, err
+		}
+		return nil, img, filename, nil
+	}
+
 	img, err := decodeImage(file)
 	if err != nil {
-		return nil, filename, err
+		return nil, nil, filename, err
 	}
-	return img, filename, nil
+	return img, nil, filename, nil
+}
+
+func decodeGif(file io.ReadCloser) (*gif.GIF, error) {
+	gif, err := gif.DecodeAll(file)
+	if err != nil {
+		return nil, err
+	}
+	return gif, nil
 }
 
 func decodeImage(file io.ReadCloser) (image.Image, error) {
@@ -56,8 +74,8 @@ func decodeImage(file io.ReadCloser) (image.Image, error) {
 	return img, err
 }
 
-func LoadImage(filePath string) (*image.Image, error) {
-	if imageCache[filePath] != nil {
+func LoadImage(filePath string, reload bool) (*image.Image, error) {
+	if imageCache[filePath] != nil && !reload {
 		return imageCache[filePath], nil
 	}
 	file, err := os.Open(filePath)
@@ -78,13 +96,13 @@ func LoadImage(filePath string) (*image.Image, error) {
 	return &img, nil
 }
 
-func LoadGif(filePath string) (*Gif, error) {
-	if gifCache[filePath] != nil {
-		return gifCache[filePath], nil
+func LoadGif(filePath string, reload bool) (*Gif, error) {
+	if GifCache[filePath] != nil && !reload {
+		return GifCache[filePath], nil
 	}
 	file, err := os.Open(filePath)
 	if err != nil {
-		gifCache[filePath] = &EmptyGif
+		GifCache[filePath] = &EmptyGif
 		log.Printf("open file error: %v", err)
 		return nil, err
 	}
@@ -92,16 +110,16 @@ func LoadGif(filePath string) (*Gif, error) {
 
 	gif, err := gif.DecodeAll(file)
 	if err != nil {
-		gifCache[filePath] = &EmptyGif
+		GifCache[filePath] = &EmptyGif
 		log.Printf("failed to decode gif: %v", err)
 		return nil, err
 	}
 
 	ret := &Gif{GIF: gif}
-	gifCache[filePath] = ret
+	GifCache[filePath] = ret
 	return ret, nil
 }
 
 var imageCache = map[string]*image.Image{}
-var gifCache = map[string]*Gif{}
+var GifCache = map[string]*Gif{}
 var EmptyGif Gif

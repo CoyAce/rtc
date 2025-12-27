@@ -3,6 +3,7 @@ package core
 import (
 	"bytes"
 	"image"
+	"image/gif"
 	"image/jpeg"
 	"image/png"
 	"io"
@@ -141,13 +142,13 @@ func GetDataDir() string {
 	return dir + "/coyace.rtc/"
 }
 
-func Save(img image.Image, filename string) {
+func SaveImg(img image.Image, filename string, rewrite bool) {
 	if filepath.Ext(filename) == ".webp" {
 		filename = strings.TrimSuffix(filepath.Base(filename), ".webp") + ".png"
 	}
 	filePath := GetFilePath(DefaultClient.FullID(), filename)
 	_, err := os.Stat(filePath)
-	if !os.IsNotExist(err) {
+	if err == nil && !rewrite {
 		return
 	}
 	Mkdir(filepath.Dir(filePath))
@@ -161,6 +162,26 @@ func Save(img image.Image, filename string) {
 		log.Printf("encode file failed, %v", err)
 	}
 	log.Printf("%s saved to %s", filename, filePath)
+}
+
+func SaveGif(gifImg *gif.GIF, filename string, rewrite bool) {
+	filePath := GetFilePath(DefaultClient.FullID(), filename)
+	_, err := os.Stat(filePath)
+	if err == nil && !rewrite {
+		return
+	}
+	Mkdir(filepath.Dir(filePath))
+	file, err := os.Create(filePath)
+	defer file.Close()
+	if err != nil {
+		log.Printf("create file failed, %v", err)
+	}
+	err = gif.EncodeAll(file, gifImg)
+	if err != nil {
+		log.Printf("encode file failed, %v", err)
+	}
+	log.Printf("%s saved to %s", filename, filePath)
+
 }
 
 func Encode(img image.Image, filename string, w io.Writer) error {

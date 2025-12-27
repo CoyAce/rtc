@@ -2,6 +2,7 @@ package view
 
 import (
 	"image"
+	"image/gif"
 	"log"
 	"rtc/assets"
 	"rtc/core"
@@ -15,15 +16,24 @@ import (
 	"golang.org/x/exp/shiny/materialdesign/icons"
 )
 
+type AvatarType uint8
+
+const (
+	Default AvatarType = iota
+	IMG
+	GIF_IMG
+)
+
 type Avatar struct {
-	UUID          string
-	Size          int
-	Editable      bool
-	EditButton    IconButton
-	OnChange      func(img image.Image)
-	point         image.Point
-	Image         image.Image
-	selectedImage chan image.Image
+	UUID       string
+	Size       int
+	Editable   bool
+	EditButton IconButton
+	OnChange   func(img image.Image, gif *gif.GIF)
+	point      image.Point
+	Image      image.Image
+	*Gif
+	AvatarType
 	widget.Clickable
 	*material.Theme
 }
@@ -32,63 +42,78 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 	if v.Size == 0 {
 		v.Size = 48
 	}
-	if v.selectedImage == nil {
-		v.selectedImage = make(chan image.Image)
-	}
 	v.point = image.Point{X: gtx.Dp(unit.Dp(v.Size)), Y: gtx.Dp(unit.Dp(v.Size))}
-	if v.Image == nil {
-		v.Reload()
+	if v.Gif == nil && v.Image == nil {
+		v.Reload(Default)
 	}
 	if v.Editable && v.Clicked(gtx) {
 		go func() {
-			img, _, err := ChooseImageAndDecode()
+			img, gifImg, _, err := ChooseImageAndDecode()
 			if err != nil {
 				return
 			}
-			if img.Bounds().Dx() > 512 || img.Bounds().Dy() > 512 {
-				img = resizeImage(img, 512, 512)
-			}
 
-			v.selectedImage <- img
-
-			// save to file
-			core.Save(img, "icon.png")
-
-			// sync to server
-			if v.OnChange != nil {
-				v.OnChange(img)
-			}
-		}()
-	}
-	if v.Editable {
-		select {
-		case img, ok := <-v.selectedImage:
-			if ok {
+			// update settings and avatar cache
+			if img != nil {
+				if img.Bounds().Dx() > 512 || img.Bounds().Dy() > 512 {
+					img = resizeImage(img, 512, 512)
+				}
 				v.Image = img
+				v.AvatarType = IMG
 				avatar := AvatarCache[core.DefaultClient.FullID()]
 				if avatar != nil {
 					avatar.Image = img
+					avatar.AvatarType = IMG
 				} else {
-					avatar = &Avatar{UUID: core.DefaultClient.FullID(), Image: img}
+					avatar = &Avatar{UUID: core.DefaultClient.FullID(), AvatarType: IMG, Image: img}
 					AvatarCache[core.DefaultClient.FullID()] = avatar
 				}
 			}
-		default:
-		}
+			if gifImg != nil {
+				v.Gif = &Gif{GIF: gifImg}
+				v.AvatarType = GIF_IMG
+				avatar := AvatarCache[core.DefaultClient.FullID()]
+				if avatar != nil {
+					avatar.Gif = v.Gif
+					avatar.AvatarType = GIF_IMG
+				} else {
+					avatar = &Avatar{UUID: core.DefaultClient.FullID(), AvatarType: GIF_IMG, Gif: v.Gif}
+					AvatarCache[core.DefaultClient.FullID()] = avatar
+				}
+			}
+
+			// save to file
+			if gifImg != nil {
+				core.SaveGif(gifImg, "icon.gif", true)
+				core.RemoveFile(core.GetFilePath(v.UUID, "icon.png"))
+			} else {
+				core.SaveImg(img, "icon.png", true)
+				core.RemoveFile(core.GetFilePath(v.UUID, "icon.gif"))
+			}
+
+			// sync to server
+			if v.OnChange != nil {
+				v.OnChange(img, gifImg)
+			}
+		}()
 	}
 	gtx.Constraints.Min, gtx.Constraints.Max = v.point, v.point
 	return layout.Stack{Alignment: layout.Center}.Layout(gtx,
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 			return v.Clickable.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				imgOps := paint.NewImageOp(v.Image)
-				imgWidget := widget.Image{Src: imgOps, Fit: widget.Fill, Position: layout.Center, Scale: 0}
 				defer clip.UniformRRect(image.Rectangle{
 					Max: image.Point{
 						X: gtx.Constraints.Max.X,
 						Y: gtx.Constraints.Max.Y,
 					},
 				}, gtx.Constraints.Max.X/2).Push(gtx.Ops).Pop()
-				return imgWidget.Layout(gtx)
+				if v.AvatarType == IMG || v.AvatarType == Default {
+					imgOps := paint.NewImageOp(v.Image)
+					imgWidget := widget.Image{Src: imgOps, Fit: widget.Fill, Position: layout.Center, Scale: 0}
+					return imgWidget.Layout(gtx)
+				}
+				gtx.Constraints.Min.X = gtx.Constraints.Max.X
+				return v.Gif.Layout(gtx)
 			})
 		}),
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
@@ -105,17 +130,33 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 	)
 }
 
-func (v *Avatar) Reload() {
-	filePath := core.GetFilePath(v.UUID, "icon.png")
-	img, err := LoadImage(filePath)
+func (v *Avatar) Reload(avatarType AvatarType) {
+	if avatarType == GIF_IMG || avatarType == Default {
+		gifPath := core.GetFilePath(v.UUID, "icon.gif")
+		gifImg, err := LoadGif(gifPath, true)
+		if err != nil {
+			log.Println("failed to load GIF:", err)
+		}
+		if gifImg != nil && gifImg != &EmptyGif {
+			v.Gif = gifImg
+			v.AvatarType = GIF_IMG
+			core.RemoveFile(core.GetFilePath(v.UUID, "icon.png"))
+			return
+		}
+	}
+
+	imgPath := core.GetFilePath(v.UUID, "icon.png")
+	img, err := LoadImage(imgPath, true)
 	if err != nil {
 		log.Printf("failed to decode icon: %v", err)
-		if v.Image == nil {
-			v.Image = assets.AppIconImage
-		}
+	}
+	if v.Image == nil {
+		v.Image = assets.AppIconImage
 	}
 	if img != nil {
 		v.Image = *img
+		v.AvatarType = IMG
+		core.RemoveFile(core.GetFilePath(v.UUID, "icon.gif"))
 	}
 }
 

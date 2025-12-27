@@ -255,7 +255,7 @@ func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
 		if !m.isMe() {
 			filePath = core.GetFilePath(m.Sender, m.Filename)
 		}
-		img, err := LoadImage(filePath)
+		img, err := LoadImage(filePath, false)
 		if err != nil || img == nil || img == &assets.AppIconImage {
 			return m.drawBrokenImage(gtx)
 		}
@@ -268,7 +268,7 @@ func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
 		if !m.isMe() {
 			filePath = core.GetFilePath(m.Sender, m.Filename)
 		}
-		gif, err := LoadGif(filePath)
+		gif, err := LoadGif(filePath, false)
 		if err != nil || gif == nil || gif == &EmptyGif {
 			return m.drawBrokenImage(gtx)
 		}

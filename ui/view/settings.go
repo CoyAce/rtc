@@ -60,7 +60,11 @@ func NewSettingsForm(onSuccess func(gtx layout.Context)) *SettingsForm {
 		core.DefaultClient.SendSign()
 		if nicknameChanged {
 			// then sync icon
-			SyncSelectedIcon(s.avatar.Image)
+			if s.avatar.AvatarType == IMG {
+				SyncSelectedIcon(s.avatar.Image, nil)
+			} else {
+				SyncSelectedIcon(nil, s.avatar.GIF)
+			}
 		}
 		core.DefaultClient.Store()
 		s.onSuccess(gtx)

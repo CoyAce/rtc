@@ -2,6 +2,7 @@ package ui
 
 import (
 	"log"
+	"path/filepath"
 	"rtc/assets/fonts"
 	"rtc/core"
 	ui "rtc/ui/layout"
@@ -49,17 +50,27 @@ func Draw(window *app.Window, c *core.Client) error {
 					UUID: core.DefaultClient.FullID(), Type: view.Text,
 					Text: text, Sender: m.Sign.UUID, CreatedAt: time.Now()}
 			case m := <-c.FileMessages:
-				if m.Code == core.OpSyncIcon {
+				switch m.Code {
+				case core.OpSyncIcon:
 					if view.AvatarCache[m.UUID] == nil {
 						view.AvatarCache[m.UUID] = &view.Avatar{UUID: m.UUID}
 					}
-					view.AvatarCache[m.UUID].Reload()
+					if filepath.Ext(m.Filename) == ".gif" {
+						view.AvatarCache[m.UUID].Reload(view.GIF_IMG)
+					} else {
+						view.AvatarCache[m.UUID].Reload(view.IMG)
+					}
 					continue
-				}
-				if m.Code == core.OpSendImage {
+				case core.OpSendImage:
 					message = &view.Message{State: view.Sent, Theme: fonts.DefaultTheme,
 						UUID: core.DefaultClient.FullID(), Type: view.Image, Filename: m.Filename,
 						Sender: m.UUID, CreatedAt: time.Now()}
+				case core.OpSendGif:
+					message = &view.Message{State: view.Sent, Theme: fonts.DefaultTheme,
+						UUID: core.DefaultClient.FullID(), Type: view.GIF, Filename: m.Filename,
+						Sender: m.UUID, CreatedAt: time.Now()}
+				default:
+					continue
 				}
 			}
 			message.AddTo(messageList)

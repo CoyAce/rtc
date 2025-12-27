@@ -2,6 +2,7 @@ package view
 
 import (
 	"image"
+	"image/gif"
 	"log"
 	"rtc/core"
 
@@ -15,20 +16,26 @@ var OnSettingsSubmit = func(gtx layout.Context) {
 }
 var SyncCachedIcon = func() {
 	avatar := AvatarCache[core.DefaultClient.FullID()]
-	if avatar == nil || avatar.Image == nil {
+	if avatar == nil || (avatar.Image == nil && avatar.GIF == nil) {
 		log.Printf("avatar not found in cache")
 		return
 	}
-	go func() {
-		err := core.DefaultClient.SyncIcon(avatar.Image)
-		if err != nil {
-			log.Printf("Failed to sync icon: %v", err)
-		}
-	}()
+	if avatar.AvatarType == IMG {
+		SyncSelectedIcon(avatar.Image, nil)
+	} else {
+		SyncSelectedIcon(nil, avatar.GIF)
+	}
 }
 
-var SyncSelectedIcon = func(img image.Image) {
+var SyncSelectedIcon = func(img image.Image, gifImg *gif.GIF) {
 	go func() {
+		if img == nil {
+			err := core.DefaultClient.SyncGif(gifImg)
+			if err != nil {
+				log.Printf("Failed to sync icon: %v", err)
+			}
+			return
+		}
 		err := core.DefaultClient.SyncIcon(img)
 		if err != nil {
 			log.Printf("Failed to sync icon: %v", err)

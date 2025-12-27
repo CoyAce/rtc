@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"image"
+	"image/gif"
 	"io"
 	"log"
 	"net"
@@ -119,6 +120,10 @@ func (c *Client) SyncIcon(img image.Image) error {
 	return c.sendImage(img, OpSyncIcon, "icon.png")
 }
 
+func (c *Client) SyncGif(gifImg *gif.GIF) error {
+	return c.sendGif(gifImg, OpSyncIcon, "icon.gif")
+}
+
 func (c *Client) SendImage(img image.Image, filename string) error {
 	if filepath.Ext(filename) == ".webp" {
 		filename = strings.TrimSuffix(filepath.Base(filename), ".webp") + ".png"
@@ -127,19 +132,37 @@ func (c *Client) SendImage(img image.Image, filename string) error {
 }
 
 func (c *Client) sendImage(img image.Image, code OpCode, filename string) error {
+	buf := new(bytes.Buffer)
+	err := Encode(img, filename, buf)
+	if err != nil {
+		return err
+	}
+
+	return c.sendFile(bytes.NewReader(buf.Bytes()), code, filename)
+}
+
+func (c *Client) SendGif(GIF *gif.GIF, filename string) error {
+	return c.sendGif(GIF, OpSendGif, filename)
+}
+
+func (c *Client) sendGif(GIF *gif.GIF, code OpCode, filename string) error {
+	buf := new(bytes.Buffer)
+	err := gif.EncodeAll(buf, GIF)
+	if err != nil {
+		return err
+	}
+	return c.sendFile(bytes.NewReader(buf.Bytes()), code, filename)
+}
+
+func (c *Client) sendFile(reader *bytes.Reader, code OpCode, filename string) error {
 	conn, err := net.Dial("udp", c.ServerAddr)
 	if err != nil {
 		log.Printf("[%s] dial failed: %v", c.ServerAddr, err)
 	}
 	defer func() { _ = conn.Close() }()
 
-	buf := new(bytes.Buffer)
-	err = Encode(img, filename, buf)
-	if err != nil {
-		return err
-	}
-	hash := Hash(unsafe.Pointer(&buf))
-	log.Printf("icon file id: %v", hash)
+	hash := Hash(unsafe.Pointer(reader))
+	log.Printf("file id: %v", hash)
 
 	pktBuf := make([]byte, DatagramSize)
 
@@ -153,7 +176,7 @@ func (c *Client) sendImage(img image.Image, code OpCode, filename string) error 
 		return err
 	}
 
-	data := Data{FileId: wrq.FileId, Payload: bytes.NewReader(buf.Bytes())}
+	data := Data{FileId: wrq.FileId, Payload: reader}
 	err = c.sendData(conn, pktBuf, data)
 	if err != nil {
 		return err
