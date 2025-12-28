@@ -147,7 +147,7 @@ func (s *SettingsForm) processClick(gtx layout.Context) {
 			break
 		}
 		// get focus from editor
-		gtx.Execute(key.FocusCmd{})
+		gtx.Execute(key.FocusCmd{Tag: s})
 	}
 }
 

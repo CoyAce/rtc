@@ -8,6 +8,7 @@ import (
 	"log"
 	"math"
 	"os"
+	"path/filepath"
 	"rtc/assets"
 	"rtc/assets/fonts"
 	"rtc/core"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"gioui.org/font"
+	"gioui.org/gesture"
 	"gioui.org/io/event"
 	"gioui.org/io/key"
 	"gioui.org/io/pointer"
@@ -28,7 +30,6 @@ import (
 	"gioui.org/widget/material"
 	"gioui.org/x/component"
 	"golang.org/x/exp/shiny/materialdesign/colornames"
-	"golang.org/x/exp/shiny/materialdesign/icons"
 )
 
 type MessageList struct {
@@ -134,16 +135,116 @@ const (
 	GIF
 )
 
+// LongPressDuration is the default duration of a long press gesture.
+// Override this variable to change the detection threshold.
+var LongPressDuration time.Duration = 250 * time.Millisecond
+
+// EventType describes a kind of iteraction with rich text.
+type EventType uint8
+
+const (
+	Hover EventType = iota
+	Unhover
+	LongPress
+	Click
+)
+
+// Event describes an interaction with rich text.
+type Event struct {
+	Type EventType
+	// ClickData is only populated if Type == Clicked
+	ClickData gesture.ClickEvent
+}
+
+// InteractiveSpan holds the persistent state of rich text that can
+// be interacted with by the user. It can report clicks, hovers, and
+// long-presses on the text.
+type InteractiveSpan struct {
+	click        gesture.Click
+	pressing     bool
+	hovering     bool
+	longPressing bool
+	longPressed  bool
+	pressStarted time.Time
+}
+
+func (i *InteractiveSpan) Update(gtx layout.Context) (Event, bool) {
+	if i == nil {
+		return Event{}, false
+	}
+	for {
+		e, ok := i.click.Update(gtx.Source)
+		if !ok {
+			break
+		}
+		switch e.Kind {
+		case gesture.KindClick:
+			i.pressing = false
+			if i.longPressing {
+				i.longPressing = false
+			} else {
+				i.longPressed = false
+				return Event{Type: Click, ClickData: e}, true
+			}
+		case gesture.KindPress:
+			i.pressStarted = gtx.Now
+			i.pressing = true
+		case gesture.KindCancel:
+			i.pressing = false
+			i.longPressing = false
+			i.longPressed = false
+		}
+	}
+	if isHovered := i.click.Hovered(); isHovered != i.hovering {
+		i.hovering = isHovered
+		if isHovered {
+			return Event{Type: Hover}, true
+		} else {
+			return Event{Type: Unhover}, true
+		}
+	}
+
+	if !i.longPressing && i.pressing && gtx.Now.Sub(i.pressStarted) > LongPressDuration {
+		i.longPressing = true
+		i.longPressed = true
+		return Event{Type: LongPress}, true
+	}
+	return Event{}, false
+}
+
+// Layout adds the pointer input op for this interactive span and updates its
+// state. It uses the most recent pointer.AreaOp as its input area.
+func (i *InteractiveSpan) Layout(gtx layout.Context) layout.Dimensions {
+	for {
+		_, ok := i.Update(gtx)
+		if !ok {
+			break
+		}
+	}
+	if i.pressing && !i.longPressing {
+		gtx.Execute(op.InvalidateCmd{})
+	}
+	defer clip.Rect{Max: gtx.Constraints.Max}.Push(gtx.Ops).Pop()
+
+	pointer.CursorPointer.Add(gtx.Ops)
+	i.click.Add(gtx.Ops)
+	return layout.Dimensions{}
+}
+
 type Message struct {
 	State
 	Editor          *widget.Editor
 	*material.Theme `json:"-"`
+	InteractiveSpan `json:"-"`
+	contentCopy     widget.Clickable
+	fileDownload    widget.Clickable
 	Filename        string
 	Type            MessageType
 	UUID            string
 	Text            string
 	Sender          string
 	CreatedAt       time.Time
+	imageBroken     bool
 }
 
 type MessageEditor struct {
@@ -210,6 +311,11 @@ func (m *Message) SendTo(messageAppender *MessageKeeper) {
 }
 
 func (m *Message) drawMessage(gtx layout.Context) layout.Dimensions {
+	if m.contentCopy.Clicked(gtx) {
+		log.Printf("copy")
+		m.longPressed = false
+	}
+	m.processFileSave(gtx)
 	flex := layout.Flex{Axis: layout.Vertical, Alignment: layout.Start}
 	if m.isMe() {
 		flex.Alignment = layout.End
@@ -223,12 +329,82 @@ func (m *Message) drawMessage(gtx layout.Context) layout.Dimensions {
 				flex.Spacing = layout.SpaceStart
 			}
 			return flex.Layout(gtx,
-				layout.Rigid(m.drawState),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					if m.isMe() && m.longPressed {
+						return m.drawOperation(gtx)
+					}
+					return m.drawState(gtx)
+				}),
 				layout.Rigid(layout.Spacer{Width: unit.Dp(4)}.Layout),
 				layout.Rigid(m.drawContent),
+				layout.Rigid(layout.Spacer{Width: unit.Dp(4)}.Layout),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					if m.isMe() || !m.longPressed {
+						return layout.Dimensions{}
+					}
+					return m.drawOperation(gtx)
+				}),
 			)
 		}),
 	)
+}
+
+func (m *Message) processFileSave(gtx layout.Context) {
+	if !m.fileDownload.Clicked(gtx) {
+		return
+	}
+	m.longPressed = false
+	go func() {
+		if m.Filename == "" {
+			return
+		}
+		file, err := DefaultPicker.CreateFile(filepath.Base(m.Filename))
+		if err != nil {
+			log.Printf("Error creating file for %s: %s", m.Filename, err)
+			return
+		}
+		defer file.Close()
+		switch m.Type {
+		case Image:
+			img, err := m.loadImage()
+			if err != nil || img == nil || img == &assets.AppIconImage {
+				return
+			}
+			err = core.EncodeImg(file, m.Filename, *img)
+			if err != nil {
+				log.Printf("encode file failed, %v", err)
+			} else {
+				log.Printf("%s saved", m.Filename)
+			}
+		case GIF:
+			gifImg, err := m.loadGif()
+			if err != nil || gifImg == nil || gifImg == &EmptyGif {
+				return
+			}
+			core.EncodeGif(file, m.Filename, gifImg.GIF)
+		default:
+			return
+		}
+	}()
+}
+
+func (m *Message) drawOperation(gtx layout.Context) layout.Dimensions {
+	if m.imageBroken {
+		return layout.Dimensions{}
+	}
+	switch m.Type {
+	case Text:
+		return m.contentCopy.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return contentCopyIcon.Layout(gtx, m.ContrastBg)
+		})
+	case Image:
+		fallthrough
+	case GIF:
+		return m.fileDownload.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return downloadIcon.Layout(gtx, m.ContrastBg)
+		})
+	}
+	return layout.Dimensions{}
 }
 
 func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
@@ -251,11 +427,7 @@ func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
 		if m.Filename == "" {
 			return layout.Dimensions{}
 		}
-		var filePath = m.Filename
-		if !m.isMe() {
-			filePath = core.GetFilePath(m.Sender, m.Filename)
-		}
-		img, err := LoadImage(filePath, false)
+		img, err := m.loadImage()
 		if err != nil || img == nil || img == &assets.AppIconImage {
 			return m.drawBrokenImage(gtx)
 		}
@@ -264,17 +436,31 @@ func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
 		if m.Filename == "" {
 			return layout.Dimensions{}
 		}
-		var filePath = m.Filename
-		if !m.isMe() {
-			filePath = core.GetFilePath(m.Sender, m.Filename)
-		}
-		gif, err := LoadGif(filePath, false)
-		if err != nil || gif == nil || gif == &EmptyGif {
+		gifImg, err := m.loadGif()
+		if err != nil || gifImg == nil || gifImg == &EmptyGif {
 			return m.drawBrokenImage(gtx)
 		}
-		return m.drawGif(gtx, gif)
+		return m.drawGif(gtx, gifImg)
 	}
 	return layout.Dimensions{}
+}
+
+func (m *Message) loadGif() (*Gif, error) {
+	var filePath = m.Filename
+	if !m.isMe() {
+		filePath = core.GetFilePath(m.Sender, m.Filename)
+	}
+	gif, err := LoadGif(filePath, false)
+	return gif, err
+}
+
+func (m *Message) loadImage() (*image.Image, error) {
+	var filePath = m.Filename
+	if !m.isMe() {
+		filePath = core.GetFilePath(m.Sender, m.Filename)
+	}
+	img, err := LoadImage(filePath, false)
+	return img, err
 }
 
 func (m *Message) drawGif(gtx layout.Context, gif *Gif) layout.Dimensions {
@@ -288,10 +474,11 @@ func (m *Message) drawGif(gtx layout.Context, gif *Gif) layout.Dimensions {
 }
 
 func (m *Message) drawBrokenImage(gtx layout.Context) layout.Dimensions {
+	m.imageBroken = true
 	v := float32(gtx.Constraints.Max.X) * 0.382
 	gtx.Constraints.Min.X = int(v)
 	macro := op.Record(gtx.Ops)
-	d := imageBroken.Layout(gtx, m.Theme.ContrastFg)
+	d := imageBrokenIcon.Layout(gtx, m.Theme.ContrastFg)
 	call := macro.Stop()
 	m.drawBorder(gtx, d, call)
 	return d
@@ -331,6 +518,8 @@ func (m *Message) drawBorder(gtx layout.Context, d layout.Dimensions, call op.Ca
 	defer clip.RRect{Rect: image.Rectangle{
 		Max: d.Size,
 	}, SE: sE, SW: sW, NW: nW, NE: nE}.Push(gtx.Ops).Pop()
+	defer pointer.PassOp{}.Push(gtx.Ops).Pop()
+	m.InteractiveSpan.Layout(gtx)
 	component.Rect{Color: bgColor, Size: d.Size}.Layout(gtx)
 	// draw text
 	call.Add(gtx.Ops)
@@ -338,19 +527,19 @@ func (m *Message) drawBorder(gtx layout.Context, d layout.Dimensions, call op.Ca
 
 func (m *Message) drawState(gtx layout.Context) layout.Dimensions {
 	if m.isMe() {
-		iconColor := m.Theme.ContrastBg
+		iconColor := m.ContrastBg
 		var icon *widget.Icon
 		switch m.State {
 		case Stateless:
-			loader := material.LoaderStyle{Color: fonts.DefaultTheme.ContrastBg}
+			loader := material.LoaderStyle{Color: m.ContrastBg}
 			return loader.Layout(gtx)
 		case Failed:
-			icon, _ = widget.NewIcon(icons.AlertErrorOutline)
+			icon = alertErrorIcon
 			iconColor = color.NRGBA(colornames.Red500)
 		case Sent:
-			icon, _ = widget.NewIcon(icons.ActionDone)
+			icon = actionDoneIcon
 		case Read:
-			icon, _ = widget.NewIcon(icons.ActionDoneAll)
+			icon = actionDoneAllIcon
 		}
 		return icon.Layout(gtx, iconColor)
 	}
@@ -427,8 +616,8 @@ func (l *MessageList) getFocusAndResetIconStackIfClicked(gtx layout.Context) {
 		if !ok {
 			break
 		}
-		// get focus from editor
-		gtx.Execute(key.FocusCmd{})
+		// reset focus
+		gtx.Execute(key.FocusCmd{Tag: l})
 		iconStackAnimation.Disappear(gtx.Now)
 	}
 }

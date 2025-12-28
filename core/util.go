@@ -157,11 +157,12 @@ func SaveImg(img image.Image, filename string, rewrite bool) {
 	if err != nil {
 		log.Printf("create file failed, %v", err)
 	}
-	err = Encode(img, filePath, file)
+	err = EncodeImg(file, filePath, img)
 	if err != nil {
 		log.Printf("encode file failed, %v", err)
+	} else {
+		log.Printf("%s saved to %s", filename, filePath)
 	}
-	log.Printf("%s saved to %s", filename, filePath)
 }
 
 func SaveGif(gifImg *gif.GIF, filename string, rewrite bool) {
@@ -176,15 +177,19 @@ func SaveGif(gifImg *gif.GIF, filename string, rewrite bool) {
 	if err != nil {
 		log.Printf("create file failed, %v", err)
 	}
-	err = gif.EncodeAll(file, gifImg)
-	if err != nil {
-		log.Printf("encode file failed, %v", err)
-	}
-	log.Printf("%s saved to %s", filename, filePath)
-
+	EncodeGif(file, filename, gifImg)
 }
 
-func Encode(img image.Image, filename string, w io.Writer) error {
+func EncodeGif(w io.Writer, filename string, gifImg *gif.GIF) {
+	err := gif.EncodeAll(w, gifImg)
+	if err != nil {
+		log.Printf("encode file failed, %v", err)
+	} else {
+		log.Printf("%s saved", filename)
+	}
+}
+
+func EncodeImg(w io.Writer, filename string, img image.Image) error {
 	ext := filepath.Ext(filename)
 	switch ext {
 	case ".png", ".webp":

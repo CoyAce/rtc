@@ -133,7 +133,7 @@ func (c *Client) SendImage(img image.Image, filename string) error {
 
 func (c *Client) sendImage(img image.Image, code OpCode, filename string) error {
 	buf := new(bytes.Buffer)
-	err := Encode(img, filename, buf)
+	err := EncodeImg(buf, filename, img)
 	if err != nil {
 		return err
 	}
