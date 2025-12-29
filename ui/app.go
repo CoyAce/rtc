@@ -16,7 +16,6 @@ import (
 	"gioui.org/app"
 	"gioui.org/layout"
 	"gioui.org/op"
-	"gioui.org/widget"
 	"gioui.org/x/explorer"
 )
 
@@ -44,7 +43,7 @@ func Draw(window *app.Window, c *core.Client) error {
 				message = m
 			case m := <-c.SignedMessages:
 				text := string(m.Payload)
-				ed := widget.Editor{ReadOnly: true}
+				ed := ui.Editor{ReadOnly: true}
 				ed.SetText(text)
 				message = &view.Message{State: view.Sent, Editor: &ed, Theme: fonts.DefaultTheme,
 					UUID: core.DefaultClient.FullID(), Type: view.Text,
@@ -110,7 +109,7 @@ func Draw(window *app.Window, c *core.Client) error {
 				msg := strings.TrimSpace(inputField.Text())
 				inputField.Clear()
 				go func() {
-					ed := widget.Editor{ReadOnly: true}
+					ed := ui.Editor{ReadOnly: true}
 					ed.SetText(msg)
 					message := view.Message{State: view.Stateless, Editor: &ed,
 						Theme: fonts.DefaultTheme,

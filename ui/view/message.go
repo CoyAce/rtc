@@ -15,6 +15,7 @@ import (
 	"rtc/core"
 	ui "rtc/ui/layout"
 	text "rtc/ui/layout/component"
+	mt "rtc/ui/layout/material"
 	"strings"
 	"time"
 
@@ -110,7 +111,7 @@ func (a *MessageKeeper) Messages() []*Message {
 		if err != nil {
 			log.Printf("error unmarshalling message: %v", err)
 		}
-		ed := widget.Editor{ReadOnly: true}
+		ed := ui.Editor{ReadOnly: true}
 		ed.SetText(msg.Text)
 		msg.Editor = &ed
 		msg.Theme = fonts.DefaultTheme
@@ -237,11 +238,11 @@ func (i *InteractiveSpan) Layout(gtx layout.Context) layout.Dimensions {
 
 type Message struct {
 	State
-	Editor          *widget.Editor
+	Editor          *ui.Editor
 	*material.Theme `json:"-"`
 	InteractiveSpan `json:"-"`
-	contentCopy     widget.Clickable
-	fileDownload    widget.Clickable
+	copyButton      widget.Clickable
+	downloadButton  widget.Clickable
 	Filename        string
 	Type            MessageType
 	UUID            string
@@ -253,10 +254,14 @@ type Message struct {
 
 type MessageEditor struct {
 	*material.Theme
+	InteractiveSpan
 	InputField     *text.TextField
 	submitButton   widget.Clickable
 	expandButton   widget.Clickable
 	collapseButton widget.Clickable
+	cutButton      widget.Clickable
+	copyButton     widget.Clickable
+	pasteButton    widget.Clickable
 }
 
 func (m *Message) Layout(gtx layout.Context) (d layout.Dimensions) {
@@ -331,7 +336,7 @@ func (m *Message) drawMessage(gtx layout.Context) layout.Dimensions {
 			}
 			return flex.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					if m.isMe() && m.interactable() {
+					if m.isMe() && m.operationNeeded() {
 						return m.drawOperation(gtx)
 					}
 					return m.drawState(gtx)
@@ -340,7 +345,7 @@ func (m *Message) drawMessage(gtx layout.Context) layout.Dimensions {
 				layout.Rigid(m.drawContent),
 				layout.Rigid(layout.Spacer{Width: unit.Dp(4)}.Layout),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					if m.isMe() || !m.interactable() {
+					if m.isMe() || !m.operationNeeded() {
 						return layout.Dimensions{}
 					}
 					return m.drawOperation(gtx)
@@ -350,12 +355,12 @@ func (m *Message) drawMessage(gtx layout.Context) layout.Dimensions {
 	)
 }
 
-func (m *Message) interactable() bool {
+func (m *Message) operationNeeded() bool {
 	return m.longPressed || m.Editor != nil && m.Editor.SelectionLen() > 0
 }
 
 func (m *Message) processTextCopy(gtx layout.Context) {
-	if m.contentCopy.Clicked(gtx) {
+	if m.copyButton.Clicked(gtx) {
 		textForCopy := m.Text
 		if m.Editor != nil && m.Editor.SelectionLen() > 0 {
 			textForCopy = m.Editor.SelectedText()
@@ -368,7 +373,7 @@ func (m *Message) processTextCopy(gtx layout.Context) {
 }
 
 func (m *Message) processFileSave(gtx layout.Context) {
-	if !m.fileDownload.Clicked(gtx) {
+	if !m.downloadButton.Clicked(gtx) {
 		return
 	}
 	go func() {
@@ -411,13 +416,13 @@ func (m *Message) drawOperation(gtx layout.Context) layout.Dimensions {
 	}
 	switch m.Type {
 	case Text:
-		return m.contentCopy.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return m.copyButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return contentCopyIcon.Layout(gtx, m.ContrastBg)
 		})
 	case Image:
 		fallthrough
 	case GIF:
-		return m.fileDownload.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return m.downloadButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return downloadIcon.Layout(gtx, m.ContrastBg)
 		})
 	}
@@ -435,7 +440,7 @@ func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
 		d := layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Min.X = 0
 			gtx.Constraints.Max.X = int(float32(gtx.Constraints.Max.X) / 1.5)
-			return material.Editor(m.Theme, m.Editor, "hint").Layout(gtx)
+			return mt.Editor(m.Theme, m.Editor, "hint").Layout(gtx)
 		})
 		call := macro.Stop()
 		m.drawBorder(gtx, d, call)
@@ -630,7 +635,18 @@ func (l *MessageList) getFocusAndResetIconStackIfClicked(gtx layout.Context) {
 }
 
 func (e *MessageEditor) Layout(gtx layout.Context) layout.Dimensions {
-	e.drawOperationBar(gtx)
+	e.processTextCut(gtx)
+	e.processTextCopy(gtx)
+	e.processTextPaste(gtx)
+	if e.operationBarNeeded(gtx) {
+		e.drawOperationBar(gtx)
+	}
+	if !gtx.Focused(&e.InputField.Editor) {
+		e.hideOperationBar()
+	}
+	defer clip.Rect(image.Rectangle{Max: gtx.Constraints.Max}).Push(gtx.Ops).Pop()
+	defer pointer.PassOp{}.Push(gtx.Ops).Pop()
+	e.InteractiveSpan.Layout(gtx)
 	// Render with flexbox layout:
 	return layout.Flex{
 		// Vertical alignment, from top to bottom
@@ -662,6 +678,44 @@ func (e *MessageEditor) Layout(gtx layout.Context) layout.Dimensions {
 	)
 }
 
+func (e *MessageEditor) operationBarNeeded(gtx layout.Context) bool {
+	return e.longPressed && gtx.Focused(&e.InputField.Editor) || e.InputField.SelectionLen() > 0
+}
+
+func (e *MessageEditor) processTextCut(gtx layout.Context) {
+	if e.cutButton.Clicked(gtx) {
+		if e.InputField.Editor.SelectionLen() > 0 {
+			textForCopy := e.InputField.Editor.SelectedText()
+			gtx.Execute(clipboard.WriteCmd{Type: "application/text", Data: io.NopCloser(strings.NewReader(textForCopy))})
+			e.InputField.Editor.Delete(1)
+		}
+		e.hideOperationBar()
+	}
+}
+
+func (e *MessageEditor) processTextPaste(gtx layout.Context) {
+	if e.pasteButton.Clicked(gtx) {
+		gtx.Execute(clipboard.ReadCmd{Tag: &e.InputField.Editor})
+		e.hideOperationBar()
+	}
+}
+
+func (e *MessageEditor) processTextCopy(gtx layout.Context) {
+	if e.copyButton.Clicked(gtx) {
+		textForCopy := e.InputField.Text()
+		if e.InputField.Editor.SelectionLen() > 0 {
+			textForCopy = e.InputField.Editor.SelectedText()
+		}
+		gtx.Execute(clipboard.WriteCmd{Type: "application/text", Data: io.NopCloser(strings.NewReader(textForCopy))})
+		e.hideOperationBar()
+	}
+}
+
+func (e *MessageEditor) hideOperationBar() {
+	e.longPressed = false
+	e.InputField.Editor.ClearSelection()
+}
+
 func (e *MessageEditor) drawOperationBar(gtx layout.Context) {
 	defer op.Offset(image.Point{Y: -gtx.Dp(32)}).Push(gtx.Ops).Pop()
 	macro := op.Record(gtx.Ops)
@@ -670,17 +724,23 @@ func (e *MessageEditor) drawOperationBar(gtx layout.Context) {
 			layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 				offset := image.Pt(-gtx.Dp(82), 0)
 				op.Offset(offset).Add(gtx.Ops)
-				return contentCutIcon.Layout(gtx, fonts.DefaultTheme.ContrastFg)
+				return e.cutButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return contentCutIcon.Layout(gtx, fonts.DefaultTheme.ContrastFg)
+				})
 			}),
 			layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 				offset := image.Pt(-gtx.Dp(54), 0)
 				op.Offset(offset).Add(gtx.Ops)
-				return contentCopyIcon.Layout(gtx, fonts.DefaultTheme.ContrastFg)
+				return e.copyButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return contentCopyIcon.Layout(gtx, fonts.DefaultTheme.ContrastFg)
+				})
 			}),
 			layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 				offset := image.Pt(-gtx.Dp(26), 0)
 				op.Offset(offset).Add(gtx.Ops)
-				return contentPasteIcon.Layout(gtx, fonts.DefaultTheme.ContrastFg)
+				return e.pasteButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return contentPasteIcon.Layout(gtx, fonts.DefaultTheme.ContrastFg)
+				})
 			}),
 		)
 	})
@@ -731,11 +791,9 @@ func (e *MessageEditor) drawBorder(gtx layout.Context, icons layout.Dimensions, 
 
 	path := p.End()
 
-	paint.FillShape(gtx.Ops, bgColor,
-		clip.Outline{
-			Path: path,
-		}.Op(),
-	)
+	defer clip.Outline{Path: path}.Op().Push(gtx.Ops).Pop()
+	paint.Fill(gtx.Ops, bgColor)
+	pointer.CursorPointer.Add(gtx.Ops)
 	call.Add(gtx.Ops)
 }
 
