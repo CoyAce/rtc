@@ -18,7 +18,6 @@ import (
 
 	"gioui.org/font"
 	"gioui.org/gesture"
-	"gioui.org/io/event"
 	"gioui.org/io/key"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
@@ -35,6 +34,7 @@ import (
 type MessageList struct {
 	ui.List
 	*material.Theme
+	widget.Clickable
 	Messages []*Message
 }
 
@@ -313,7 +313,6 @@ func (m *Message) SendTo(messageAppender *MessageKeeper) {
 func (m *Message) drawMessage(gtx layout.Context) layout.Dimensions {
 	if m.contentCopy.Clicked(gtx) {
 		log.Printf("copy")
-		m.longPressed = false
 	}
 	m.processFileSave(gtx)
 	flex := layout.Flex{Axis: layout.Vertical, Alignment: layout.Start}
@@ -353,7 +352,6 @@ func (m *Message) processFileSave(gtx layout.Context) {
 	if !m.fileDownload.Clicked(gtx) {
 		return
 	}
-	m.longPressed = false
 	go func() {
 		if m.Filename == "" {
 			return
@@ -575,19 +573,14 @@ func (m *Message) drawName(gtx layout.Context) layout.Dimensions {
 }
 
 func (l *MessageList) Layout(gtx layout.Context) layout.Dimensions {
-	// Process events using the key, &messageList
 	l.getFocusAndResetIconStackIfClicked(gtx)
 	// We visualize the text using a list where each paragraph is a separate item.
-	dimensions := l.List.Layout(gtx, len(l.Messages), func(gtx layout.Context, index int) layout.Dimensions {
-		return l.Messages[index].Layout(gtx)
+	dimensions := l.Clickable.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return l.List.Layout(gtx, len(l.Messages), func(gtx layout.Context, index int) layout.Dimensions {
+			return l.Messages[index].Layout(gtx)
+		})
 	})
 	l.scrollToEndIfFirstAndLastItemVisible()
-	// Confine the area of interest
-	defer clip.Rect(image.Rectangle{Max: dimensions.Size}).Push(gtx.Ops).Pop()
-	// Use pointer.PassOp to allow pointer events to pass through an input area to those underneath it.
-	defer pointer.PassOp{}.Push(gtx.Ops).Pop()
-	// Declare tag `l` as being one of the targets.
-	event.Op(gtx.Ops, l)
 	return dimensions
 }
 
@@ -606,18 +599,13 @@ func (l *MessageList) scrollToEndIfFirstAndLastItemVisible() {
 }
 
 func (l *MessageList) getFocusAndResetIconStackIfClicked(gtx layout.Context) {
-	for {
-		_, ok := gtx.Event(
-			pointer.Filter{
-				Target: l,
-				Kinds:  pointer.Press,
-			},
-		)
-		if !ok {
-			break
+	if l.Clicked(gtx) {
+		for i := l.Position.First; i < l.Position.First+l.Position.Count; i++ {
+			if !l.Messages[i].hovering {
+				gtx.Execute(key.FocusCmd{Tag: l})
+				l.Messages[i].longPressed = false
+			}
 		}
-		// reset focus
-		gtx.Execute(key.FocusCmd{Tag: l})
 		iconStackAnimation.Disappear(gtx.Now)
 	}
 }
