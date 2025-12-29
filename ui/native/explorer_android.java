@@ -114,17 +114,19 @@ public class explorer_android {
         }
     }
 
-    public void exportFile(View view, String ext, int id) {
+    public void exportFile(View view, String filename, int id) {
         askPermission(view);
 
         ((Activity) view.getContext()).runOnUiThread(new Runnable() {
             public void run() {
                 registerFrag(view);
                 export_codes.add(Integer.valueOf(id));
-
+                int extIndex = filename.lastIndexOf(".") + 1;
+                String ext = extIndex < filename.length() ? filename.substring(extIndex) : filename;
                 final Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
                 intent.setType(MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext));
                 intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.putExtra(Intent.EXTRA_TITLE, filename);
                 frag.startActivityForResult(Intent.createChooser(intent, ""), id);
             }
         });

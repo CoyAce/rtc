@@ -350,18 +350,18 @@ func (m *Message) drawMessage(gtx layout.Context) layout.Dimensions {
 }
 
 func (m *Message) interactable() bool {
-	return m.longPressed || m.Editor.SelectionLen() > 0
+	return m.longPressed || m.Editor != nil && m.Editor.SelectionLen() > 0
 }
 
 func (m *Message) processTextCopy(gtx layout.Context) {
 	if m.contentCopy.Clicked(gtx) {
 		textForCopy := m.Text
-		if m.Editor.SelectionLen() > 0 {
+		if m.Editor != nil && m.Editor.SelectionLen() > 0 {
 			textForCopy = m.Editor.SelectedText()
 		}
 		gtx.Execute(clipboard.WriteCmd{Type: "application/text", Data: io.NopCloser(strings.NewReader(textForCopy))})
 	}
-	if !gtx.Focused(m.Editor) {
+	if m.Editor != nil && !gtx.Focused(m.Editor) {
 		m.Editor.ClearSelection()
 	}
 }

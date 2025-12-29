@@ -88,7 +88,7 @@ func (e *Explorer) exportFile(name string) (io.WriteCloser, error) {
 
 			return jni.CallVoidMethod(env, e.libObject, e.explorer.exportFile,
 				jni.Value(e.view),
-				jni.Value(jni.JavaString(env, strings.TrimPrefix(strings.ToLower(filepath.Ext(name)), "."))),
+				jni.Value(jni.JavaString(env, filepath.Base(name))),
 				jni.Value(e.id),
 			)
 		})
@@ -162,9 +162,13 @@ func fileCallback(env *C.JNIEnv, stream C.jobject, id C.jint, fileInfo C.jobject
 				}
 			}
 		} else {
-			name := jni.GoString(env, jni.String(uintptr(jni.GetObjectField(env, jni.Object(uintptr(fileInfo)), displayNameId))))
-			size := jni.GetLongField(env, jni.Object(uintptr(fileInfo)), sizeId)
-			res.file, res.error = newFile(env, name, size, jni.NewGlobalRef(env, jni.Object(uintptr(stream))))
+			if unsafe.Pointer(fileInfo) == nil {
+				res.file, res.error = newFile(env, "", 0, jni.NewGlobalRef(env, jni.Object(uintptr(stream))))
+			} else {
+				name := jni.GoString(env, jni.String(uintptr(jni.GetObjectField(env, jni.Object(uintptr(fileInfo)), displayNameId))))
+				size := jni.GetLongField(env, jni.Object(uintptr(fileInfo)), sizeId)
+				res.file, res.error = newFile(env, name, size, jni.NewGlobalRef(env, jni.Object(uintptr(stream))))
+			}
 		}
 		v.(*explorer).result <- res
 	}
