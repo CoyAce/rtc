@@ -695,6 +695,9 @@ func (e *MessageEditor) processTextCut(gtx layout.Context) {
 
 func (e *MessageEditor) processTextPaste(gtx layout.Context) {
 	if e.pasteButton.Clicked(gtx) {
+		if e.InputField.Editor.SelectionLen() > 0 {
+			e.InputField.Editor.Delete(1)
+		}
 		gtx.Execute(clipboard.ReadCmd{Tag: &e.InputField.Editor})
 		e.hideOperationBar()
 	}
