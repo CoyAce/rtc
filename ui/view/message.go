@@ -717,7 +717,7 @@ func (e *MessageEditor) hideOperationBar() {
 }
 
 func (e *MessageEditor) drawOperationBar(gtx layout.Context) {
-	defer op.Offset(image.Point{Y: -gtx.Dp(32)}).Push(gtx.Ops).Pop()
+	defer op.Offset(image.Point{Y: -gtx.Dp(24)}).Push(gtx.Ops).Pop()
 	macro := op.Record(gtx.Ops)
 	icons := layout.UniformInset(unit.Dp(4)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Stack{Alignment: layout.Center}.Layout(gtx,
