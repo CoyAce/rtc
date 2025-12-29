@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"image"
 	"image/color"
+	"io"
 	"log"
 	"math"
 	"os"
@@ -14,10 +15,12 @@ import (
 	"rtc/core"
 	ui "rtc/ui/layout"
 	text "rtc/ui/layout/component"
+	"strings"
 	"time"
 
 	"gioui.org/font"
 	"gioui.org/gesture"
+	"gioui.org/io/clipboard"
 	"gioui.org/io/key"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
@@ -311,9 +314,7 @@ func (m *Message) SendTo(messageAppender *MessageKeeper) {
 }
 
 func (m *Message) drawMessage(gtx layout.Context) layout.Dimensions {
-	if m.contentCopy.Clicked(gtx) {
-		log.Printf("copy")
-	}
+	m.processTextCopy(gtx)
 	m.processFileSave(gtx)
 	flex := layout.Flex{Axis: layout.Vertical, Alignment: layout.Start}
 	if m.isMe() {
@@ -329,7 +330,7 @@ func (m *Message) drawMessage(gtx layout.Context) layout.Dimensions {
 			}
 			return flex.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					if m.isMe() && m.longPressed {
+					if m.isMe() && m.interactable() {
 						return m.drawOperation(gtx)
 					}
 					return m.drawState(gtx)
@@ -338,7 +339,7 @@ func (m *Message) drawMessage(gtx layout.Context) layout.Dimensions {
 				layout.Rigid(m.drawContent),
 				layout.Rigid(layout.Spacer{Width: unit.Dp(4)}.Layout),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					if m.isMe() || !m.longPressed {
+					if m.isMe() || !m.interactable() {
 						return layout.Dimensions{}
 					}
 					return m.drawOperation(gtx)
@@ -346,6 +347,23 @@ func (m *Message) drawMessage(gtx layout.Context) layout.Dimensions {
 			)
 		}),
 	)
+}
+
+func (m *Message) interactable() bool {
+	return m.longPressed || m.Editor.SelectionLen() > 0
+}
+
+func (m *Message) processTextCopy(gtx layout.Context) {
+	if m.contentCopy.Clicked(gtx) {
+		textForCopy := m.Text
+		if m.Editor.SelectionLen() > 0 {
+			textForCopy = m.Editor.SelectedText()
+		}
+		gtx.Execute(clipboard.WriteCmd{Type: "application/text", Data: io.NopCloser(strings.NewReader(textForCopy))})
+	}
+	if !gtx.Focused(m.Editor) {
+		m.Editor.ClearSelection()
+	}
 }
 
 func (m *Message) processFileSave(gtx layout.Context) {
