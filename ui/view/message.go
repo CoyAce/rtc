@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"gioui.org/f32"
 	"gioui.org/font"
 	"gioui.org/gesture"
 	"gioui.org/io/clipboard"
@@ -629,6 +630,7 @@ func (l *MessageList) getFocusAndResetIconStackIfClicked(gtx layout.Context) {
 }
 
 func (e *MessageEditor) Layout(gtx layout.Context) layout.Dimensions {
+	e.drawOperationBar(gtx)
 	// Render with flexbox layout:
 	return layout.Flex{
 		// Vertical alignment, from top to bottom
@@ -658,6 +660,83 @@ func (e *MessageEditor) Layout(gtx layout.Context) layout.Dimensions {
 			})
 		}),
 	)
+}
+
+func (e *MessageEditor) drawOperationBar(gtx layout.Context) {
+	defer op.Offset(image.Point{Y: -gtx.Dp(32)}).Push(gtx.Ops).Pop()
+	macro := op.Record(gtx.Ops)
+	icons := layout.UniformInset(unit.Dp(4)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return layout.Stack{Alignment: layout.Center}.Layout(gtx,
+			layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+				offset := image.Pt(-gtx.Dp(82), 0)
+				op.Offset(offset).Add(gtx.Ops)
+				return contentCutIcon.Layout(gtx, fonts.DefaultTheme.ContrastFg)
+			}),
+			layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+				offset := image.Pt(-gtx.Dp(54), 0)
+				op.Offset(offset).Add(gtx.Ops)
+				return contentCopyIcon.Layout(gtx, fonts.DefaultTheme.ContrastFg)
+			}),
+			layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+				offset := image.Pt(-gtx.Dp(26), 0)
+				op.Offset(offset).Add(gtx.Ops)
+				return contentPasteIcon.Layout(gtx, fonts.DefaultTheme.ContrastFg)
+			}),
+		)
+	})
+	call := macro.Stop()
+	e.drawBorder(gtx, icons, call)
+}
+
+func (e *MessageEditor) drawBorder(gtx layout.Context, icons layout.Dimensions, call op.CallOp) {
+	bgColor := e.ContrastBg
+	bgColor.A = 192
+	// https://pomax.github.io/bezierinfo/#circles_cubic.
+	const q = 4 * (math.Sqrt2 - 1) / 3
+	const iq = 1 - q
+	midX := float32(icons.Size.X)/2 - float32(gtx.Dp(54))
+	minX := midX - float32(gtx.Dp(24))*float32(1.5) - float32(gtx.Dp(4*2))
+	maxX := midX + float32(gtx.Dp(24))*float32(1.5) + float32(gtx.Dp(4*2))
+	minY := float32(0)
+	maxY := float32(gtx.Dp(32))
+	se, sw, nw, ne := float32(gtx.Dp(4)), float32(gtx.Dp(4)), float32(gtx.Dp(4)), float32(gtx.Dp(4))
+	triangleHalfSize := float32(gtx.Dp(3))
+
+	p := clip.Path{}
+	p.Begin(gtx.Ops)
+	p.MoveTo(f32.Point{X: minX + nw, Y: minY})
+	p.LineTo(f32.Point{X: maxX - ne, Y: minY}) // N
+	p.CubeTo( // NE
+		f32.Point{X: maxX - ne*iq, Y: minY},
+		f32.Point{X: maxX, Y: minY + ne*iq},
+		f32.Point{X: maxX, Y: minY + ne})
+	p.LineTo(f32.Point{X: maxX, Y: maxY - se}) // E
+	p.CubeTo( // SE
+		f32.Point{X: maxX, Y: maxY - se*iq},
+		f32.Point{X: maxX - se*iq, Y: maxY},
+		f32.Point{X: maxX - se, Y: maxY})
+	p.LineTo(f32.Point{X: midX + triangleHalfSize, Y: maxY})                                         // S
+	p.LineTo(f32.Point{X: midX, Y: maxY + float32(float64(triangleHalfSize*2)*math.Sin(math.Pi/3))}) // S
+	p.LineTo(f32.Point{X: midX - triangleHalfSize, Y: maxY})                                         // S
+	p.LineTo(f32.Point{X: minX + sw, Y: maxY})                                                       // S
+	p.CubeTo( // SW
+		f32.Point{X: minX + sw*iq, Y: maxY},
+		f32.Point{X: minX, Y: maxY - sw*iq},
+		f32.Point{X: minX, Y: maxY - sw})
+	p.LineTo(f32.Point{X: minX, Y: minY + nw}) // W
+	p.CubeTo( // NW
+		f32.Point{X: minX, Y: minY + nw*iq},
+		f32.Point{X: minX + nw*iq, Y: minY},
+		f32.Point{X: minX + nw, Y: minY})
+
+	path := p.End()
+
+	paint.FillShape(gtx.Ops, bgColor,
+		clip.Outline{
+			Path: path,
+		}.Op(),
+	)
+	call.Add(gtx.Ops)
 }
 
 func (e *MessageEditor) drawExtraButton(gtx layout.Context) layout.Dimensions {

@@ -50,7 +50,6 @@ func (b *IconButton) Layout(gtx layout.Context) layout.Dimensions {
 type IconStack struct {
 	*material.Theme
 	IconButtons []*IconButton
-	button      widget.Clickable
 }
 
 func (s *IconStack) drawIconStackItems(gtx layout.Context) layout.Dimensions {
@@ -64,13 +63,13 @@ func (s *IconStack) drawIconStackItems(gtx layout.Context) layout.Dimensions {
 }
 
 func (s *IconStack) Layout(gtx layout.Context) layout.Dimensions {
-	layout.Stack{Alignment: layout.SE}.Layout(gtx,
+	return layout.Stack{Alignment: layout.SE}.Layout(gtx,
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 			offset := image.Pt(-gtx.Dp(8), -gtx.Dp(57))
 			op.Offset(offset).Add(gtx.Ops)
 			progress := iconStackAnimation.Revealed(gtx)
 			macro := op.Record(gtx.Ops)
-			d := s.button.Layout(gtx, s.drawIconStackItems)
+			d := s.drawIconStackItems(gtx)
 			call := macro.Stop()
 			d.Size.Y = int(float32(d.Size.Y) * progress)
 			component.Rect{Size: d.Size, Color: color.NRGBA{}}.Layout(gtx)
@@ -79,7 +78,6 @@ func (s *IconStack) Layout(gtx layout.Context) layout.Dimensions {
 			return d
 		}),
 	)
-	return layout.Dimensions{}
 }
 
 var iconStackAnimation = component.VisibilityAnimation{

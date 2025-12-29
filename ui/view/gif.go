@@ -43,7 +43,6 @@ func (g *Gif) Layout(gtx layout.Context) layout.Dimensions {
 	scale := f32.Point{
 		X: float32(gtx.Constraints.Min.X) / float32(g.Config.Width), Y: float32(gtx.Constraints.Min.Y) / float32(g.Config.Height),
 	}
-	//defer clip.Rect{Max: gtx.Constraints.Min}.Push(gtx.Ops).Pop()
 	defer op.Affine(f32.AffineId().Scale(f32.Point{}, scale)).Push(gtx.Ops).Pop()
 
 	currentFrameCached := len(g.frames) > g.index
