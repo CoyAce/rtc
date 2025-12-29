@@ -767,26 +767,22 @@ func (e *MessageEditor) drawBorder(gtx layout.Context, icons layout.Dimensions, 
 	p.Begin(gtx.Ops)
 	p.MoveTo(f32.Point{X: minX + nw, Y: minY})
 	p.LineTo(f32.Point{X: maxX - ne, Y: minY}) // N
-	p.CubeTo( // NE
-		f32.Point{X: maxX - ne*iq, Y: minY},
+	p.CubeTo(f32.Point{X: maxX - ne*iq, Y: minY}, // NE
 		f32.Point{X: maxX, Y: minY + ne*iq},
 		f32.Point{X: maxX, Y: minY + ne})
 	p.LineTo(f32.Point{X: maxX, Y: maxY - se}) // E
-	p.CubeTo( // SE
-		f32.Point{X: maxX, Y: maxY - se*iq},
+	p.CubeTo(f32.Point{X: maxX, Y: maxY - se*iq}, // SE
 		f32.Point{X: maxX - se*iq, Y: maxY},
 		f32.Point{X: maxX - se, Y: maxY})
 	p.LineTo(f32.Point{X: midX + triangleLegHalfSize, Y: maxY}) // S
 	p.LineTo(f32.Point{X: midX, Y: maxY + perpendicular})       // S
 	p.LineTo(f32.Point{X: midX - triangleLegHalfSize, Y: maxY}) // S
 	p.LineTo(f32.Point{X: minX + sw, Y: maxY})                  // S
-	p.CubeTo( // SW
-		f32.Point{X: minX + sw*iq, Y: maxY},
+	p.CubeTo(f32.Point{X: minX + sw*iq, Y: maxY}, // SW
 		f32.Point{X: minX, Y: maxY - sw*iq},
 		f32.Point{X: minX, Y: maxY - sw})
 	p.LineTo(f32.Point{X: minX, Y: minY + nw}) // W
-	p.CubeTo( // NW
-		f32.Point{X: minX, Y: minY + nw*iq},
+	p.CubeTo(f32.Point{X: minX, Y: minY + nw*iq}, // NW
 		f32.Point{X: minX + nw*iq, Y: minY},
 		f32.Point{X: minX + nw, Y: minY})
 
