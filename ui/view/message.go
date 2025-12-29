@@ -760,7 +760,8 @@ func (e *MessageEditor) drawBorder(gtx layout.Context, icons layout.Dimensions, 
 	minY := float32(0)
 	maxY := float32(gtx.Dp(32))
 	se, sw, nw, ne := float32(gtx.Dp(4)), float32(gtx.Dp(4)), float32(gtx.Dp(4)), float32(gtx.Dp(4))
-	triangleHalfSize := float32(gtx.Dp(3))
+	triangleLegHalfSize := float32(gtx.Dp(3))
+	perpendicular := float32(float64(triangleLegHalfSize*2) * math.Sin(math.Pi/3))
 
 	p := clip.Path{}
 	p.Begin(gtx.Ops)
@@ -775,10 +776,10 @@ func (e *MessageEditor) drawBorder(gtx layout.Context, icons layout.Dimensions, 
 		f32.Point{X: maxX, Y: maxY - se*iq},
 		f32.Point{X: maxX - se*iq, Y: maxY},
 		f32.Point{X: maxX - se, Y: maxY})
-	p.LineTo(f32.Point{X: midX + triangleHalfSize, Y: maxY})                                         // S
-	p.LineTo(f32.Point{X: midX, Y: maxY + float32(float64(triangleHalfSize*2)*math.Sin(math.Pi/3))}) // S
-	p.LineTo(f32.Point{X: midX - triangleHalfSize, Y: maxY})                                         // S
-	p.LineTo(f32.Point{X: minX + sw, Y: maxY})                                                       // S
+	p.LineTo(f32.Point{X: midX + triangleLegHalfSize, Y: maxY}) // S
+	p.LineTo(f32.Point{X: midX, Y: maxY + perpendicular})       // S
+	p.LineTo(f32.Point{X: midX - triangleLegHalfSize, Y: maxY}) // S
+	p.LineTo(f32.Point{X: minX + sw, Y: maxY})                  // S
 	p.CubeTo( // SW
 		f32.Point{X: minX + sw*iq, Y: maxY},
 		f32.Point{X: minX, Y: maxY - sw*iq},
