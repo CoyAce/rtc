@@ -124,7 +124,7 @@ public class explorer_android {
                 int extIndex = filename.lastIndexOf(".") + 1;
                 String ext = extIndex < filename.length() ? filename.substring(extIndex) : filename;
                 final Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-                intent.setType(MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext));
+                intent.setType(MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext.toLowerCase()));
                 intent.addCategory(Intent.CATEGORY_OPENABLE);
                 intent.putExtra(Intent.EXTRA_TITLE, filename);
                 frag.startActivityForResult(Intent.createChooser(intent, ""), id);
