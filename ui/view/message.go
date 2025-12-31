@@ -52,7 +52,7 @@ type MessageKeeper struct {
 
 func (a *MessageKeeper) Loop() {
 	a.ready = make(chan struct{}, 1)
-	duration := time.Second
+	duration := 5 * time.Minute
 	a.timer = time.NewTimer(duration)
 	for {
 		a.timer.Reset(duration)

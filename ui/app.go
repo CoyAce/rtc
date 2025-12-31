@@ -95,10 +95,12 @@ func Draw(window *app.Window, c *core.Client) error {
 		switch e := event.(type) {
 		// this is sent when the application is closed
 		case app.DestroyEvent:
-			core.DefaultClient.Store()
-			messageKeeper.Append()
 			return e.Err
-
+		case app.ConfigEvent:
+			if e.Config.Focused == false {
+				core.DefaultClient.Store()
+				messageKeeper.Append()
+			}
 		// this is sent when the application should re-render.
 		case app.FrameEvent:
 			// This graphics context is used for managing the rendering state.
