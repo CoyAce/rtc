@@ -82,6 +82,7 @@ func Draw(window *app.Window, c *core.Client) error {
 	core.DefaultClient.SyncFunc = view.SyncCachedIcon
 	inputField := component.TextField{Editor: ui.Editor{Submit: true}}
 	messageEditor := view.MessageEditor{InputField: &inputField, Theme: fonts.DefaultTheme}
+	voiceRecorder := view.VoiceRecorder{}
 	iconStack := view.NewIconStack()
 	view.DefaultPicker = explorer.NewExplorer(window)
 	if runtime.GOOS == "android" {
@@ -125,10 +126,13 @@ func Draw(window *app.Window, c *core.Client) error {
 					}
 				}()
 			}
-
+			w := messageEditor.Layout
+			if view.VoiceMode {
+				w = voiceRecorder.Layout
+			}
 			layout.Flex{Axis: layout.Vertical, Spacing: layout.SpaceBetween}.Layout(gtx,
 				layout.Flexed(1, messageList.Layout),
-				layout.Rigid(messageEditor.Layout),
+				layout.Rigid(w),
 			)
 			iconStack.Layout(gtx)
 			ui.DefaultModal.Layout(gtx)

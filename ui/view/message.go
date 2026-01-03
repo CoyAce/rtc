@@ -255,13 +255,16 @@ type Message struct {
 type MessageEditor struct {
 	*material.Theme
 	InteractiveSpan
-	InputField     *text.TextField
-	submitButton   widget.Clickable
-	expandButton   widget.Clickable
-	collapseButton widget.Clickable
-	cutButton      widget.Clickable
-	copyButton     widget.Clickable
-	pasteButton    widget.Clickable
+	InputField   *text.TextField
+	submitButton widget.Clickable
+	EditorOperator
+	ExpandButton
+}
+
+type EditorOperator struct {
+	cutButton   widget.Clickable
+	copyButton  widget.Clickable
+	pasteButton widget.Clickable
 }
 
 func (m *Message) Layout(gtx layout.Context) (d layout.Dimensions) {
@@ -639,7 +642,7 @@ func (e *MessageEditor) Layout(gtx layout.Context) layout.Dimensions {
 	e.processTextCopy(gtx)
 	e.processTextPaste(gtx)
 	if e.operationBarNeeded(gtx) {
-		e.drawOperationBar(gtx)
+		e.EditorOperator.Layout(gtx)
 	}
 	if !gtx.Focused(&e.InputField.Editor) {
 		e.hideOperationBar()
@@ -647,35 +650,23 @@ func (e *MessageEditor) Layout(gtx layout.Context) layout.Dimensions {
 	defer clip.Rect(image.Rectangle{Max: gtx.Constraints.Max}).Push(gtx.Ops).Pop()
 	defer pointer.PassOp{}.Push(gtx.Ops).Pop()
 	e.InteractiveSpan.Layout(gtx)
-	// Render with flexbox layout:
-	return layout.Flex{
-		// Vertical alignment, from top to bottom
-		Axis: layout.Vertical,
-		// Empty space is left at the start, i.e. at the top
-		Spacing: layout.SpaceStart,
-	}.Layout(gtx,
-		// Rigid to hold message input field and submit button
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			// Define margins around the flex item using layout.Inset
-			margins := layout.Inset{Top: unit.Dp(8.0), Left: unit.Dp(8.0), Right: unit.Dp(8), Bottom: unit.Dp(15)}
-			return margins.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return layout.Flex{
-					Axis:      layout.Horizontal,
-					Spacing:   layout.SpaceBetween,
-					Alignment: layout.End,
-				}.Layout(gtx,
-					// text input
-					layout.Flexed(1.0, func(gtx layout.Context) layout.Dimensions {
-						return e.InputField.Layout(gtx, e.Theme, "Message")
-					}),
-					// submit button
-					layout.Rigid(e.drawSubmitButton),
-					// expand button
-					layout.Rigid(e.drawExtraButton),
-				)
-			})
-		}),
-	)
+	margins := layout.Inset{Top: unit.Dp(8.0), Left: unit.Dp(8.0), Right: unit.Dp(8), Bottom: unit.Dp(15)}
+	return margins.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{
+			Axis:      layout.Horizontal,
+			Spacing:   layout.SpaceBetween,
+			Alignment: layout.End,
+		}.Layout(gtx,
+			// text input
+			layout.Flexed(1.0, func(gtx layout.Context) layout.Dimensions {
+				return e.InputField.Layout(gtx, e.Theme, "Message")
+			}),
+			// submit button
+			layout.Rigid(e.drawSubmitButton),
+			// expand button
+			layout.Rigid(e.ExpandButton.Layout),
+		)
+	})
 }
 
 func (e *MessageEditor) operationBarNeeded(gtx layout.Context) bool {
@@ -719,7 +710,7 @@ func (e *MessageEditor) hideOperationBar() {
 	e.InputField.Editor.ClearSelection()
 }
 
-func (e *MessageEditor) drawOperationBar(gtx layout.Context) {
+func (e *EditorOperator) Layout(gtx layout.Context) {
 	defer op.Offset(image.Point{Y: -gtx.Dp(24)}).Push(gtx.Ops).Pop()
 	macro := op.Record(gtx.Ops)
 	icons := layout.UniformInset(unit.Dp(4)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -751,8 +742,8 @@ func (e *MessageEditor) drawOperationBar(gtx layout.Context) {
 	e.drawBorder(gtx, icons, call)
 }
 
-func (e *MessageEditor) drawBorder(gtx layout.Context, icons layout.Dimensions, call op.CallOp) {
-	bgColor := e.ContrastBg
+func (e *EditorOperator) drawBorder(gtx layout.Context, icons layout.Dimensions, call op.CallOp) {
+	bgColor := fonts.DefaultTheme.ContrastBg
 	bgColor.A = 192
 	// https://pomax.github.io/bezierinfo/#circles_cubic.
 	const q = 4 * (math.Sqrt2 - 1) / 3
@@ -769,11 +760,11 @@ func (e *MessageEditor) drawBorder(gtx layout.Context, icons layout.Dimensions, 
 	p := clip.Path{}
 	p.Begin(gtx.Ops)
 	p.MoveTo(f32.Point{X: minX + nw, Y: minY})
-	p.LineTo(f32.Point{X: maxX - ne, Y: minY})    // N
+	p.LineTo(f32.Point{X: maxX - ne, Y: minY}) // N
 	p.CubeTo(f32.Point{X: maxX - ne*iq, Y: minY}, // NE
 		f32.Point{X: maxX, Y: minY + ne*iq},
 		f32.Point{X: maxX, Y: minY + ne})
-	p.LineTo(f32.Point{X: maxX, Y: maxY - se})    // E
+	p.LineTo(f32.Point{X: maxX, Y: maxY - se}) // E
 	p.CubeTo(f32.Point{X: maxX, Y: maxY - se*iq}, // SE
 		f32.Point{X: maxX - se*iq, Y: maxY},
 		f32.Point{X: maxX - se, Y: maxY})
@@ -781,10 +772,10 @@ func (e *MessageEditor) drawBorder(gtx layout.Context, icons layout.Dimensions, 
 	p.LineTo(f32.Point{X: midX, Y: maxY + perpendicular})       // S
 	p.LineTo(f32.Point{X: midX - triangleLegHalfSize, Y: maxY}) // S
 	p.LineTo(f32.Point{X: minX + sw, Y: maxY})                  // S
-	p.CubeTo(f32.Point{X: minX + sw*iq, Y: maxY},               // SW
+	p.CubeTo(f32.Point{X: minX + sw*iq, Y: maxY}, // SW
 		f32.Point{X: minX, Y: maxY - sw*iq},
 		f32.Point{X: minX, Y: maxY - sw})
-	p.LineTo(f32.Point{X: minX, Y: minY + nw})    // W
+	p.LineTo(f32.Point{X: minX, Y: minY + nw}) // W
 	p.CubeTo(f32.Point{X: minX, Y: minY + nw*iq}, // NW
 		f32.Point{X: minX + nw*iq, Y: minY},
 		f32.Point{X: minX + nw, Y: minY})
@@ -795,35 +786,6 @@ func (e *MessageEditor) drawBorder(gtx layout.Context, icons layout.Dimensions, 
 	paint.Fill(gtx.Ops, bgColor)
 	pointer.CursorPointer.Add(gtx.Ops)
 	call.Add(gtx.Ops)
-}
-
-func (e *MessageEditor) drawExtraButton(gtx layout.Context) layout.Dimensions {
-	margins := layout.Inset{Left: unit.Dp(8.0)}
-	return margins.Layout(
-		gtx,
-		func(gtx layout.Context) layout.Dimensions {
-			btn := &e.expandButton
-			icon := expandIcon
-			if e.collapseButton.Clicked(gtx) {
-				iconStackAnimation.Disappear(gtx.Now)
-			}
-			if e.expandButton.Clicked(gtx) {
-				iconStackAnimation.Appear(gtx.Now)
-			}
-			if iconStackAnimation.Revealed(gtx) != 0 {
-				btn = &e.collapseButton
-				icon = collapseIcon
-			}
-			return material.IconButtonStyle{
-				Background: e.Theme.ContrastBg,
-				Color:      e.Theme.ContrastFg,
-				Icon:       icon,
-				Size:       unit.Dp(24.0),
-				Button:     btn,
-				Inset:      layout.UniformInset(unit.Dp(9)),
-			}.Layout(gtx)
-		},
-	)
 }
 
 func (e *MessageEditor) drawSubmitButton(gtx layout.Context) layout.Dimensions {

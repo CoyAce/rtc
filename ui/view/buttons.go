@@ -81,6 +81,8 @@ var iconStackAnimation = component.VisibilityAnimation{
 	Started:  time.Time{},
 }
 
+var VoiceMode = false
+
 func NewIconStack() *IconStack {
 	settings := NewSettingsForm(OnSettingsSubmit)
 	return &IconStack{Theme: fonts.DefaultTheme,
@@ -88,8 +90,45 @@ func NewIconStack() *IconStack {
 			{Theme: fonts.DefaultTheme, Icon: settingsIcon, Enabled: true, OnClick: settings.ShowWithModal},
 			{Theme: fonts.DefaultTheme, Icon: videoCallIcon},
 			{Theme: fonts.DefaultTheme, Icon: audioCallIcon},
-			{Theme: fonts.DefaultTheme, Icon: voiceMessageIcon},
+			{Theme: fonts.DefaultTheme, Icon: voiceMessageIcon, Enabled: true, OnClick: func(gtx layout.Context) {
+				iconStackAnimation.Disappear(gtx.Now)
+				VoiceMode = !VoiceMode
+			}},
 			{Theme: fonts.DefaultTheme, Icon: photoLibraryIcon, Enabled: true, OnClick: ChooseAndSendPhoto},
 		},
 	}
+}
+
+type ExpandButton struct {
+	expandButton   widget.Clickable
+	collapseButton widget.Clickable
+}
+
+func (e *ExpandButton) Layout(gtx layout.Context) layout.Dimensions {
+	margins := layout.Inset{Left: unit.Dp(8.0)}
+	return margins.Layout(
+		gtx,
+		func(gtx layout.Context) layout.Dimensions {
+			btn := &e.expandButton
+			icon := expandIcon
+			if e.collapseButton.Clicked(gtx) {
+				iconStackAnimation.Disappear(gtx.Now)
+			}
+			if e.expandButton.Clicked(gtx) {
+				iconStackAnimation.Appear(gtx.Now)
+			}
+			if iconStackAnimation.Revealed(gtx) != 0 {
+				btn = &e.collapseButton
+				icon = collapseIcon
+			}
+			return material.IconButtonStyle{
+				Background: fonts.DefaultTheme.ContrastBg,
+				Color:      fonts.DefaultTheme.ContrastFg,
+				Icon:       icon,
+				Size:       unit.Dp(24.0),
+				Button:     btn,
+				Inset:      layout.UniformInset(unit.Dp(9)),
+			}.Layout(gtx)
+		},
+	)
 }
