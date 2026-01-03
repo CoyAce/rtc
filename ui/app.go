@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"rtc/assets/fonts"
 	"rtc/core"
+	"rtc/internal/audio"
 	ui "rtc/ui/layout"
 	"rtc/ui/layout/component"
 	"rtc/ui/native"
@@ -17,11 +18,30 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/x/explorer"
+	"github.com/gen2brain/malgo"
 )
 
 func Draw(window *app.Window, c *core.Client) error {
 	// save client to global pointer
 	core.DefaultClient = c
+	// audio
+	maCtx, err := malgo.InitContext(nil, malgo.ContextConfig{}, func(message string) {
+		log.Print("internal/audio: ", message)
+	})
+	if err != nil {
+		log.Fatalln("main: ", err)
+	}
+	defer func() {
+		_ = maCtx.Uninit()
+		maCtx.Free()
+	}()
+	streamConfig := audio.StreamConfig{
+		Format:       malgo.FormatS16,
+		Channels:     1,
+		SampleRate:   24000,
+		MalgoContext: maCtx.Context,
+	}
+	voiceRecorder := view.VoiceRecorder{StreamConfig: streamConfig}
 	// ops are the operations from the UI
 	var ops op.Ops
 
@@ -82,7 +102,6 @@ func Draw(window *app.Window, c *core.Client) error {
 	core.DefaultClient.SyncFunc = view.SyncCachedIcon
 	inputField := component.TextField{Editor: ui.Editor{Submit: true}}
 	messageEditor := view.MessageEditor{InputField: &inputField, Theme: fonts.DefaultTheme}
-	voiceRecorder := view.VoiceRecorder{}
 	iconStack := view.NewIconStack()
 	view.DefaultPicker = explorer.NewExplorer(window)
 	if runtime.GOOS == "android" {
