@@ -2,7 +2,11 @@ package view
 
 import (
 	"bufio"
+	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"image"
 	"image/color"
 	"io"
@@ -13,6 +17,7 @@ import (
 	"rtc/assets"
 	"rtc/assets/fonts"
 	"rtc/core"
+	"rtc/internal/audio"
 	ui "rtc/ui/layout"
 	text "rtc/ui/layout/component"
 	mt "rtc/ui/layout/material"
@@ -34,6 +39,7 @@ import (
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"gioui.org/x/component"
+	"github.com/CoyAce/opus/ogg"
 	"golang.org/x/exp/shiny/materialdesign/colornames"
 )
 
@@ -46,45 +52,46 @@ type MessageList struct {
 
 type MessageKeeper struct {
 	MessageChannel chan *Message
-	buffer         []*Message
-	ready          chan struct{}
-	timer          *time.Timer
+	audio.StreamConfig
+	buffer []*Message
+	ready  chan struct{}
+	timer  *time.Timer
 }
 
-func (a *MessageKeeper) Loop() {
-	a.ready = make(chan struct{}, 1)
+func (k *MessageKeeper) Loop() {
+	k.ready = make(chan struct{}, 1)
 	duration := 5 * time.Minute
-	a.timer = time.NewTimer(duration)
+	k.timer = time.NewTimer(duration)
 	for {
-		a.timer.Reset(duration)
+		k.timer.Reset(duration)
 		select {
-		case msg := <-a.MessageChannel:
-			a.buffer = append(a.buffer, msg)
-		case <-a.timer.C:
-			a.ready <- struct{}{}
-		case <-a.ready:
-			if len(a.buffer) == 0 {
+		case msg := <-k.MessageChannel:
+			k.buffer = append(k.buffer, msg)
+		case <-k.timer.C:
+			k.ready <- struct{}{}
+		case <-k.ready:
+			if len(k.buffer) == 0 {
 				continue
 			}
-			a.Append()
+			k.Append()
 		}
 	}
 }
 
-func (a *MessageKeeper) Append() {
+func (k *MessageKeeper) Append() {
 	filePath := core.GetFilePath(core.DefaultClient.FullID(), "message.log")
 	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Printf("error opening file: %v", err)
 	}
 	defer file.Close()
-	for _, msg := range a.buffer {
-		a.writeJson(file, msg)
+	for _, msg := range k.buffer {
+		k.writeJson(file, msg)
 	}
-	a.buffer = a.buffer[:0]
+	k.buffer = k.buffer[:0]
 }
 
-func (a *MessageKeeper) writeJson(file *os.File, msg *Message) {
+func (k *MessageKeeper) writeJson(file *os.File, msg *Message) {
 	s, err := json.Marshal(msg)
 	if err != nil {
 		log.Printf("error marshalling message: %v", err)
@@ -96,7 +103,7 @@ func (a *MessageKeeper) writeJson(file *os.File, msg *Message) {
 	}
 }
 
-func (a *MessageKeeper) Messages() []*Message {
+func (k *MessageKeeper) Messages() []*Message {
 	filePath := core.GetFilePath(core.DefaultClient.FullID(), "message.log")
 	f, err := os.Open(filePath)
 	if err != nil {
@@ -119,6 +126,9 @@ func (a *MessageKeeper) Messages() []*Message {
 		if msg.State == Stateless {
 			msg.State = Failed
 		}
+		if msg.Type == Voice {
+			msg.StreamConfig = k.StreamConfig
+		}
 		ret = append(ret, &msg)
 	}
 	return ret
@@ -139,6 +149,7 @@ const (
 	Text MessageType = iota
 	Image
 	GIF
+	Voice
 )
 
 // LongPressDuration is the default duration of a long press gesture.
@@ -153,6 +164,7 @@ const (
 	Unhover
 	LongPress
 	Click
+	LongPressRelease
 )
 
 // Event describes an interaction with rich text.
@@ -180,7 +192,7 @@ func (i *InteractiveSpan) Clicked(gtx layout.Context) bool {
 		if !ok {
 			break
 		}
-		if e.Type == Click {
+		if e.Type == Click || e.Type == LongPressRelease {
 			return true
 		}
 	}
@@ -201,9 +213,9 @@ func (i *InteractiveSpan) Update(gtx layout.Context) (Event, bool) {
 			i.pressing = false
 			if i.longPressing {
 				i.longPressing = false
-			} else {
-				i.longPressed = false
+				return Event{Type: LongPressRelease}, true
 			}
+			i.longPressed = false
 			return Event{Type: Click, ClickData: e}, true
 		case gesture.KindPress:
 			i.pressStarted = gtx.Now
@@ -267,18 +279,24 @@ func (i *InteractiveSpan) Layout(gtx layout.Context) layout.Dimensions {
 
 type Message struct {
 	State
-	Editor          *ui.Editor
-	*material.Theme `json:"-"`
-	InteractiveSpan `json:"-"`
-	copyButton      widget.Clickable
-	downloadButton  widget.Clickable
-	Filename        string
-	Type            MessageType
-	UUID            string
-	Text            string
-	Sender          string
-	CreatedAt       time.Time
-	imageBroken     bool
+	Editor             *ui.Editor
+	*material.Theme    `json:"-"`
+	InteractiveSpan    `json:"-"`
+	copyButton         widget.Clickable
+	downloadButton     widget.Clickable
+	playButton         widget.Clickable
+	pauseButton        widget.Clickable
+	audio.StreamConfig `json:"-"`
+	playing            bool
+	Filename           string
+	Size               int
+	Type               MessageType
+	UUID               string
+	Text               string
+	Sender             string
+	CreatedAt          time.Time
+	imageBroken        bool
+	cancel             context.CancelFunc
 }
 
 type MessageEditor struct {
@@ -395,7 +413,7 @@ func (m *Message) getFocusIfClickedToEnableFocusLostEvent(gtx layout.Context) {
 }
 
 func (m *Message) operationNeeded() bool {
-	return m.longPressed || m.Editor != nil && m.Editor.SelectionLen() > 0
+	return m.Type != Voice && (m.longPressed || m.Editor != nil && m.Editor.SelectionLen() > 0)
 }
 
 func (m *Message) processTextCopy(gtx layout.Context) {
@@ -502,8 +520,67 @@ func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
 			return m.drawBrokenImage(gtx)
 		}
 		return m.drawGif(gtx, gifImg)
+	case Voice:
+		if m.Filename == "" {
+			return layout.Dimensions{}
+		}
+		return m.drawVoice(gtx)
 	}
 	return layout.Dimensions{}
+}
+
+func (m *Message) drawVoice(gtx layout.Context) layout.Dimensions {
+	v := float32(gtx.Constraints.Max.X) * 0.382
+	gtx.Constraints.Min.X = int(float32(gtx.Constraints.Max.X) * 0.618)
+	gtx.Constraints.Min.Y = int(v * 0.382)
+	macro := op.Record(gtx.Ops)
+	d := layout.Flex{Spacing: layout.SpaceAround, Alignment: layout.Middle}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			btn := &m.playButton
+			icon := playIcon
+			if m.playButton.Clicked(gtx) {
+				m.playing = true
+				go func() {
+					file, err := os.Open(m.Filename)
+					if err != nil {
+						log.Printf("open file failed, %v", err)
+						return
+					}
+					pcm, err := ogg.Decode(file)
+					if err != nil {
+						log.Printf("decode file failed, %v", err)
+					}
+					reader := bytes.NewReader(pcm)
+					var ctx context.Context
+					ctx, m.cancel = context.WithCancel(context.Background())
+					if err := audio.Playback(ctx, reader, m.StreamConfig); err != nil && !errors.Is(err, io.EOF) {
+						log.Printf("audio playback: %w", err)
+					}
+					m.playing = false
+				}()
+			}
+			if m.pauseButton.Clicked(gtx) {
+				m.playing = false
+				m.cancel()
+			}
+			if m.playing {
+				btn = &m.pauseButton
+				icon = pauseIcon
+			}
+			return btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				gtx.Constraints.Min.X = int(v * 0.382)
+				return icon.Layout(gtx, m.ContrastBg)
+			})
+		}),
+	)
+	layout.Stack{Alignment: layout.E}.Layout(gtx,
+		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+			label := material.Label(m.Theme, m.Theme.TextSize*0.70, fmt.Sprintf("%vs", m.Size/1000))
+			return layout.UniformInset(unit.Dp(8)).Layout(gtx, label.Layout)
+		}))
+	call := macro.Stop()
+	m.drawBorder(gtx, d, call)
+	return d
 }
 
 func (m *Message) loadGif() (*Gif, error) {
@@ -791,11 +868,11 @@ func (e *EditorOperator) drawBorder(gtx layout.Context, icons layout.Dimensions,
 	p := clip.Path{}
 	p.Begin(gtx.Ops)
 	p.MoveTo(f32.Point{X: minX + nw, Y: minY})
-	p.LineTo(f32.Point{X: maxX - ne, Y: minY})    // N
+	p.LineTo(f32.Point{X: maxX - ne, Y: minY}) // N
 	p.CubeTo(f32.Point{X: maxX - ne*iq, Y: minY}, // NE
 		f32.Point{X: maxX, Y: minY + ne*iq},
 		f32.Point{X: maxX, Y: minY + ne})
-	p.LineTo(f32.Point{X: maxX, Y: maxY - se})    // E
+	p.LineTo(f32.Point{X: maxX, Y: maxY - se}) // E
 	p.CubeTo(f32.Point{X: maxX, Y: maxY - se*iq}, // SE
 		f32.Point{X: maxX - se*iq, Y: maxY},
 		f32.Point{X: maxX - se, Y: maxY})
@@ -803,10 +880,10 @@ func (e *EditorOperator) drawBorder(gtx layout.Context, icons layout.Dimensions,
 	p.LineTo(f32.Point{X: midX, Y: maxY + perpendicular})       // S
 	p.LineTo(f32.Point{X: midX - triangleLegHalfSize, Y: maxY}) // S
 	p.LineTo(f32.Point{X: minX + sw, Y: maxY})                  // S
-	p.CubeTo(f32.Point{X: minX + sw*iq, Y: maxY},               // SW
+	p.CubeTo(f32.Point{X: minX + sw*iq, Y: maxY}, // SW
 		f32.Point{X: minX, Y: maxY - sw*iq},
 		f32.Point{X: minX, Y: maxY - sw})
-	p.LineTo(f32.Point{X: minX, Y: minY + nw})    // W
+	p.LineTo(f32.Point{X: minX, Y: minY + nw}) // W
 	p.CubeTo(f32.Point{X: minX, Y: minY + nw*iq}, // NW
 		f32.Point{X: minX + nw*iq, Y: minY},
 		f32.Point{X: minX + nw, Y: minY})

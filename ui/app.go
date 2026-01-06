@@ -37,8 +37,8 @@ func Draw(window *app.Window, c *core.Client) error {
 	}()
 	streamConfig := audio.StreamConfig{
 		Format:       malgo.FormatS16,
-		Channels:     1,
-		SampleRate:   24000,
+		Channels:     2,
+		SampleRate:   48000,
 		MalgoContext: maCtx.Context,
 	}
 	voiceRecorder := view.VoiceRecorder{StreamConfig: streamConfig}
@@ -47,7 +47,7 @@ func Draw(window *app.Window, c *core.Client) error {
 
 	var messageList = &view.MessageList{List: ui.List{Axis: ui.Vertical, ScrollToEnd: true},
 		Theme: fonts.DefaultTheme}
-	var messageKeeper = &view.MessageKeeper{MessageChannel: make(chan *view.Message, 1)}
+	var messageKeeper = &view.MessageKeeper{MessageChannel: make(chan *view.Message, 1), StreamConfig: streamConfig}
 	messageList.Messages = messageKeeper.Messages()
 	go messageKeeper.Loop()
 	// listen for events in the messages channel
