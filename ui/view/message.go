@@ -23,6 +23,7 @@ import (
 	"gioui.org/font"
 	"gioui.org/gesture"
 	"gioui.org/io/clipboard"
+	"gioui.org/io/event"
 	"gioui.org/io/key"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
@@ -173,6 +174,19 @@ type InteractiveSpan struct {
 	pressStarted time.Time
 }
 
+func (i *InteractiveSpan) Clicked(gtx layout.Context) bool {
+	for {
+		e, ok := i.Update(gtx)
+		if !ok {
+			break
+		}
+		if e.Type == Click {
+			return true
+		}
+	}
+	return false
+}
+
 func (i *InteractiveSpan) Update(gtx layout.Context) (Event, bool) {
 	if i == nil {
 		return Event{}, false
@@ -229,10 +243,25 @@ func (i *InteractiveSpan) Layout(gtx layout.Context) layout.Dimensions {
 	if i.pressing && !i.longPressing {
 		gtx.Execute(op.InvalidateCmd{})
 	}
+	for {
+		e, ok := gtx.Event(
+			key.FocusFilter{Target: i},
+		)
+		if !ok {
+			break
+		}
+		switch e := e.(type) {
+		case key.FocusEvent:
+			if !e.Focus && !i.hovering {
+				i.longPressed = false
+			}
+		}
+	}
 	defer clip.Rect{Max: gtx.Constraints.Max}.Push(gtx.Ops).Pop()
 
 	pointer.CursorPointer.Add(gtx.Ops)
 	i.click.Add(gtx.Ops)
+	event.Op(gtx.Ops, i)
 	return layout.Dimensions{}
 }
 
@@ -325,6 +354,7 @@ func (m *Message) SendTo(messageAppender *MessageKeeper) {
 func (m *Message) drawMessage(gtx layout.Context) layout.Dimensions {
 	m.processTextCopy(gtx)
 	m.processFileSave(gtx)
+	m.getFocusIfClickedToEnableFocusLostEvent(gtx)
 	flex := layout.Flex{Axis: layout.Vertical, Alignment: layout.Start}
 	if m.isMe() {
 		flex.Alignment = layout.End
@@ -356,6 +386,12 @@ func (m *Message) drawMessage(gtx layout.Context) layout.Dimensions {
 			)
 		}),
 	)
+}
+
+func (m *Message) getFocusIfClickedToEnableFocusLostEvent(gtx layout.Context) {
+	if m.Clicked(gtx) {
+		gtx.Execute(key.FocusCmd{Tag: &m.InteractiveSpan})
+	}
 }
 
 func (m *Message) operationNeeded() bool {
@@ -627,12 +663,7 @@ func (l *MessageList) scrollToEndIfFirstAndLastItemVisible() {
 
 func (l *MessageList) getFocusAndResetIconStackIfClicked(gtx layout.Context) {
 	if l.Clicked(gtx) {
-		for i := l.Position.First; i < l.Position.First+l.Position.Count; i++ {
-			if !l.Messages[i].hovering {
-				gtx.Execute(key.FocusCmd{Tag: l})
-				l.Messages[i].longPressed = false
-			}
-		}
+		gtx.Execute(key.FocusCmd{Tag: &l.Clickable})
 		iconStackAnimation.Disappear(gtx.Now)
 	}
 }
