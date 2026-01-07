@@ -78,7 +78,8 @@ func (v *VoiceRecorder) Layout(gtx layout.Context) layout.Dimensions {
 
 func (v *VoiceRecorder) encodeAndSendAsync() {
 	go func() {
-		timeNow := time.Now().Local().Format("20060102150405")
+		loc, _ := time.LoadLocation("Asia/Shanghai")
+		timeNow := time.Now().In(loc).Format("20060102150405")
 		filePath := core.GetDataPath(timeNow + ".opus")
 		log.Printf("audio filePath %s", filePath)
 		w, err := os.Create(filePath)

@@ -606,7 +606,8 @@ func (m *Message) drawState(gtx layout.Context) layout.Dimensions {
 
 func (m *Message) drawName(gtx layout.Context) layout.Dimensions {
 	timeVal := m.CreatedAt
-	timeMsg := timeVal.Local().Format("01/02, 15:04")
+	loc, _ := time.LoadLocation("Asia/Shanghai")
+	timeMsg := timeVal.In(loc).Format("01/02, 15:04")
 	var msg string
 	if m.isMe() {
 		msg = timeMsg + " " + m.Sender
