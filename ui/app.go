@@ -63,11 +63,15 @@ func Draw(window *app.Window, c *core.Client) error {
 				message = m
 			case m := <-c.SignedMessages:
 				text := string(m.Payload)
-				ed := ui.Editor{ReadOnly: true}
-				ed.SetText(text)
-				message = &view.Message{State: view.Sent, Editor: &ed, Theme: fonts.DefaultTheme,
-					UUID: core.DefaultClient.FullID(), Type: view.Text,
-					Text: text, Sender: m.Sign.UUID, CreatedAt: time.Now()}
+				message = &view.Message{
+					State:       view.Sent,
+					TextControl: view.NewTextControl(text),
+					Theme:       fonts.DefaultTheme,
+					UUID:        core.DefaultClient.FullID(), Type: view.Text,
+					Text:      text,
+					Sender:    m.Sign.UUID,
+					CreatedAt: time.Now(),
+				}
 			case m := <-c.FileMessages:
 				switch m.Code {
 				case core.OpSyncIcon:
@@ -131,12 +135,13 @@ func Draw(window *app.Window, c *core.Client) error {
 				msg := strings.TrimSpace(inputField.Text())
 				inputField.Clear()
 				go func() {
-					ed := ui.Editor{ReadOnly: true}
-					ed.SetText(msg)
-					message := view.Message{State: view.Stateless, Editor: &ed,
-						Theme: fonts.DefaultTheme,
-						UUID:  core.DefaultClient.FullID(), Type: view.Text,
-						Text: msg, Sender: core.DefaultClient.FullID(), CreatedAt: time.Now()}
+					message := view.Message{State: view.Stateless,
+						TextControl: view.NewTextControl(msg),
+						Theme:       fonts.DefaultTheme,
+						UUID:        core.DefaultClient.FullID(), Type: view.Text,
+						Text:      msg,
+						Sender:    core.DefaultClient.FullID(),
+						CreatedAt: time.Now()}
 					view.MessageBox <- &message
 					if core.DefaultClient.Connected && core.DefaultClient.SendText(msg) == nil {
 						message.State = view.Sent

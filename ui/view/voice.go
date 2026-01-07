@@ -73,10 +73,15 @@ func (v *VoiceRecorder) Layout(gtx layout.Context) layout.Dimensions {
 					log.Printf("encode file %s failed, %s", filename, err)
 				}
 				v.buf = nil
-				message := Message{State: Stateless, Theme: fonts.DefaultTheme,
-					UUID: core.DefaultClient.FullID(), Type: Voice, Filename: filename,
-					Sender: core.DefaultClient.FullID(), CreatedAt: time.Now(),
-					StreamConfig: v.StreamConfig, Size: int(ogg.GetDuration(samples/2/ogg.Channels) / time.Millisecond),
+				message := Message{
+					State: Stateless,
+					Theme: fonts.DefaultTheme,
+					UUID:  core.DefaultClient.FullID(),
+					Type:  Voice, Filename: filename,
+					Sender:       core.DefaultClient.FullID(),
+					CreatedAt:    time.Now(),
+					MediaControl: MediaControl{StreamConfig: v.StreamConfig},
+					Size:         int(ogg.GetDuration(samples/2/ogg.Channels) / time.Millisecond),
 				}
 				MessageBox <- &message
 			}()

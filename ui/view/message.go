@@ -279,24 +279,43 @@ func (i *InteractiveSpan) Layout(gtx layout.Context) layout.Dimensions {
 
 type Message struct {
 	State
-	Editor             *ui.Editor
-	*material.Theme    `json:"-"`
-	InteractiveSpan    `json:"-"`
-	copyButton         widget.Clickable
-	downloadButton     widget.Clickable
+	*material.Theme `json:"-"`
+	InteractiveSpan `json:"-"`
+	MediaControl    `json:"-"`
+	FileControl     `json:"-"`
+	TextControl     `json:"-"`
+	Filename        string
+	Size            int
+	Type            MessageType
+	UUID            string
+	Text            string
+	Sender          string
+	CreatedAt       time.Time
+}
+
+type TextControl struct {
+	Editor     *ui.Editor
+	copyButton widget.Clickable
+}
+
+func NewTextControl(text string) TextControl {
+	ed := ui.Editor{ReadOnly: true}
+	ed.SetText(text)
+	return TextControl{Editor: &ed}
+}
+
+type FileControl struct {
+	downloadButton widget.Clickable
+	imageBroken    bool
+}
+
+type MediaControl struct {
+	audio.StreamConfig `json:"-"`
 	playButton         widget.Clickable
 	pauseButton        widget.Clickable
-	audio.StreamConfig `json:"-"`
-	playing            bool
-	Filename           string
-	Size               int
-	Type               MessageType
-	UUID               string
-	Text               string
-	Sender             string
-	CreatedAt          time.Time
-	imageBroken        bool
 	cancel             context.CancelFunc
+	playing            bool
+	startAt            time.Time
 }
 
 type MessageEditor struct {
@@ -370,8 +389,8 @@ func (m *Message) SendTo(messageAppender *MessageKeeper) {
 }
 
 func (m *Message) drawMessage(gtx layout.Context) layout.Dimensions {
-	m.processTextCopy(gtx)
-	m.processFileSave(gtx)
+	m.processTextCopy(gtx, m.Text)
+	m.processFileSave(gtx, m.FilePath())
 	m.getFocusIfClickedToEnableFocusLostEvent(gtx)
 	flex := layout.Flex{Axis: layout.Vertical, Alignment: layout.Start}
 	if m.isMe() {
@@ -416,9 +435,8 @@ func (m *Message) operationNeeded() bool {
 	return m.Type != Voice && (m.longPressed || m.Editor != nil && m.Editor.SelectionLen() > 0)
 }
 
-func (m *Message) processTextCopy(gtx layout.Context) {
+func (m *TextControl) processTextCopy(gtx layout.Context, textForCopy string) {
 	if m.copyButton.Clicked(gtx) {
-		textForCopy := m.Text
 		if m.Editor != nil && m.Editor.SelectionLen() > 0 {
 			textForCopy = m.Editor.SelectedText()
 		}
@@ -429,42 +447,40 @@ func (m *Message) processTextCopy(gtx layout.Context) {
 	}
 }
 
-func (m *Message) processFileSave(gtx layout.Context) {
+func (m *FileControl) processFileSave(gtx layout.Context, filePath string) {
 	if !m.downloadButton.Clicked(gtx) {
 		return
 	}
 	go func() {
-		if m.Filename == "" {
+		if filePath == "" {
 			return
 		}
-		file, err := DefaultPicker.CreateFile(filepath.Base(m.Filename))
+		w, err := DefaultPicker.CreateFile(filepath.Base(filePath))
 		if err != nil {
-			log.Printf("Error creating file for %s: %s", m.Filename, err)
+			log.Printf("Couldn't create file for %s: %s", filePath, err)
 			return
 		}
-		defer file.Close()
-		switch m.Type {
-		case Image:
-			img, err := m.loadImage()
-			if err != nil || img == nil || img == &assets.AppIconImage {
-				return
-			}
-			err = core.EncodeImg(file, m.Filename, *img)
-			if err != nil {
-				log.Printf("encode file failed, %v", err)
-			} else {
-				log.Printf("%s saved", m.Filename)
-			}
-		case GIF:
-			gifImg, err := m.loadGif()
-			if err != nil || gifImg == nil || gifImg == &EmptyGif {
-				return
-			}
-			core.EncodeGif(file, m.Filename, gifImg.GIF)
-		default:
+		defer w.Close()
+		r, err := os.Open(filePath)
+		if err != nil {
+			log.Printf("Couldn't open file for %s: %s", filePath, err)
+			return
+		}
+		defer r.Close()
+		_, err = io.Copy(w, r)
+		if err != nil {
+			log.Printf("Couldn't save file for %s: %s", filePath, err)
 			return
 		}
 	}()
+}
+
+func (m *Message) FilePath() string {
+	var filePath = m.Filename
+	if !m.isMe() {
+		filePath = core.GetFilePath(m.Sender, m.Filename)
+	}
+	return filePath
 }
 
 func (m *Message) drawOperation(gtx layout.Context) layout.Dimensions {
@@ -534,30 +550,29 @@ func (m *Message) drawVoice(gtx layout.Context) layout.Dimensions {
 	gtx.Constraints.Min.X = int(float32(gtx.Constraints.Max.X) * 0.618)
 	gtx.Constraints.Min.Y = int(v * 0.382)
 	macro := op.Record(gtx.Ops)
-	d := layout.Flex{Spacing: layout.SpaceAround, Alignment: layout.Middle}.Layout(gtx,
+	d := m.drawAudioControl(gtx, m.Filename, v, m.ContrastBg)
+	layout.Stack{Alignment: layout.E}.Layout(gtx,
+		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+			left := m.getLeftDuration()
+			label := material.Label(m.Theme, m.Theme.TextSize*0.70, fmt.Sprintf("%.1fs", left.Seconds()))
+			label.Font.Weight = font.Bold
+			label.Color = m.Theme.ContrastFg
+			return layout.UniformInset(unit.Dp(8)).Layout(gtx, label.Layout)
+		}))
+	call := macro.Stop()
+	m.drawBorder(gtx, d, call)
+	return d
+}
+
+func (m *MediaControl) drawAudioControl(gtx layout.Context, filename string, size float32, fgColor color.NRGBA) layout.Dimensions {
+	return layout.Flex{Spacing: layout.SpaceAround, Alignment: layout.Middle}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			btn := &m.playButton
 			icon := playIcon
 			if m.playButton.Clicked(gtx) {
 				m.playing = true
-				go func() {
-					file, err := os.Open(m.Filename)
-					if err != nil {
-						log.Printf("open file failed, %v", err)
-						return
-					}
-					pcm, err := ogg.Decode(file)
-					if err != nil {
-						log.Printf("decode file failed, %v", err)
-					}
-					reader := bytes.NewReader(pcm)
-					var ctx context.Context
-					ctx, m.cancel = context.WithCancel(context.Background())
-					if err := audio.Playback(ctx, reader, m.StreamConfig); err != nil && !errors.Is(err, io.EOF) {
-						log.Printf("audio playback: %w", err)
-					}
-					m.playing = false
-				}()
+				m.startAt = time.Now()
+				m.playAudioAsync(filename)
 			}
 			if m.pauseButton.Clicked(gtx) {
 				m.playing = false
@@ -568,36 +583,54 @@ func (m *Message) drawVoice(gtx layout.Context) layout.Dimensions {
 				icon = pauseIcon
 			}
 			return btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				gtx.Constraints.Min.X = int(v * 0.382)
-				return icon.Layout(gtx, m.ContrastBg)
+				gtx.Constraints.Min.X = int(size * 0.382)
+				return icon.Layout(gtx, fgColor)
 			})
 		}),
 	)
-	layout.Stack{Alignment: layout.E}.Layout(gtx,
-		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-			label := material.Label(m.Theme, m.Theme.TextSize*0.70, fmt.Sprintf("%vs", m.Size/1000))
-			return layout.UniformInset(unit.Dp(8)).Layout(gtx, label.Layout)
-		}))
-	call := macro.Stop()
-	m.drawBorder(gtx, d, call)
-	return d
+}
+
+func (m *Message) getLeftDuration() time.Duration {
+	size := time.Duration(m.Size) * time.Millisecond
+	if !m.playing {
+		return size
+	}
+	elapsed := time.Since(m.startAt)
+	left := size - elapsed
+	if left < 0 {
+		return 0
+	}
+	return left
+}
+
+func (m *MediaControl) playAudioAsync(filename string) {
+	go func() {
+		file, err := os.Open(filename)
+		if err != nil {
+			log.Printf("open file failed, %v", err)
+			return
+		}
+		pcm, err := ogg.Decode(file)
+		if err != nil {
+			log.Printf("decode file failed, %v", err)
+		}
+		reader := bytes.NewReader(pcm)
+		var ctx context.Context
+		ctx, m.cancel = context.WithCancel(context.Background())
+		if err := audio.Playback(ctx, reader, m.StreamConfig); err != nil && !errors.Is(err, io.EOF) {
+			log.Printf("audio playback: %w", err)
+		}
+		m.playing = false
+	}()
 }
 
 func (m *Message) loadGif() (*Gif, error) {
-	var filePath = m.Filename
-	if !m.isMe() {
-		filePath = core.GetFilePath(m.Sender, m.Filename)
-	}
-	gif, err := LoadGif(filePath, false)
+	gif, err := LoadGif(m.FilePath(), false)
 	return gif, err
 }
 
 func (m *Message) loadImage() (*image.Image, error) {
-	var filePath = m.Filename
-	if !m.isMe() {
-		filePath = core.GetFilePath(m.Sender, m.Filename)
-	}
-	img, err := LoadImage(filePath, false)
+	img, err := LoadImage(m.FilePath(), false)
 	return img, err
 }
 
