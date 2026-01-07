@@ -7,6 +7,7 @@ import (
 	"image"
 	"log"
 	"os"
+	"path/filepath"
 	"rtc/assets/fonts"
 	"rtc/core"
 	"rtc/internal/audio"
@@ -60,7 +61,7 @@ func (v *VoiceRecorder) Layout(gtx layout.Context) layout.Dimensions {
 				paint.Fill(gtx.Ops, bgColor)
 				layout.Stack{Alignment: layout.Center}.Layout(gtx,
 					layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-						gtx.Constraints.Min.X = gtx.Constraints.Max.Y
+						gtx.Constraints.Min.X = int(float32(gtx.Constraints.Max.Y) * 0.85)
 						return voiceMessageIcon.Layout(gtx, fonts.DefaultTheme.ContrastFg)
 					}),
 				)
@@ -95,13 +96,13 @@ func (v *VoiceRecorder) encodeAndSendAsync() {
 			State: Stateless,
 			Theme: fonts.DefaultTheme,
 			UUID:  core.DefaultClient.FullID(),
-			Type:  Voice, Filename: filePath,
+			Type:  Voice, Filename: filepath.Base(filePath),
 			Sender:       core.DefaultClient.FullID(),
 			CreatedAt:    time.Now(),
 			MediaControl: MediaControl{StreamConfig: v.StreamConfig, Duration: duration},
 		}
 		MessageBox <- &message
-		err = core.DefaultClient.SendVoice(filePath, duration)
+		err = core.DefaultClient.SendVoice(filepath.Base(filePath), duration)
 		if err != nil {
 			log.Printf("Send voice %s failed, %s", filePath, err)
 		} else {

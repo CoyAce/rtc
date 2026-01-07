@@ -37,7 +37,7 @@ func ChooseAndSendPhoto(gtx layout.Context) {
 			}()
 		}
 		message := &Message{State: Stateless, Theme: fonts.DefaultTheme,
-			UUID: core.DefaultClient.FullID(), Type: Image, Filename: absolutePath,
+			UUID: core.DefaultClient.FullID(), Type: Image, Filename: filename,
 			Sender: core.DefaultClient.FullID(), CreatedAt: time.Now()}
 		isGif := filepath.Ext(filename) == ".gif"
 		if isGif {

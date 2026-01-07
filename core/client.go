@@ -155,7 +155,7 @@ func (c *Client) sendGif(GIF *gif.GIF, code OpCode, filename string) error {
 }
 
 func (c *Client) SendVoice(filename string, duration uint64) error {
-	r, err := os.Open(filename)
+	r, err := os.Open(GetDataPath(filename))
 	if err != nil {
 		return err
 	}

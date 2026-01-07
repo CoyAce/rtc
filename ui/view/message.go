@@ -273,7 +273,7 @@ type MediaControl struct {
 	startAt            time.Time
 }
 
-func (m *MediaControl) Layout(gtx layout.Context, filename string, fgColor color.NRGBA) layout.Dimensions {
+func (m *MediaControl) Layout(gtx layout.Context, filePath string, fgColor color.NRGBA) layout.Dimensions {
 	return layout.Flex{Spacing: layout.SpaceAround, Alignment: layout.Middle}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			btn := &m.playButton
@@ -281,11 +281,13 @@ func (m *MediaControl) Layout(gtx layout.Context, filename string, fgColor color
 			if m.playButton.Clicked(gtx) {
 				m.playing = true
 				m.startAt = time.Now()
-				m.playAudioAsync(filename)
+				m.playAudioAsync(filePath)
 			}
 			if m.pauseButton.Clicked(gtx) {
 				m.playing = false
-				m.cancel()
+				if m.cancel != nil {
+					m.cancel()
+				}
 			}
 			if m.playing {
 				btn = &m.pauseButton
@@ -312,9 +314,9 @@ func (m *MediaControl) getLeftDuration() time.Duration {
 	return left
 }
 
-func (m *MediaControl) playAudioAsync(filename string) {
+func (m *MediaControl) playAudioAsync(filePath string) {
 	go func() {
-		file, err := os.Open(filename)
+		file, err := os.Open(filePath)
 		if err != nil {
 			log.Printf("open file failed, %v", err)
 			return
@@ -432,11 +434,10 @@ func (m *Message) operationNeeded() bool {
 }
 
 func (m *Message) FilePath() string {
-	var filePath = m.Filename
 	if !m.isMe() {
-		filePath = core.GetPath(m.Sender, m.Filename)
+		return core.GetPath(m.Sender, m.Filename)
 	}
-	return filePath
+	return core.GetPath(m.UUID, m.Filename)
 }
 
 func (m *Message) drawOperation(gtx layout.Context) layout.Dimensions {
@@ -506,7 +507,7 @@ func (m *Message) drawVoice(gtx layout.Context) layout.Dimensions {
 	gtx.Constraints.Min.X = int(float32(gtx.Constraints.Max.X) * 0.618)
 	gtx.Constraints.Min.Y = int(v * 0.382)
 	macro := op.Record(gtx.Ops)
-	d := m.MediaControl.Layout(gtx, m.Filename, m.ContrastBg)
+	d := m.MediaControl.Layout(gtx, m.FilePath(), m.ContrastBg)
 	layout.Stack{Alignment: layout.E}.Layout(gtx,
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 			left := m.getLeftDuration()
