@@ -61,26 +61,16 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 				}
 				v.Image = img
 				v.AvatarType = IMG
-				avatar := AvatarCache[core.DefaultClient.FullID()]
-				if avatar != nil {
-					avatar.Image = img
-					avatar.AvatarType = IMG
-				} else {
-					avatar = &Avatar{UUID: core.DefaultClient.FullID(), AvatarType: IMG, Image: img}
-					AvatarCache[core.DefaultClient.FullID()] = avatar
-				}
+				avatar := AvatarCache.LoadOrElseNew(core.DefaultClient.FullID())
+				avatar.Image = img
+				avatar.AvatarType = IMG
 			}
 			if gifImg != nil {
 				v.Gif = &Gif{GIF: gifImg}
 				v.AvatarType = GIF_IMG
-				avatar := AvatarCache[core.DefaultClient.FullID()]
-				if avatar != nil {
-					avatar.Gif = v.Gif
-					avatar.AvatarType = GIF_IMG
-				} else {
-					avatar = &Avatar{UUID: core.DefaultClient.FullID(), AvatarType: GIF_IMG, Gif: v.Gif}
-					AvatarCache[core.DefaultClient.FullID()] = avatar
-				}
+				avatar := AvatarCache.LoadOrElseNew(core.DefaultClient.FullID())
+				avatar.Gif = v.Gif
+				avatar.AvatarType = GIF_IMG
 			}
 
 			// save to file
@@ -192,4 +182,27 @@ func resizeImage(src image.Image, newWidth, newHeight int) image.Image {
 	return dst
 }
 
-var AvatarCache = make(map[string]*Avatar)
+type avatarCache struct {
+	cache map[string]*Avatar
+}
+
+func newAvatarCache() *avatarCache {
+	c := &avatarCache{}
+	c.cache = make(map[string]*Avatar)
+	return c
+}
+
+func (c *avatarCache) Add(uuid string, avatar *Avatar) {
+	c.cache[uuid] = avatar
+}
+
+func (c *avatarCache) LoadOrElseNew(uuid string) *Avatar {
+	avatar := c.cache[uuid]
+	if avatar == nil {
+		avatar = &Avatar{UUID: uuid}
+		c.cache[uuid] = avatar
+	}
+	return avatar
+}
+
+var AvatarCache = newAvatarCache()

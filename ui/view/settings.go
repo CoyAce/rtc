@@ -79,10 +79,8 @@ func NewSettingsForm(onSuccess func(gtx layout.Context)) *SettingsForm {
 }
 
 func copyOldCacheEntryToNewCache(oldUUID string, newUUID string) {
-	avatar := AvatarCache[oldUUID]
-	if avatar != nil {
-		AvatarCache[newUUID] = avatar
-	}
+	avatar := AvatarCache.LoadOrElseNew(oldUUID)
+	AvatarCache.Add(newUUID, avatar)
 }
 
 func renameOldPathToNewPath(oldUUID string, newUUID string) {

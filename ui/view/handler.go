@@ -15,8 +15,8 @@ var OnSettingsSubmit = func(gtx layout.Context) {
 	modal.DefaultModal.Dismiss(nil)
 }
 var SyncCachedIcon = func() {
-	avatar := AvatarCache[core.DefaultClient.FullID()]
-	if avatar == nil || (avatar.Image == nil && avatar.GIF == nil) {
+	avatar := AvatarCache.LoadOrElseNew(core.DefaultClient.FullID())
+	if avatar.Image == nil && avatar.GIF == nil {
 		log.Printf("avatar not found in cache")
 		return
 	}

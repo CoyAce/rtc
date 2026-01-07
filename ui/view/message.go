@@ -371,11 +371,7 @@ func (m *Message) Layout(gtx layout.Context) (d layout.Dimensions) {
 }
 
 func (m *Message) drawAvatar(gtx layout.Context, uuid string) layout.Dimensions {
-	avatar := AvatarCache[uuid]
-	if avatar == nil {
-		avatar = &Avatar{UUID: uuid}
-		AvatarCache[uuid] = avatar
-	}
+	avatar := AvatarCache.LoadOrElseNew(uuid)
 	return avatar.Layout(gtx)
 }
 

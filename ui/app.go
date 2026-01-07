@@ -75,13 +75,11 @@ func Draw(window *app.Window, c *core.Client) error {
 			case m := <-c.FileMessages:
 				switch m.Code {
 				case core.OpSyncIcon:
-					if view.AvatarCache[m.UUID] == nil {
-						view.AvatarCache[m.UUID] = &view.Avatar{UUID: m.UUID}
-					}
+					avatar := view.AvatarCache.LoadOrElseNew(m.UUID)
 					if filepath.Ext(m.Filename) == ".gif" {
-						view.AvatarCache[m.UUID].Reload(view.GIF_IMG)
+						avatar.Reload(view.GIF_IMG)
 					} else {
-						view.AvatarCache[m.UUID].Reload(view.IMG)
+						avatar.Reload(view.IMG)
 					}
 					continue
 				case core.OpSendImage:
