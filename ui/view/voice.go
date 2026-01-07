@@ -59,7 +59,7 @@ func (v *VoiceRecorder) Layout(gtx layout.Context) layout.Dimensions {
 			go func() {
 				timeNow := time.Now().Local().Format("20060104150405")
 				filePath := core.GetDataPath(timeNow + ".opus")
-				log.Printf("audio filePath: %s", filePath)
+				log.Printf("audio filePath %s", filePath)
 				w, err := os.Create(filePath)
 				defer w.Close()
 				if err != nil {
@@ -73,6 +73,7 @@ func (v *VoiceRecorder) Layout(gtx layout.Context) layout.Dimensions {
 					log.Printf("encode file %s failed, %s", filePath, err)
 				}
 				v.buf = nil
+				duration := uint64(ogg.GetDuration(samples/2/ogg.Channels) / time.Millisecond)
 				message := Message{
 					State: Stateless,
 					Theme: fonts.DefaultTheme,
@@ -80,8 +81,7 @@ func (v *VoiceRecorder) Layout(gtx layout.Context) layout.Dimensions {
 					Type:  Voice, Filename: filePath,
 					Sender:       core.DefaultClient.FullID(),
 					CreatedAt:    time.Now(),
-					MediaControl: MediaControl{StreamConfig: v.StreamConfig},
-					Size:         int(ogg.GetDuration(samples/2/ogg.Channels) / time.Millisecond),
+					MediaControl: MediaControl{StreamConfig: v.StreamConfig, Duration: duration},
 				}
 				MessageBox <- &message
 			}()

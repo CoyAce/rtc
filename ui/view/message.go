@@ -1,10 +1,8 @@
 package view
 
 import (
-	"bufio"
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"image"
@@ -15,17 +13,13 @@ import (
 	"os"
 	"path/filepath"
 	"rtc/assets"
-	"rtc/assets/fonts"
 	"rtc/core"
 	"rtc/internal/audio"
-	ui "rtc/ui/layout"
-	text "rtc/ui/layout/component"
+	app "rtc/ui/layout"
 	mt "rtc/ui/layout/material"
 	"strings"
-	"sync"
 	"time"
 
-	"gioui.org/f32"
 	"gioui.org/font"
 	"gioui.org/gesture"
 	"gioui.org/io/clipboard"
@@ -43,99 +37,6 @@ import (
 	"github.com/CoyAce/opus/ogg"
 	"golang.org/x/exp/shiny/materialdesign/colornames"
 )
-
-type MessageList struct {
-	ui.List
-	*material.Theme
-	widget.Clickable
-	Messages []*Message
-}
-
-type MessageKeeper struct {
-	MessageChannel chan *Message
-	audio.StreamConfig
-	buffer []*Message
-	ready  chan struct{}
-	lock   sync.Mutex
-}
-
-func (k *MessageKeeper) Loop() {
-	k.ready = make(chan struct{}, 1)
-	flushFreq := 5 * time.Minute
-	timer := time.NewTimer(flushFreq)
-	for {
-		timer.Reset(flushFreq)
-		select {
-		case msg := <-k.MessageChannel:
-			k.lock.Lock()
-			k.buffer = append(k.buffer, msg)
-			k.lock.Unlock()
-		case <-timer.C:
-			k.ready <- struct{}{}
-		case <-k.ready:
-			if len(k.buffer) == 0 {
-				continue
-			}
-			k.Append()
-		}
-	}
-}
-
-func (k *MessageKeeper) Append() {
-	filePath := core.GetDataPath("message.log")
-	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		log.Printf("Couldn't open file: %v", err)
-	}
-	defer file.Close()
-	k.lock.Lock()
-	defer k.lock.Unlock()
-	for _, msg := range k.buffer {
-		k.writeJson(file, msg)
-	}
-	k.buffer = k.buffer[:0]
-}
-
-func (k *MessageKeeper) writeJson(file *os.File, msg *Message) {
-	s, err := json.Marshal(msg)
-	if err != nil {
-		log.Printf("Couldn't marshall message: %v", err)
-		return
-	}
-	_, err = file.WriteString(string(s) + "\n")
-	if err != nil {
-		log.Printf("Couldn't write to file: %v", err)
-	}
-}
-
-func (k *MessageKeeper) Messages() []*Message {
-	filePath := core.GetDataPath("message.log")
-	f, err := os.Open(filePath)
-	if err != nil {
-		log.Printf("Couldn't open file: %v", err)
-		return []*Message{}
-	}
-	ret := make([]*Message, 0, 32)
-	s := bufio.NewScanner(f)
-	for s.Scan() {
-		var msg Message
-		line := s.Bytes()
-		err = json.Unmarshal(line, &msg)
-		if err != nil {
-			log.Printf("Couldn't unmarshall message: %v", err)
-		}
-		msg.TextControl = NewTextControl(msg.Text)
-		msg.Theme = fonts.DefaultTheme
-		if msg.State == Stateless {
-			msg.State = Failed
-		}
-		if msg.Type == Voice {
-			msg.StreamConfig = k.StreamConfig
-		}
-		ret = append(ret, &msg)
-	}
-	return ret
-}
 
 type State uint16
 
@@ -282,13 +183,13 @@ func (i *InteractiveSpan) Layout(gtx layout.Context) layout.Dimensions {
 
 type Message struct {
 	State
+	MediaControl
 	*material.Theme `json:"-"`
 	InteractiveSpan `json:"-"`
-	MediaControl    `json:"-"`
 	FileControl     `json:"-"`
 	TextControl     `json:"-"`
 	Filename        string
-	Size            int
+	Size            uint64
 	Type            MessageType
 	UUID            string
 	Text            string
@@ -297,12 +198,24 @@ type Message struct {
 }
 
 type TextControl struct {
-	Editor     *ui.Editor
+	Editor     *app.Editor
 	copyButton widget.Clickable
 }
 
+func (m *TextControl) processTextCopy(gtx layout.Context, textForCopy string) {
+	if m.copyButton.Clicked(gtx) {
+		if m.Editor != nil && m.Editor.SelectionLen() > 0 {
+			textForCopy = m.Editor.SelectedText()
+		}
+		gtx.Execute(clipboard.WriteCmd{Type: "application/text", Data: io.NopCloser(strings.NewReader(textForCopy))})
+	}
+	if m.Editor != nil && !gtx.Focused(m.Editor) {
+		m.Editor.ClearSelection()
+	}
+}
+
 func NewTextControl(text string) TextControl {
-	ed := ui.Editor{ReadOnly: true}
+	ed := app.Editor{ReadOnly: true}
 	ed.SetText(text)
 	return TextControl{Editor: &ed}
 }
@@ -312,8 +225,47 @@ type FileControl struct {
 	imageBroken    bool
 }
 
+func (m *FileControl) processFileSave(gtx layout.Context, filePath string) {
+	if !m.downloadButton.Clicked(gtx) {
+		return
+	}
+	go func() {
+		if filePath == "" {
+			return
+		}
+		w, err := DefaultPicker.CreateFile(filepath.Base(filePath))
+		if err != nil {
+			log.Printf("Couldn't create file for %s: %s", filePath, err)
+			return
+		}
+		defer w.Close()
+		r, err := os.Open(filePath)
+		if err != nil {
+			log.Printf("Couldn't open file for %s: %s", filePath, err)
+			return
+		}
+		defer r.Close()
+		_, err = io.Copy(w, r)
+		if err != nil {
+			log.Printf("Couldn't save file for %s: %s", filePath, err)
+			return
+		}
+	}()
+}
+
+func (m *FileControl) loadGif(filepath string) (*Gif, error) {
+	gif, err := LoadGif(filepath, false)
+	return gif, err
+}
+
+func (m *FileControl) loadImage(filepath string) (*image.Image, error) {
+	img, err := LoadImage(filepath, false)
+	return img, err
+}
+
 type MediaControl struct {
 	audio.StreamConfig `json:"-"`
+	Duration           uint64
 	playButton         widget.Clickable
 	pauseButton        widget.Clickable
 	cancel             context.CancelFunc
@@ -321,19 +273,64 @@ type MediaControl struct {
 	startAt            time.Time
 }
 
-type MessageEditor struct {
-	*material.Theme
-	InteractiveSpan
-	InputField   *text.TextField
-	submitButton widget.Clickable
-	EditorOperator
-	ExpandButton
+func (m *MediaControl) Layout(gtx layout.Context, filename string, fgColor color.NRGBA) layout.Dimensions {
+	return layout.Flex{Spacing: layout.SpaceAround, Alignment: layout.Middle}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			btn := &m.playButton
+			icon := playIcon
+			if m.playButton.Clicked(gtx) {
+				m.playing = true
+				m.startAt = time.Now()
+				m.playAudioAsync(filename)
+			}
+			if m.pauseButton.Clicked(gtx) {
+				m.playing = false
+				m.cancel()
+			}
+			if m.playing {
+				btn = &m.pauseButton
+				icon = pauseIcon
+			}
+			return btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				gtx.Constraints.Min.X = gtx.Constraints.Min.Y
+				return icon.Layout(gtx, fgColor)
+			})
+		}),
+	)
 }
 
-type EditorOperator struct {
-	cutButton   widget.Clickable
-	copyButton  widget.Clickable
-	pasteButton widget.Clickable
+func (m *MediaControl) getLeftDuration() time.Duration {
+	size := time.Duration(m.Duration) * time.Millisecond
+	if !m.playing {
+		return size
+	}
+	elapsed := time.Since(m.startAt)
+	left := size - elapsed
+	if left < 0 {
+		return 0
+	}
+	return left
+}
+
+func (m *MediaControl) playAudioAsync(filename string) {
+	go func() {
+		file, err := os.Open(filename)
+		if err != nil {
+			log.Printf("open file failed, %v", err)
+			return
+		}
+		pcm, err := ogg.Decode(file)
+		if err != nil {
+			log.Printf("decode file failed, %v", err)
+		}
+		reader := bytes.NewReader(pcm)
+		var ctx context.Context
+		ctx, m.cancel = context.WithCancel(context.Background())
+		if err := audio.Playback(ctx, reader, m.StreamConfig); err != nil && !errors.Is(err, io.EOF) {
+			log.Printf("audio playback: %w", err)
+		}
+		m.playing = false
+	}()
 }
 
 func (m *Message) Layout(gtx layout.Context) (d layout.Dimensions) {
@@ -398,27 +395,7 @@ func (m *Message) drawMessage(gtx layout.Context) layout.Dimensions {
 	return flex.Layout(gtx,
 		layout.Rigid(m.drawName),
 		// state and message
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			flex := layout.Flex{Spacing: layout.SpaceEnd, Alignment: layout.Middle}
-			contents := []layout.FlexChild{
-				layout.Rigid(layout.Spacer{Width: unit.Dp(4)}.Layout),
-				layout.Rigid(m.drawContent),
-				layout.Rigid(layout.Spacer{Width: unit.Dp(4)}.Layout),
-			}
-			stateOrOperationBar := layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				if m.operationNeeded() {
-					return m.drawOperation(gtx)
-				}
-				return m.drawState(gtx)
-			})
-			if m.isMe() {
-				contents = append([]layout.FlexChild{stateOrOperationBar}, contents...)
-				flex.Spacing = layout.SpaceStart
-			} else {
-				contents = append(contents, stateOrOperationBar)
-			}
-			return flex.Layout(gtx, contents...)
-		}),
+		layout.Rigid(m.drawStateAndContent),
 	)
 }
 
@@ -428,48 +405,30 @@ func (m *Message) getFocusIfClickedToEnableFocusLostEvent(gtx layout.Context) {
 	}
 }
 
+func (m *Message) drawStateAndContent(gtx layout.Context) layout.Dimensions {
+	flex := layout.Flex{Spacing: layout.SpaceEnd, Alignment: layout.Middle}
+	contents := []layout.FlexChild{
+		layout.Rigid(layout.Spacer{Width: unit.Dp(4)}.Layout),
+		layout.Rigid(m.drawContent),
+		layout.Rigid(layout.Spacer{Width: unit.Dp(4)}.Layout),
+	}
+	stateOrOperationBar := layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		if m.operationNeeded() {
+			return m.drawOperation(gtx)
+		}
+		return m.drawState(gtx)
+	})
+	if m.isMe() {
+		contents = append([]layout.FlexChild{stateOrOperationBar}, contents...)
+		flex.Spacing = layout.SpaceStart
+	} else {
+		contents = append(contents, stateOrOperationBar)
+	}
+	return flex.Layout(gtx, contents...)
+}
+
 func (m *Message) operationNeeded() bool {
-	return m.Type != Voice && (m.longPressed || m.Editor != nil && m.Editor.SelectionLen() > 0)
-}
-
-func (m *TextControl) processTextCopy(gtx layout.Context, textForCopy string) {
-	if m.copyButton.Clicked(gtx) {
-		if m.Editor != nil && m.Editor.SelectionLen() > 0 {
-			textForCopy = m.Editor.SelectedText()
-		}
-		gtx.Execute(clipboard.WriteCmd{Type: "application/text", Data: io.NopCloser(strings.NewReader(textForCopy))})
-	}
-	if m.Editor != nil && !gtx.Focused(m.Editor) {
-		m.Editor.ClearSelection()
-	}
-}
-
-func (m *FileControl) processFileSave(gtx layout.Context, filePath string) {
-	if !m.downloadButton.Clicked(gtx) {
-		return
-	}
-	go func() {
-		if filePath == "" {
-			return
-		}
-		w, err := DefaultPicker.CreateFile(filepath.Base(filePath))
-		if err != nil {
-			log.Printf("Couldn't create file for %s: %s", filePath, err)
-			return
-		}
-		defer w.Close()
-		r, err := os.Open(filePath)
-		if err != nil {
-			log.Printf("Couldn't open file for %s: %s", filePath, err)
-			return
-		}
-		defer r.Close()
-		_, err = io.Copy(w, r)
-		if err != nil {
-			log.Printf("Couldn't save file for %s: %s", filePath, err)
-			return
-		}
-	}()
+	return m.longPressed || m.Editor != nil && m.Editor.SelectionLen() > 0
 }
 
 func (m *Message) FilePath() string {
@@ -489,7 +448,7 @@ func (m *Message) drawOperation(gtx layout.Context) layout.Dimensions {
 		return m.copyButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return contentCopyIcon.Layout(gtx, m.ContrastBg)
 		})
-	case Image:
+	case Image, Voice:
 		fallthrough
 	case GIF:
 		return m.downloadButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -519,7 +478,7 @@ func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
 		if m.Filename == "" {
 			return layout.Dimensions{}
 		}
-		img, err := m.loadImage()
+		img, err := m.loadImage(m.FilePath())
 		if err != nil || img == nil || img == &assets.AppIconImage {
 			return m.drawBrokenImage(gtx)
 		}
@@ -528,7 +487,7 @@ func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
 		if m.Filename == "" {
 			return layout.Dimensions{}
 		}
-		gifImg, err := m.loadGif()
+		gifImg, err := m.loadGif(m.FilePath())
 		if err != nil || gifImg == nil || gifImg == &EmptyGif {
 			return m.drawBrokenImage(gtx)
 		}
@@ -547,88 +506,18 @@ func (m *Message) drawVoice(gtx layout.Context) layout.Dimensions {
 	gtx.Constraints.Min.X = int(float32(gtx.Constraints.Max.X) * 0.618)
 	gtx.Constraints.Min.Y = int(v * 0.382)
 	macro := op.Record(gtx.Ops)
-	d := m.drawAudioControl(gtx, m.Filename, v, m.ContrastBg)
+	d := m.MediaControl.Layout(gtx, m.Filename, m.ContrastBg)
 	layout.Stack{Alignment: layout.E}.Layout(gtx,
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 			left := m.getLeftDuration()
-			label := material.Label(m.Theme, m.Theme.TextSize*0.70, fmt.Sprintf("%.1fs", left.Seconds()))
+			label := material.Label(m.Theme, m.TextSize*0.70, fmt.Sprintf("%.1fs", left.Seconds()))
 			label.Font.Weight = font.Bold
-			label.Color = m.Theme.ContrastFg
+			label.Color = m.ContrastFg
 			return layout.UniformInset(unit.Dp(8)).Layout(gtx, label.Layout)
 		}))
 	call := macro.Stop()
 	m.drawBorder(gtx, d, call)
 	return d
-}
-
-func (m *MediaControl) drawAudioControl(gtx layout.Context, filename string, size float32, fgColor color.NRGBA) layout.Dimensions {
-	return layout.Flex{Spacing: layout.SpaceAround, Alignment: layout.Middle}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			btn := &m.playButton
-			icon := playIcon
-			if m.playButton.Clicked(gtx) {
-				m.playing = true
-				m.startAt = time.Now()
-				m.playAudioAsync(filename)
-			}
-			if m.pauseButton.Clicked(gtx) {
-				m.playing = false
-				m.cancel()
-			}
-			if m.playing {
-				btn = &m.pauseButton
-				icon = pauseIcon
-			}
-			return btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				gtx.Constraints.Min.X = int(size * 0.382)
-				return icon.Layout(gtx, fgColor)
-			})
-		}),
-	)
-}
-
-func (m *Message) getLeftDuration() time.Duration {
-	size := time.Duration(m.Size) * time.Millisecond
-	if !m.playing {
-		return size
-	}
-	elapsed := time.Since(m.startAt)
-	left := size - elapsed
-	if left < 0 {
-		return 0
-	}
-	return left
-}
-
-func (m *MediaControl) playAudioAsync(filename string) {
-	go func() {
-		file, err := os.Open(filename)
-		if err != nil {
-			log.Printf("open file failed, %v", err)
-			return
-		}
-		pcm, err := ogg.Decode(file)
-		if err != nil {
-			log.Printf("decode file failed, %v", err)
-		}
-		reader := bytes.NewReader(pcm)
-		var ctx context.Context
-		ctx, m.cancel = context.WithCancel(context.Background())
-		if err := audio.Playback(ctx, reader, m.StreamConfig); err != nil && !errors.Is(err, io.EOF) {
-			log.Printf("audio playback: %w", err)
-		}
-		m.playing = false
-	}()
-}
-
-func (m *Message) loadGif() (*Gif, error) {
-	gif, err := LoadGif(m.FilePath(), false)
-	return gif, err
-}
-
-func (m *Message) loadImage() (*image.Image, error) {
-	img, err := LoadImage(m.FilePath(), false)
-	return img, err
 }
 
 func (m *Message) drawGif(gtx layout.Context, gif *Gif) layout.Dimensions {
@@ -740,223 +629,6 @@ func (m *Message) drawName(gtx layout.Context) layout.Dimensions {
 				return label.Layout(gtx)
 			}))
 	})
-}
-
-func (l *MessageList) Layout(gtx layout.Context) layout.Dimensions {
-	l.getFocusAndResetIconStackIfClicked(gtx)
-	// We visualize the text using a list where each paragraph is a separate item.
-	dimensions := l.Clickable.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return l.List.Layout(gtx, len(l.Messages), func(gtx layout.Context, index int) layout.Dimensions {
-			return l.Messages[index].Layout(gtx)
-		})
-	})
-	l.scrollToEndIfFirstAndLastItemVisible()
-	return dimensions
-}
-
-func (l *MessageList) scrollToEndIfFirstAndLastItemVisible() {
-	// at end of list
-	if !l.Position.BeforeEnd {
-		// if at end and first item visible, scroll to end
-		// or else, enable scroll by unset ScrollToEnd
-		l.ScrollToEnd = l.Position.First == 0
-		l.Position.BeforeEnd = true
-		// received new message, not displayed
-		if l.Position.First+l.Position.Count < len(l.Messages) {
-			l.ScrollToEnd = true
-		}
-	}
-}
-
-func (l *MessageList) getFocusAndResetIconStackIfClicked(gtx layout.Context) {
-	if l.Clicked(gtx) {
-		gtx.Execute(key.FocusCmd{Tag: &l.Clickable})
-		iconStackAnimation.Disappear(gtx.Now)
-	}
-}
-
-func (e *MessageEditor) Layout(gtx layout.Context) layout.Dimensions {
-	e.processTextCut(gtx)
-	e.processTextCopy(gtx)
-	e.processTextPaste(gtx)
-	if e.operationBarNeeded(gtx) {
-		e.EditorOperator.Layout(gtx)
-	}
-	if !gtx.Focused(&e.InputField.Editor) {
-		e.hideOperationBar()
-	}
-	defer clip.Rect(image.Rectangle{Max: gtx.Constraints.Max}).Push(gtx.Ops).Pop()
-	defer pointer.PassOp{}.Push(gtx.Ops).Pop()
-	e.InteractiveSpan.Layout(gtx)
-	margins := layout.Inset{Top: unit.Dp(8.0), Left: unit.Dp(8.0), Right: unit.Dp(8), Bottom: unit.Dp(15)}
-	return margins.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return layout.Flex{
-			Axis:      layout.Horizontal,
-			Spacing:   layout.SpaceBetween,
-			Alignment: layout.End,
-		}.Layout(gtx,
-			// text input
-			layout.Flexed(1.0, func(gtx layout.Context) layout.Dimensions {
-				return e.InputField.Layout(gtx, e.Theme, "Message")
-			}),
-			// submit button
-			layout.Rigid(e.drawSubmitButton),
-			// expand button
-			layout.Rigid(e.ExpandButton.Layout),
-		)
-	})
-}
-
-func (e *MessageEditor) operationBarNeeded(gtx layout.Context) bool {
-	return e.longPressed && gtx.Focused(&e.InputField.Editor) || e.InputField.SelectionLen() > 0
-}
-
-func (e *MessageEditor) processTextCut(gtx layout.Context) {
-	if e.cutButton.Clicked(gtx) {
-		if e.InputField.Editor.SelectionLen() > 0 {
-			textForCopy := e.InputField.Editor.SelectedText()
-			gtx.Execute(clipboard.WriteCmd{Type: "application/text", Data: io.NopCloser(strings.NewReader(textForCopy))})
-			e.InputField.Editor.Delete(1)
-		}
-		e.hideOperationBar()
-	}
-}
-
-func (e *MessageEditor) processTextPaste(gtx layout.Context) {
-	if e.pasteButton.Clicked(gtx) {
-		if e.InputField.Editor.SelectionLen() > 0 {
-			e.InputField.Editor.Delete(1)
-		}
-		gtx.Execute(clipboard.ReadCmd{Tag: &e.InputField.Editor})
-		e.hideOperationBar()
-	}
-}
-
-func (e *MessageEditor) processTextCopy(gtx layout.Context) {
-	if e.copyButton.Clicked(gtx) {
-		textForCopy := e.InputField.Text()
-		if e.InputField.Editor.SelectionLen() > 0 {
-			textForCopy = e.InputField.Editor.SelectedText()
-		}
-		gtx.Execute(clipboard.WriteCmd{Type: "application/text", Data: io.NopCloser(strings.NewReader(textForCopy))})
-		e.hideOperationBar()
-	}
-}
-
-func (e *MessageEditor) hideOperationBar() {
-	e.longPressed = false
-	e.InputField.Editor.ClearSelection()
-}
-
-func (e *EditorOperator) Layout(gtx layout.Context) {
-	defer op.Offset(image.Point{Y: -gtx.Dp(24)}).Push(gtx.Ops).Pop()
-	macro := op.Record(gtx.Ops)
-	icons := layout.UniformInset(unit.Dp(4)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return layout.Stack{Alignment: layout.Center}.Layout(gtx,
-			layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-				offset := image.Pt(-gtx.Dp(82), 0)
-				op.Offset(offset).Add(gtx.Ops)
-				return e.cutButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return contentCutIcon.Layout(gtx, fonts.DefaultTheme.ContrastFg)
-				})
-			}),
-			layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-				offset := image.Pt(-gtx.Dp(54), 0)
-				op.Offset(offset).Add(gtx.Ops)
-				return e.copyButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return contentCopyIcon.Layout(gtx, fonts.DefaultTheme.ContrastFg)
-				})
-			}),
-			layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-				offset := image.Pt(-gtx.Dp(26), 0)
-				op.Offset(offset).Add(gtx.Ops)
-				return e.pasteButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return contentPasteIcon.Layout(gtx, fonts.DefaultTheme.ContrastFg)
-				})
-			}),
-		)
-	})
-	call := macro.Stop()
-	e.drawBorder(gtx, icons, call)
-}
-
-func (e *EditorOperator) drawBorder(gtx layout.Context, icons layout.Dimensions, call op.CallOp) {
-	bgColor := fonts.DefaultTheme.ContrastBg
-	bgColor.A = 192
-	// https://pomax.github.io/bezierinfo/#circles_cubic.
-	const q = 4 * (math.Sqrt2 - 1) / 3
-	const iq = 1 - q
-	midX := float32(icons.Size.X)/2 - float32(gtx.Dp(54))
-	minX := midX - float32(gtx.Dp(24))*float32(1.5) - float32(gtx.Dp(4*2))
-	maxX := midX + float32(gtx.Dp(24))*float32(1.5) + float32(gtx.Dp(4*2))
-	minY := float32(0)
-	maxY := float32(gtx.Dp(32))
-	se, sw, nw, ne := float32(gtx.Dp(4)), float32(gtx.Dp(4)), float32(gtx.Dp(4)), float32(gtx.Dp(4))
-	triangleLegHalfSize := float32(gtx.Dp(3))
-	perpendicular := float32(float64(triangleLegHalfSize*2) * math.Sin(math.Pi/3))
-
-	p := clip.Path{}
-	p.Begin(gtx.Ops)
-	p.MoveTo(f32.Point{X: minX + nw, Y: minY})
-	p.LineTo(f32.Point{X: maxX - ne, Y: minY}) // N
-	p.CubeTo(f32.Point{X: maxX - ne*iq, Y: minY}, // NE
-		f32.Point{X: maxX, Y: minY + ne*iq},
-		f32.Point{X: maxX, Y: minY + ne})
-	p.LineTo(f32.Point{X: maxX, Y: maxY - se}) // E
-	p.CubeTo(f32.Point{X: maxX, Y: maxY - se*iq}, // SE
-		f32.Point{X: maxX - se*iq, Y: maxY},
-		f32.Point{X: maxX - se, Y: maxY})
-	p.LineTo(f32.Point{X: midX + triangleLegHalfSize, Y: maxY}) // S
-	p.LineTo(f32.Point{X: midX, Y: maxY + perpendicular})       // S
-	p.LineTo(f32.Point{X: midX - triangleLegHalfSize, Y: maxY}) // S
-	p.LineTo(f32.Point{X: minX + sw, Y: maxY})                  // S
-	p.CubeTo(f32.Point{X: minX + sw*iq, Y: maxY}, // SW
-		f32.Point{X: minX, Y: maxY - sw*iq},
-		f32.Point{X: minX, Y: maxY - sw})
-	p.LineTo(f32.Point{X: minX, Y: minY + nw}) // W
-	p.CubeTo(f32.Point{X: minX, Y: minY + nw*iq}, // NW
-		f32.Point{X: minX + nw*iq, Y: minY},
-		f32.Point{X: minX + nw, Y: minY})
-
-	path := p.End()
-
-	defer clip.Outline{Path: path}.Op().Push(gtx.Ops).Pop()
-	paint.Fill(gtx.Ops, bgColor)
-	pointer.CursorPointer.Add(gtx.Ops)
-	call.Add(gtx.Ops)
-}
-
-func (e *MessageEditor) drawSubmitButton(gtx layout.Context) layout.Dimensions {
-	margins := layout.Inset{Left: unit.Dp(8.0)}
-	return margins.Layout(gtx,
-		func(gtx layout.Context) layout.Dimensions {
-			return material.IconButtonStyle{
-				Background: e.Theme.ContrastBg,
-				Color:      e.Theme.ContrastFg,
-				Icon:       submitIcon,
-				Size:       unit.Dp(24.0),
-				Button:     &e.submitButton,
-				Inset:      layout.UniformInset(unit.Dp(9)),
-			}.Layout(gtx)
-		},
-	)
-}
-
-func (e *MessageEditor) Submitted(gtx layout.Context) bool {
-	return e.submitButton.Clicked(gtx) || e.submittedByCarriageReturn(gtx)
-}
-
-func (e *MessageEditor) submittedByCarriageReturn(gtx layout.Context) (submit bool) {
-	for {
-		ev, ok := e.InputField.Editor.Update(gtx)
-		if _, submit = ev.(ui.SubmitEvent); submit {
-			break
-		}
-		if !ok {
-			break
-		}
-	}
-	return submit
 }
 
 var MessageBox = make(chan *Message, 10)
