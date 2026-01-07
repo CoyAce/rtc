@@ -11,6 +11,7 @@ import (
 	"rtc/assets/fonts"
 	"rtc/core"
 	"rtc/internal/audio"
+	"rtc/ui/native"
 	"time"
 
 	"gioui.org/layout"
@@ -113,6 +114,7 @@ func (v *VoiceRecorder) encodeAndSendAsync() {
 
 func (v *VoiceRecorder) recordAsync() {
 	go func() {
+		native.DefaultRecorder.AskPermission()
 		var ctx context.Context
 		ctx, v.cancel = context.WithCancel(context.Background())
 		v.buf = new(bytes.Buffer)

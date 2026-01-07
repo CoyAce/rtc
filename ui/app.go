@@ -114,10 +114,12 @@ func Draw(window *app.Window, c *core.Client) error {
 	if runtime.GOOS == "android" {
 		view.DefaultPicker = native.NewExplorer(window)
 	}
+	native.DefaultRecorder = native.NewRecorder(window)
 	// listen for events in the window.
 	for {
 		event := window.Event()
 		view.DefaultPicker.ListenEvents(event)
+		native.DefaultRecorder.ListenEvents(event)
 		// detect what type of event
 		switch e := event.(type) {
 		// this is sent when the application is closed

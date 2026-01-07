@@ -5,7 +5,7 @@ go 1.24.0
 toolchain go1.24.11
 
 require (
-	gioui.org v0.9.1-0.20251230181058-93419a77bdbe
+	gioui.org v0.9.1-0.20260107121033-99647591f6b9
 	gioui.org/x v0.9.0
 	git.wow.st/gmp/jni v0.0.0-20210610011705-34026c7e22d0
 	github.com/CoyAce/opus v0.1.2

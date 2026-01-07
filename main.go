@@ -12,6 +12,7 @@ import (
 	"strconv"
 
 	"gioui.org/app"
+	_ "gioui.org/app/permission/microphone"
 	_ "gioui.org/app/permission/storage"
 	"gioui.org/unit"
 )
