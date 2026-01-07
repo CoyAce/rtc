@@ -38,53 +38,11 @@ func (v *VoiceRecorder) Layout(gtx layout.Context) layout.Dimensions {
 			break
 		}
 		if e.Type == LongPress {
-			log.Printf("long pressing start")
-			go func() {
-				var ctx context.Context
-				ctx, v.cancel = context.WithCancel(context.Background())
-				v.buf = new(bytes.Buffer)
-				err := audio.Capture(ctx, v.buf, v.StreamConfig)
-				if err != nil {
-					if errors.Is(err, context.Canceled) {
-						return
-					}
-					log.Printf("capture audio failed, %s", err)
-					v.cancel()
-				}
-			}()
+			v.recordAsync()
 		}
 		if e.Type == LongPressRelease {
-			log.Printf("long pressing end")
 			v.cancel()
-			go func() {
-				timeNow := time.Now().Local().Format("20060104150405")
-				filePath := core.GetDataPath(timeNow + ".opus")
-				log.Printf("audio filePath %s", filePath)
-				w, err := os.Create(filePath)
-				defer w.Close()
-				if err != nil {
-					log.Printf("create file %s failed, %s", filePath, err)
-					return
-				}
-				pcm := v.buf.Bytes()
-				samples := len(pcm)
-				err = ogg.Encode(w, pcm)
-				if err != nil {
-					log.Printf("encode file %s failed, %s", filePath, err)
-				}
-				v.buf = nil
-				duration := uint64(ogg.GetDuration(samples/2/ogg.Channels) / time.Millisecond)
-				message := Message{
-					State: Stateless,
-					Theme: fonts.DefaultTheme,
-					UUID:  core.DefaultClient.FullID(),
-					Type:  Voice, Filename: filePath,
-					Sender:       core.DefaultClient.FullID(),
-					CreatedAt:    time.Now(),
-					MediaControl: MediaControl{StreamConfig: v.StreamConfig, Duration: duration},
-				}
-				MessageBox <- &message
-			}()
+			v.encodeAndSendAsync()
 		}
 	}
 	margins := layout.Inset{Top: unit.Dp(8.0), Left: unit.Dp(8.0), Right: unit.Dp(8), Bottom: unit.Dp(15)}
@@ -100,10 +58,70 @@ func (v *VoiceRecorder) Layout(gtx layout.Context) layout.Dimensions {
 				v.InteractiveSpan.Layout(gtx)
 				defer clip.UniformRRect(image.Rectangle{Max: gtx.Constraints.Max}, gtx.Dp(4)).Push(gtx.Ops).Pop()
 				paint.Fill(gtx.Ops, bgColor)
+				layout.Stack{Alignment: layout.Center}.Layout(gtx,
+					layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+						gtx.Constraints.Min.X = gtx.Constraints.Max.Y
+						return voiceMessageIcon.Layout(gtx, fonts.DefaultTheme.ContrastFg)
+					}),
+				)
 				return layout.Dimensions{Size: gtx.Constraints.Max}
 			}),
 			// expand button
 			layout.Rigid(v.ExpandButton.Layout),
 		)
 	})
+}
+
+func (v *VoiceRecorder) encodeAndSendAsync() {
+	go func() {
+		timeNow := time.Now().Local().Format("20060104150405")
+		filePath := core.GetDataPath(timeNow + ".opus")
+		log.Printf("audio filePath %s", filePath)
+		w, err := os.Create(filePath)
+		defer w.Close()
+		if err != nil {
+			log.Printf("create file %s failed, %s", filePath, err)
+			return
+		}
+		pcm := v.buf.Bytes()
+		samples := len(pcm)
+		err = ogg.Encode(w, pcm)
+		if err != nil {
+			log.Printf("encode file %s failed, %s", filePath, err)
+		}
+		v.buf = nil
+		duration := uint64(ogg.GetDuration(samples/2/ogg.Channels) / time.Millisecond)
+		message := Message{
+			State: Stateless,
+			Theme: fonts.DefaultTheme,
+			UUID:  core.DefaultClient.FullID(),
+			Type:  Voice, Filename: filePath,
+			Sender:       core.DefaultClient.FullID(),
+			CreatedAt:    time.Now(),
+			MediaControl: MediaControl{StreamConfig: v.StreamConfig, Duration: duration},
+		}
+		MessageBox <- &message
+		err = core.DefaultClient.SendVoice(filePath, duration)
+		if err != nil {
+			log.Printf("Send voice %s failed, %s", filePath, err)
+		} else {
+			message.State = Sent
+		}
+	}()
+}
+
+func (v *VoiceRecorder) recordAsync() {
+	go func() {
+		var ctx context.Context
+		ctx, v.cancel = context.WithCancel(context.Background())
+		v.buf = new(bytes.Buffer)
+		err := audio.Capture(ctx, v.buf, v.StreamConfig)
+		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				return
+			}
+			log.Printf("capture audio failed, %s", err)
+			v.cancel()
+		}
+	}()
 }

@@ -25,6 +25,7 @@ const (
 	OpSyncIcon
 	OpSendImage
 	OpSendGif
+	OpSendVoice
 )
 
 var wrqSet = map[OpCode]bool{
@@ -32,6 +33,7 @@ var wrqSet = map[OpCode]bool{
 	OpSyncIcon:  true,
 	OpSendImage: true,
 	OpSendGif:   true,
+	OpSendVoice: true,
 }
 
 type WriteReq struct {
@@ -39,10 +41,12 @@ type WriteReq struct {
 	FileId   uint32
 	UUID     string
 	Filename string
+	Size     uint64
+	Duration uint64
 }
 
 func (q *WriteReq) Marshal() ([]byte, error) {
-	size := 2 + 4 + len(q.UUID) + 1 + len(q.Filename) + 1
+	size := 2 + 4 + len(q.UUID) + 1 + len(q.Filename) + 1 + 8 + 8
 	b := new(bytes.Buffer)
 	b.Grow(size)
 
@@ -66,6 +70,16 @@ func (q *WriteReq) Marshal() ([]byte, error) {
 	}
 
 	err = writeString(b, q.Filename) // write filename
+	if err != nil {
+		return nil, err
+	}
+
+	err = binary.Write(b, binary.BigEndian, q.Size) // write size
+	if err != nil {
+		return nil, err
+	}
+
+	err = binary.Write(b, binary.BigEndian, q.Duration) // write duration
 	if err != nil {
 		return nil, err
 	}
@@ -96,6 +110,16 @@ func (q *WriteReq) Unmarshal(p []byte) error {
 	}
 
 	q.Filename, err = readString(r)
+	if err != nil {
+		return errors.New("invalid WRQ")
+	}
+
+	err = binary.Read(r, binary.BigEndian, &q.Size) // read size
+	if err != nil {
+		return errors.New("invalid WRQ")
+	}
+
+	err = binary.Read(r, binary.BigEndian, &q.Duration) // read duration
 	if err != nil {
 		return errors.New("invalid WRQ")
 	}

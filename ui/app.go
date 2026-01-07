@@ -90,6 +90,11 @@ func Draw(window *app.Window, c *core.Client) error {
 					message = &view.Message{State: view.Sent, Theme: fonts.DefaultTheme,
 						UUID: core.DefaultClient.FullID(), Type: view.GIF, Filename: m.Filename,
 						Sender: m.UUID, CreatedAt: time.Now()}
+				case core.OpSendVoice:
+					message = &view.Message{State: view.Sent, Theme: fonts.DefaultTheme,
+						UUID: core.DefaultClient.FullID(), Type: view.Voice, Filename: m.Filename,
+						Sender: m.UUID, CreatedAt: time.Now(),
+						MediaControl: view.MediaControl{StreamConfig: streamConfig, Duration: m.Duration}}
 				default:
 					continue
 				}

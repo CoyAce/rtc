@@ -85,17 +85,27 @@ var VoiceMode = false
 
 func NewIconStack() *IconStack {
 	settings := NewSettingsForm(OnSettingsSubmit)
+	icon := *voiceMessageIcon
 	return &IconStack{Theme: fonts.DefaultTheme,
 		IconButtons: []*IconButton{
 			{Theme: fonts.DefaultTheme, Icon: settingsIcon, Enabled: true, OnClick: settings.ShowWithModal},
 			{Theme: fonts.DefaultTheme, Icon: videoCallIcon},
 			{Theme: fonts.DefaultTheme, Icon: audioCallIcon},
-			{Theme: fonts.DefaultTheme, Icon: voiceMessageIcon, Enabled: true, OnClick: func(gtx layout.Context) {
-				iconStackAnimation.Disappear(gtx.Now)
-				VoiceMode = !VoiceMode
-			}},
+			{Theme: fonts.DefaultTheme, Icon: &icon, Enabled: true, OnClick: SwitchBetweenTextAndVoice(icon)},
 			{Theme: fonts.DefaultTheme, Icon: photoLibraryIcon, Enabled: true, OnClick: ChooseAndSendPhoto},
 		},
+	}
+}
+
+func SwitchBetweenTextAndVoice(icon widget.Icon) func(gtx layout.Context) {
+	return func(gtx layout.Context) {
+		iconStackAnimation.Disappear(gtx.Now)
+		VoiceMode = !VoiceMode
+		if VoiceMode {
+			icon = *chatIcon
+		} else {
+			icon = *voiceMessageIcon
+		}
 	}
 }
 

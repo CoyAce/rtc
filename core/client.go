@@ -138,7 +138,7 @@ func (c *Client) sendImage(img image.Image, code OpCode, filename string) error 
 		return err
 	}
 
-	return c.sendFile(bytes.NewReader(buf.Bytes()), code, filename)
+	return c.sendFile(bytes.NewReader(buf.Bytes()), code, filename, 0, 0)
 }
 
 func (c *Client) SendGif(GIF *gif.GIF, filename string) error {
@@ -151,22 +151,33 @@ func (c *Client) sendGif(GIF *gif.GIF, code OpCode, filename string) error {
 	if err != nil {
 		return err
 	}
-	return c.sendFile(bytes.NewReader(buf.Bytes()), code, filename)
+	return c.sendFile(bytes.NewReader(buf.Bytes()), code, filename, 0, 0)
 }
 
-func (c *Client) sendFile(reader *bytes.Reader, code OpCode, filename string) error {
+func (c *Client) SendVoice(filename string, duration uint64) error {
+	r, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+	return c.sendFile(r, OpSendVoice, filename, 0, duration)
+}
+
+func (c *Client) sendFile(reader io.Reader, code OpCode,
+	filename string, size uint64, duration uint64) error {
 	conn, err := net.Dial("udp", c.ServerAddr)
 	if err != nil {
 		log.Printf("[%s] dial failed: %v", c.ServerAddr, err)
 	}
 	defer func() { _ = conn.Close() }()
 
-	hash := Hash(unsafe.Pointer(reader))
+	hash := Hash(unsafe.Pointer(&reader))
 	log.Printf("file id: %v", hash)
 
 	pktBuf := make([]byte, DatagramSize)
 
-	wrq := WriteReq{code, hash, c.FullID(), filename}
+	wrq := WriteReq{Code: code, FileId: hash, UUID: c.FullID(),
+		Filename: filename, Size: size, Duration: duration}
 	pkt, err := wrq.Marshal()
 	if err != nil {
 		log.Printf("[%v] write request marshal failed: %v", wrq, err)
