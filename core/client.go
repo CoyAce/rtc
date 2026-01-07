@@ -32,7 +32,7 @@ func (f *FileWriter) Loop() {
 		// last block received, file transfer finished
 		case id := <-f.FileId:
 			req := f.wrq[id]
-			filePath := GetFilePath(req.UUID, req.Filename)
+			filePath := GetPath(req.UUID, req.Filename)
 			write(filePath, f.fileData[id])
 			delete(f.wrq, id)
 			delete(f.fileData, id)
@@ -45,13 +45,13 @@ func (f *FileWriter) Loop() {
 		case req := <-f.Wrq:
 			f.wrq[req.FileId] = req
 			// remove before append
-			RemoveFile(GetFilePath(req.UUID, req.Filename))
+			RemoveFile(GetPath(req.UUID, req.Filename))
 		case data := <-f.FileData:
 			f.fileData[data.FileId] = append(f.fileData[data.FileId], data)
 			// received ~100kb
 			if len(f.fileData[data.FileId]) >= 70 {
 				req := f.wrq[data.FileId]
-				d := write(GetFilePath(req.UUID, req.Filename), f.fileData[data.FileId])
+				d := write(GetPath(req.UUID, req.Filename), f.fileData[data.FileId])
 				if d != nil {
 					// not consecutive, store for later use
 					f.fileData[data.FileId] = d

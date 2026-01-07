@@ -58,26 +58,26 @@ func (v *VoiceRecorder) Layout(gtx layout.Context) layout.Dimensions {
 			v.cancel()
 			go func() {
 				timeNow := time.Now().Local().Format("20060104150405")
-				filename := core.GetFilePath(core.DefaultClient.FullID(), timeNow+".opus")
-				log.Printf("audio filename %s", filename)
-				w, err := os.Create(filename)
+				filePath := core.GetDataPath(timeNow + ".opus")
+				log.Printf("audio filePath: %s", filePath)
+				w, err := os.Create(filePath)
 				defer w.Close()
 				if err != nil {
-					log.Printf("create file %s failed, %s", filename, err)
+					log.Printf("create file %s failed, %s", filePath, err)
 					return
 				}
 				pcm := v.buf.Bytes()
 				samples := len(pcm)
 				err = ogg.Encode(w, pcm)
 				if err != nil {
-					log.Printf("encode file %s failed, %s", filename, err)
+					log.Printf("encode file %s failed, %s", filePath, err)
 				}
 				v.buf = nil
 				message := Message{
 					State: Stateless,
 					Theme: fonts.DefaultTheme,
 					UUID:  core.DefaultClient.FullID(),
-					Type:  Voice, Filename: filename,
+					Type:  Voice, Filename: filePath,
 					Sender:       core.DefaultClient.FullID(),
 					CreatedAt:    time.Now(),
 					MediaControl: MediaControl{StreamConfig: v.StreamConfig},

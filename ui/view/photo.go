@@ -26,7 +26,7 @@ func ChooseAndSendPhoto(gtx layout.Context) {
 			if filepath.Ext(filename) == ".webp" {
 				filename = strings.TrimSuffix(filepath.Base(filename), ".webp") + ".png"
 			}
-			absolutePath = core.GetFilePath(core.DefaultClient.FullID(), filename)
+			absolutePath = core.GetDataPath(filename)
 			go func() {
 				if gifImg != nil {
 					core.SaveGif(gifImg, filename, false)

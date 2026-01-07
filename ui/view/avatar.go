@@ -86,10 +86,10 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 			// save to file
 			if gifImg != nil {
 				core.SaveGif(gifImg, "icon.gif", true)
-				core.RemoveFile(core.GetFilePath(v.UUID, "icon.png"))
+				core.RemoveFile(core.GetPath(v.UUID, "icon.png"))
 			} else {
 				core.SaveImg(img, "icon.png", true)
-				core.RemoveFile(core.GetFilePath(v.UUID, "icon.gif"))
+				core.RemoveFile(core.GetPath(v.UUID, "icon.gif"))
 			}
 
 			// sync to server
@@ -145,7 +145,7 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 
 func (v *Avatar) Reload(avatarType AvatarType) {
 	if avatarType == GIF_IMG || avatarType == Default {
-		gifPath := core.GetFilePath(v.UUID, "icon.gif")
+		gifPath := core.GetPath(v.UUID, "icon.gif")
 		gifImg, err := LoadGif(gifPath, true)
 		if err != nil {
 			log.Println("failed to load GIF:", err)
@@ -153,12 +153,12 @@ func (v *Avatar) Reload(avatarType AvatarType) {
 		if gifImg != nil && gifImg != &EmptyGif {
 			v.Gif = gifImg
 			v.AvatarType = GIF_IMG
-			core.RemoveFile(core.GetFilePath(v.UUID, "icon.png"))
+			core.RemoveFile(core.GetPath(v.UUID, "icon.png"))
 			return
 		}
 	}
 
-	imgPath := core.GetFilePath(v.UUID, "icon.png")
+	imgPath := core.GetPath(v.UUID, "icon.png")
 	img, err := LoadImage(imgPath, true)
 	if err != nil {
 		log.Printf("failed to decode icon: %v", err)
@@ -169,7 +169,7 @@ func (v *Avatar) Reload(avatarType AvatarType) {
 	if img != nil {
 		v.Image = *img
 		v.AvatarType = IMG
-		core.RemoveFile(core.GetFilePath(v.UUID, "icon.gif"))
+		core.RemoveFile(core.GetPath(v.UUID, "icon.gif"))
 	}
 }
 

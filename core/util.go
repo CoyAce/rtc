@@ -25,8 +25,12 @@ func GetDir(uuid string) string {
 	return GetDataDir() + "/" + strings.Replace(uuid, "#", "_", -1)
 }
 
-func GetFilePath(uuid string, filename string) string {
+func GetPath(uuid string, filename string) string {
 	return GetDir(uuid) + "/" + filename
+}
+
+func GetDataPath(filename string) string {
+	return GetPath(DefaultClient.FullID(), filename)
 }
 
 func RemoveFile(filePath string) {
@@ -43,7 +47,7 @@ func RemoveFile(filePath string) {
 
 func removeDuplicates(data []Data) []Data {
 	seen := make(map[uint32]bool)
-	result := []Data{}
+	result := make([]Data, 0, len(data))
 	for _, d := range data {
 		if !seen[d.Block] {
 			seen[d.Block] = true
@@ -146,7 +150,7 @@ func SaveImg(img image.Image, filename string, rewrite bool) {
 	if filepath.Ext(filename) == ".webp" {
 		filename = strings.TrimSuffix(filepath.Base(filename), ".webp") + ".png"
 	}
-	filePath := GetFilePath(DefaultClient.FullID(), filename)
+	filePath := GetDataPath(filename)
 	_, err := os.Stat(filePath)
 	if err == nil && !rewrite {
 		return
@@ -166,7 +170,7 @@ func SaveImg(img image.Image, filename string, rewrite bool) {
 }
 
 func SaveGif(gifImg *gif.GIF, filename string, rewrite bool) {
-	filePath := GetFilePath(DefaultClient.FullID(), filename)
+	filePath := GetDataPath(filename)
 	_, err := os.Stat(filePath)
 	if err == nil && !rewrite {
 		return

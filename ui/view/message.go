@@ -22,6 +22,7 @@ import (
 	text "rtc/ui/layout/component"
 	mt "rtc/ui/layout/material"
 	"strings"
+	"sync"
 	"time"
 
 	"gioui.org/f32"
@@ -55,19 +56,21 @@ type MessageKeeper struct {
 	audio.StreamConfig
 	buffer []*Message
 	ready  chan struct{}
-	timer  *time.Timer
+	lock   sync.Mutex
 }
 
 func (k *MessageKeeper) Loop() {
 	k.ready = make(chan struct{}, 1)
-	duration := 5 * time.Minute
-	k.timer = time.NewTimer(duration)
+	flushFreq := 5 * time.Minute
+	timer := time.NewTimer(flushFreq)
 	for {
-		k.timer.Reset(duration)
+		timer.Reset(flushFreq)
 		select {
 		case msg := <-k.MessageChannel:
+			k.lock.Lock()
 			k.buffer = append(k.buffer, msg)
-		case <-k.timer.C:
+			k.lock.Unlock()
+		case <-timer.C:
 			k.ready <- struct{}{}
 		case <-k.ready:
 			if len(k.buffer) == 0 {
@@ -79,12 +82,14 @@ func (k *MessageKeeper) Loop() {
 }
 
 func (k *MessageKeeper) Append() {
-	filePath := core.GetFilePath(core.DefaultClient.FullID(), "message.log")
+	filePath := core.GetDataPath("message.log")
 	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		log.Printf("error opening file: %v", err)
+		log.Printf("Couldn't open file: %v", err)
 	}
 	defer file.Close()
+	k.lock.Lock()
+	defer k.lock.Unlock()
 	for _, msg := range k.buffer {
 		k.writeJson(file, msg)
 	}
@@ -94,34 +99,32 @@ func (k *MessageKeeper) Append() {
 func (k *MessageKeeper) writeJson(file *os.File, msg *Message) {
 	s, err := json.Marshal(msg)
 	if err != nil {
-		log.Printf("error marshalling message: %v", err)
+		log.Printf("Couldn't marshall message: %v", err)
 		return
 	}
 	_, err = file.WriteString(string(s) + "\n")
 	if err != nil {
-		log.Printf("error writing to file: %v", err)
+		log.Printf("Couldn't write to file: %v", err)
 	}
 }
 
 func (k *MessageKeeper) Messages() []*Message {
-	filePath := core.GetFilePath(core.DefaultClient.FullID(), "message.log")
+	filePath := core.GetDataPath("message.log")
 	f, err := os.Open(filePath)
 	if err != nil {
-		log.Printf("error opening file: %v", err)
+		log.Printf("Couldn't open file: %v", err)
 		return []*Message{}
 	}
-	ret := make([]*Message, 0)
+	ret := make([]*Message, 0, 32)
 	s := bufio.NewScanner(f)
 	for s.Scan() {
 		var msg Message
 		line := s.Bytes()
-		err := json.Unmarshal(line, &msg)
+		err = json.Unmarshal(line, &msg)
 		if err != nil {
-			log.Printf("error unmarshalling message: %v", err)
+			log.Printf("Couldn't unmarshall message: %v", err)
 		}
-		ed := ui.Editor{ReadOnly: true}
-		ed.SetText(msg.Text)
-		msg.Editor = &ed
+		msg.TextControl = NewTextControl(msg.Text)
 		msg.Theme = fonts.DefaultTheme
 		if msg.State == Stateless {
 			msg.State = Failed
@@ -154,7 +157,7 @@ const (
 
 // LongPressDuration is the default duration of a long press gesture.
 // Override this variable to change the detection threshold.
-var LongPressDuration time.Duration = 250 * time.Millisecond
+var LongPressDuration = 250 * time.Millisecond
 
 // EventType describes a kind of iteraction with rich text.
 type EventType uint8
@@ -337,7 +340,7 @@ func (m *Message) Layout(gtx layout.Context) (d layout.Dimensions) {
 	if m.Type == Text && m.Text == "" {
 		return d
 	}
-	if m.Type == Image && m.Filename == "" {
+	if (m.Type == Image || m.Type == Voice) && m.Filename == "" {
 		return d
 	}
 
@@ -345,25 +348,25 @@ func (m *Message) Layout(gtx layout.Context) (d layout.Dimensions) {
 	return margins.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
 		flex := layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Spacing: layout.SpaceEnd}
-		if m.isMe() {
-			flex.Spacing = layout.SpaceStart
-		}
-		return flex.Layout(gtx,
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				if m.isMe() {
-					return d
-				}
-				return m.drawAvatar(gtx, m.Sender)
-			}),
+		message := []layout.FlexChild{
 			layout.Rigid(layout.Spacer{Width: unit.Dp(2)}.Layout),
 			layout.Rigid(m.drawMessage),
 			layout.Rigid(layout.Spacer{Width: unit.Dp(2)}.Layout),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				if m.isMe() {
-					return m.drawAvatar(gtx, m.UUID)
-				}
-				return d
-			}))
+		}
+		var avatar layout.FlexChild
+		if m.isMe() {
+			flex.Spacing = layout.SpaceStart
+			avatar = layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return m.drawAvatar(gtx, m.UUID)
+			})
+			message = append(message, avatar)
+		} else {
+			avatar = layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return m.drawAvatar(gtx, m.Sender)
+			})
+			message = append([]layout.FlexChild{avatar}, message...)
+		}
+		return flex.Layout(gtx, message...)
 	})
 }
 
@@ -401,26 +404,24 @@ func (m *Message) drawMessage(gtx layout.Context) layout.Dimensions {
 		// state and message
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			flex := layout.Flex{Spacing: layout.SpaceEnd, Alignment: layout.Middle}
-			if m.isMe() {
-				flex.Spacing = layout.SpaceStart
-			}
-			return flex.Layout(gtx,
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					if m.isMe() && m.operationNeeded() {
-						return m.drawOperation(gtx)
-					}
-					return m.drawState(gtx)
-				}),
+			contents := []layout.FlexChild{
 				layout.Rigid(layout.Spacer{Width: unit.Dp(4)}.Layout),
 				layout.Rigid(m.drawContent),
 				layout.Rigid(layout.Spacer{Width: unit.Dp(4)}.Layout),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					if m.isMe() || !m.operationNeeded() {
-						return layout.Dimensions{}
-					}
+			}
+			stateOrOperationBar := layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				if m.operationNeeded() {
 					return m.drawOperation(gtx)
-				}),
-			)
+				}
+				return m.drawState(gtx)
+			})
+			if m.isMe() {
+				contents = append([]layout.FlexChild{stateOrOperationBar}, contents...)
+				flex.Spacing = layout.SpaceStart
+			} else {
+				contents = append(contents, stateOrOperationBar)
+			}
+			return flex.Layout(gtx, contents...)
 		}),
 	)
 }
@@ -478,7 +479,7 @@ func (m *FileControl) processFileSave(gtx layout.Context, filePath string) {
 func (m *Message) FilePath() string {
 	var filePath = m.Filename
 	if !m.isMe() {
-		filePath = core.GetFilePath(m.Sender, m.Filename)
+		filePath = core.GetPath(m.Sender, m.Filename)
 	}
 	return filePath
 }
