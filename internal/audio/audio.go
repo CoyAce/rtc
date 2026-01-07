@@ -2,8 +2,10 @@ package audio
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"io"
+	"runtime"
 	"strings"
 
 	"github.com/gen2brain/malgo"
@@ -135,6 +137,10 @@ func Capture(ctx context.Context, w io.Writer, config StreamConfig) error {
 				return
 			}
 
+			if runtime.GOOS == "android" {
+				inputSamples = increasePcmBytesVolume(inputSamples, 100)
+			}
+
 			_, err := w.Write(inputSamples)
 			if err != nil {
 				aborted = true
@@ -178,4 +184,46 @@ func Playback(ctx context.Context, r io.Reader, config StreamConfig) error {
 	}
 
 	return stream(ctx, abortChan, config, deviceCallbacks)
+}
+
+func toPcmInts(pcm []byte) []int16 {
+	ret := make([]int16, len(pcm)/2)
+	for i := 0; i < len(pcm); i += 2 {
+		ret[i/2] = int16(binary.NativeEndian.Uint16(pcm[i : i+2]))
+	}
+	return ret
+}
+
+func toPcmBytes(pcm []int16) []byte {
+	ret := make([]byte, len(pcm)*2)
+	for i, v := range pcm {
+		binary.NativeEndian.PutUint16(ret[i*2:], uint16(v)) // 将int16值写入到byte切片中
+	}
+	return ret
+}
+
+func increasePcmBytesVolume(pcm []byte, volumeFactor float64) []byte {
+	return toPcmBytes(increaseVolume(toPcmInts(pcm), volumeFactor))
+}
+
+// increaseVolume 增加PCM音频数据的音量
+// pcmData 是原始PCM数据，volumeFactor 是音量增加的因子（例如：2.0表示加倍音量）
+func increaseVolume(pcm []int16, volumeFactor float64) []int16 {
+	var maxValue int16 = 32767  // 16位PCM的最大值
+	var minValue int16 = -32768 // 16位PCM的最小值
+	var ret []int16
+
+	for _, sample := range pcm {
+		// 计算新的样本值
+		resample := int16(float64(sample) * volumeFactor)
+		// 确保新样本值在有效范围内
+		if resample > maxValue {
+			resample = maxValue
+		} else if resample < minValue {
+			resample = minValue
+		}
+		ret = append(ret, resample)
+	}
+
+	return ret
 }

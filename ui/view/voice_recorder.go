@@ -60,12 +60,14 @@ func (v *VoiceRecorder) Layout(gtx layout.Context) layout.Dimensions {
 				v.InteractiveSpan.Layout(gtx)
 				defer clip.UniformRRect(image.Rectangle{Max: gtx.Constraints.Max}, gtx.Dp(4)).Push(gtx.Ops).Pop()
 				paint.Fill(gtx.Ops, bgColor)
-				layout.Stack{Alignment: layout.Center}.Layout(gtx,
-					layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-						gtx.Constraints.Min.X = int(float32(gtx.Constraints.Max.Y) * 0.85)
-						return voiceMessageIcon.Layout(gtx, fonts.DefaultTheme.ContrastFg)
-					}),
-				)
+				layout.Inset{Top: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return layout.Stack{Alignment: layout.Center}.Layout(gtx,
+						layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+							gtx.Constraints.Min.X = int(float32(gtx.Constraints.Max.Y) * 0.85)
+							return voiceMessageIcon.Layout(gtx, fonts.DefaultTheme.ContrastFg)
+						}),
+					)
+				})
 				return layout.Dimensions{Size: gtx.Constraints.Max}
 			}),
 			// expand button
@@ -76,7 +78,7 @@ func (v *VoiceRecorder) Layout(gtx layout.Context) layout.Dimensions {
 
 func (v *VoiceRecorder) encodeAndSendAsync() {
 	go func() {
-		timeNow := time.Now().Local().Format("20060104150405")
+		timeNow := time.Now().Local().Format("20060102150405")
 		filePath := core.GetDataPath(timeNow + ".opus")
 		log.Printf("audio filePath %s", filePath)
 		w, err := os.Create(filePath)
