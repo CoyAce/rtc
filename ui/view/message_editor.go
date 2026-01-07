@@ -180,17 +180,18 @@ func (e *EditorOperator) Layout(gtx layout.Context) {
 }
 
 func (e *EditorOperator) drawBorder(gtx layout.Context, icons layout.Dimensions, call op.CallOp) {
+	centerOffset, iconSize, margin := gtx.Dp(54), gtx.Dp(24), gtx.Dp(4)
 	bgColor := fonts.DefaultTheme.ContrastBg
 	bgColor.A = 192
 	// https://pomax.github.io/bezierinfo/#circles_cubic.
 	const q = 4 * (math.Sqrt2 - 1) / 3
 	const iq = 1 - q
-	midX := float32(icons.Size.X)/2 - float32(gtx.Dp(54))
-	minX := midX - float32(gtx.Dp(24))*float32(1.5) - float32(gtx.Dp(4*2))
-	maxX := midX + float32(gtx.Dp(24))*float32(1.5) + float32(gtx.Dp(4*2))
+	midX := float32(icons.Size.X)/2 - float32(centerOffset)
+	minX := midX - float32(iconSize)*float32(1.5) - float32(margin)*2
+	maxX := midX + float32(iconSize)*float32(1.5) + float32(margin)*2
 	minY := float32(0)
-	maxY := float32(gtx.Dp(32))
-	se, sw, nw, ne := float32(gtx.Dp(4)), float32(gtx.Dp(4)), float32(gtx.Dp(4)), float32(gtx.Dp(4))
+	maxY := float32(iconSize) + float32(margin)*2
+	se, sw, nw, ne := float32(margin), float32(margin), float32(margin), float32(margin)
 	triangleLegHalfSize := float32(gtx.Dp(3))
 	perpendicular := float32(float64(triangleLegHalfSize*2) * math.Sin(math.Pi/3))
 
@@ -216,7 +217,6 @@ func (e *EditorOperator) drawBorder(gtx layout.Context, icons layout.Dimensions,
 	p.CubeTo(f32.Point{X: minX, Y: minY + nw*iq}, // NW
 		f32.Point{X: minX + nw*iq, Y: minY},
 		f32.Point{X: minX + nw, Y: minY})
-
 	path := p.End()
 
 	defer clip.Outline{Path: path}.Op().Push(gtx.Ops).Pop()
