@@ -89,10 +89,11 @@ func NewIconStack() *IconStack {
 	return &IconStack{Theme: fonts.DefaultTheme,
 		IconButtons: []*IconButton{
 			{Theme: fonts.DefaultTheme, Icon: settingsIcon, Enabled: true, OnClick: settings.ShowWithModal},
+			{Theme: fonts.DefaultTheme, Icon: filesIcon},
+			{Theme: fonts.DefaultTheme, Icon: photoLibraryIcon, Enabled: true, OnClick: ChooseAndSendPhoto},
 			{Theme: fonts.DefaultTheme, Icon: videoCallIcon},
 			{Theme: fonts.DefaultTheme, Icon: audioCallIcon},
 			{Theme: fonts.DefaultTheme, Icon: &icon, Enabled: true, OnClick: SwitchBetweenTextAndVoice(&icon)},
-			{Theme: fonts.DefaultTheme, Icon: photoLibraryIcon, Enabled: true, OnClick: ChooseAndSendPhoto},
 		},
 	}
 }
