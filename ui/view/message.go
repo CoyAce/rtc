@@ -68,6 +68,7 @@ const (
 	Unhover
 	LongPress
 	Click
+	Press
 	LongPressRelease
 )
 
@@ -124,6 +125,7 @@ func (i *InteractiveSpan) Update(gtx layout.Context) (Event, bool) {
 		case gesture.KindPress:
 			i.pressStarted = gtx.Now
 			i.pressing = true
+			return Event{Type: Press, ClickData: e}, true
 		case gesture.KindCancel:
 			i.pressing = false
 			i.longPressing = false
@@ -607,7 +609,7 @@ func (m *Message) drawState(gtx layout.Context) layout.Dimensions {
 func (m *Message) drawName(gtx layout.Context) layout.Dimensions {
 	timeVal := m.CreatedAt
 	loc, _ := time.LoadLocation("Asia/Shanghai")
-	timeMsg := timeVal.In(loc).Format("01/02, 15:04")
+	timeMsg := timeVal.In(loc).Format("01/02 15:04")
 	var msg string
 	if m.isMe() {
 		msg = timeMsg + " " + m.Sender

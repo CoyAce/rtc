@@ -39,12 +39,15 @@ func (v *VoiceRecorder) Layout(gtx layout.Context) layout.Dimensions {
 		if !ok {
 			break
 		}
-		if e.Type == LongPress {
+		if e.Type == Press {
 			v.recordAsync()
 		}
 		if e.Type == LongPressRelease {
 			v.cancel()
 			v.encodeAndSendAsync()
+		}
+		if e.Type == Click {
+			v.cancel()
 		}
 	}
 	margins := layout.Inset{Top: unit.Dp(8.0), Left: unit.Dp(8.0), Right: unit.Dp(8), Bottom: unit.Dp(15)}

@@ -138,7 +138,7 @@ func Capture(ctx context.Context, w io.Writer, config StreamConfig) error {
 			}
 
 			if runtime.GOOS == "android" {
-				inputSamples = increasePcmBytesVolume(inputSamples, 100)
+				inputSamples = increasePcmBytesVolume(inputSamples, 64)
 			}
 
 			_, err := w.Write(inputSamples)
