@@ -58,9 +58,9 @@ func (v *VoiceRecorder) Layout(gtx layout.Context) layout.Dimensions {
 			layout.Flexed(1.0, func(gtx layout.Context) layout.Dimensions {
 				gtx.Constraints.Max.Y = gtx.Dp(42)
 				v.InteractiveSpan.Layout(gtx)
-				defer clip.UniformRRect(image.Rectangle{Max: gtx.Constraints.Max}, gtx.Dp(4)).Push(gtx.Ops).Pop()
+				defer clip.UniformRRect(image.Rectangle{Max: gtx.Constraints.Max}, gtx.Dp(21)).Push(gtx.Ops).Pop()
 				paint.Fill(gtx.Ops, bgColor)
-				layout.Inset{Top: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				layout.Inset{Top: unit.Dp(42 * 0.15 / 2)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					return layout.Stack{Alignment: layout.Center}.Layout(gtx,
 						layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 							gtx.Constraints.Min.X = int(float32(gtx.Constraints.Max.Y) * 0.85)
