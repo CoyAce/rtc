@@ -97,7 +97,7 @@ func (v *VoiceRecorder) encodeAndSendAsync() {
 		}
 		pcm := v.buf.Bytes()
 		samples := len(pcm)
-		err = ogg.Encode(w, pcm)
+		err = ogg.Encode(w, audio.Normalize(pcm))
 		if err != nil {
 			log.Printf("encode file %s failed, %s", filePath, err)
 		}
