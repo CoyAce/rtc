@@ -269,10 +269,9 @@ type MediaControl struct {
 	audio.StreamConfig `json:"-"`
 	Duration           uint64
 	playButton         widget.Clickable
+	animation          *component.Progress
 	pauseButton        widget.Clickable
 	cancel             context.CancelFunc
-	playing            bool
-	startAt            time.Time
 }
 
 func (m *MediaControl) Layout(gtx layout.Context, filePath string, fgColor color.NRGBA) layout.Dimensions {
@@ -280,21 +279,25 @@ func (m *MediaControl) Layout(gtx layout.Context, filePath string, fgColor color
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			btn := &m.playButton
 			icon := playIcon
+			if m.animation == nil {
+				m.animation = &component.Progress{}
+			}
 			if m.playButton.Clicked(gtx) {
-				m.playing = true
-				m.startAt = time.Now()
+				m.animation.Start(gtx.Now, component.Reverse, time.Duration(m.Duration)*time.Millisecond)
 				m.playAudioAsync(filePath)
 			}
 			if m.pauseButton.Clicked(gtx) {
-				m.playing = false
+				m.animation.Stop()
 				if m.cancel != nil {
 					m.cancel()
 				}
 			}
-			if m.playing {
+			if m.animation.Started() {
+				gtx.Execute(op.InvalidateCmd{})
 				btn = &m.pauseButton
 				icon = pauseIcon
 			}
+			m.animation.Update(gtx.Now)
 			return btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				gtx.Constraints.Min.X = gtx.Constraints.Min.Y
 				return icon.Layout(gtx, fgColor)
@@ -305,15 +308,10 @@ func (m *MediaControl) Layout(gtx layout.Context, filePath string, fgColor color
 
 func (m *MediaControl) getLeftDuration() time.Duration {
 	size := time.Duration(m.Duration) * time.Millisecond
-	if !m.playing {
+	if !m.animation.Started() {
 		return size
 	}
-	elapsed := time.Since(m.startAt)
-	left := size - elapsed
-	if left < 0 {
-		return 0
-	}
-	return left
+	return time.Duration(float32(size) * m.animation.Progress())
 }
 
 func (m *MediaControl) playAudioAsync(filePath string) {
@@ -333,7 +331,7 @@ func (m *MediaControl) playAudioAsync(filePath string) {
 		if err := audio.Playback(ctx, reader, m.StreamConfig); err != nil && !errors.Is(err, io.EOF) {
 			log.Printf("audio playback: %w", err)
 		}
-		m.playing = false
+		m.animation.Stop()
 	}()
 }
 

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"gioui.org/layout"
+	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
@@ -41,6 +42,9 @@ func (v *VoiceRecorder) Layout(gtx layout.Context) layout.Dimensions {
 		}
 		if e.Type == Press {
 			v.recordAsync()
+		}
+		if e.Type == LongPress {
+			gtx.Execute(op.InvalidateCmd{})
 		}
 		if e.Type == LongPressRelease {
 			v.cancel()
