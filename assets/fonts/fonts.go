@@ -2,6 +2,8 @@ package fonts
 
 import (
 	_ "embed"
+	"log"
+	"os"
 
 	"gioui.org/font"
 	"gioui.org/font/gofont"
@@ -12,12 +14,6 @@ import (
 
 //go:embed NotoColorEmoji.ttf
 var notoColorEmoji []byte
-
-//go:embed NotoSansSC-Bold.ttf
-var notoSansSCBold []byte
-
-//go:embed NotoSansSC-Regular.ttf
-var notoSansSCRegular []byte
 
 //go:embed Roboto-Bold.ttf
 var robotoBold []byte
@@ -36,8 +32,6 @@ var bold, _ = opentype.ParseCollection(robotoBold)
 var boldItalic, _ = opentype.ParseCollection(robotoBoldItalic)
 var regular, _ = opentype.ParseCollection(robotoRegular)
 var regularItalic, _ = opentype.ParseCollection(robotoRegularItalic)
-var scBold, _ = opentype.ParseCollection(notoSansSCBold)
-var scRegular, _ = opentype.ParseCollection(notoSansSCRegular)
 
 var arr = [][]font.FontFace{
 	gofont.Collection(),
@@ -46,14 +40,6 @@ var arr = [][]font.FontFace{
 	bold,
 	regular,
 	notoEmoji,
-	scCollection,
-}
-
-var scCollection = []text.FontFace{
-	WithStyle(scBold[0], font.Italic),
-	WithStyle(scRegular[0], font.Italic),
-	scBold[0],
-	scRegular[0],
 }
 
 var collection = merge()
@@ -72,12 +58,44 @@ func WithStyle(f text.FontFace, style font.Style) text.FontFace {
 	return f
 }
 
+var fonts = []string{
+	"/system/fonts/NotoSansCJK-Regular.ttc",
+	"/system/fonts/NotoSansCJK-Bold.ttc",
+}
+
 func merge() []text.FontFace {
 	ret := make([]text.FontFace, 0)
 	for _, f := range arr {
 		ret = append(ret, f...)
 	}
+	for _, fontPath := range fonts {
+		ret = tryAdd(ret, fontPath)
+	}
 	return ret
+}
+
+func tryAdd(ret []text.FontFace, fontPath string) []text.FontFace {
+	fontBytes := load(fontPath)
+	if fontBytes != nil {
+		var parsedFonts, _ = opentype.ParseCollection(fontBytes)
+		ret = append(ret, parsedFonts...)
+		ret = append(ret, WithStyle(parsedFonts[0], font.Italic))
+	}
+	return ret
+}
+
+func load(path string) []byte {
+	_, err := os.Stat(path)
+	if err != nil {
+		log.Printf("load %v failed: %v", path, err)
+		return nil
+	}
+	buf, err := os.ReadFile(path)
+	if err != nil {
+		log.Printf("load %v failed: %v", path, err)
+		return nil
+	}
+	return buf
 }
 
 // theme defines the material design style
