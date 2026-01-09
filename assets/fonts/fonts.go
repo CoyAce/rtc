@@ -6,6 +6,8 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"rtc/assets/fonts/notosanscjk"
+	"runtime"
 	"strings"
 
 	"gioui.org/font"
@@ -37,6 +39,9 @@ var boldItalic, _ = opentype.ParseCollection(robotoBoldItalic)
 var regular, _ = opentype.ParseCollection(robotoRegular)
 var regularItalic, _ = opentype.ParseCollection(robotoRegularItalic)
 
+// todo gio支持可变字体，就不需要嵌入粗体了
+var scBold, _ = opentype.ParseCollection(notosanscjk.TTF)
+
 var builtinFonts = [][]font.FontFace{
 	gofont.Collection(),
 	boldItalic,
@@ -58,10 +63,25 @@ func NewTheme() *material.Theme {
 }
 
 var SystemFonts = []string{
-	"/system/fonts/NotoSansCJK-Regular.ttc",   // Android
-	"/System/Library/Fonts/Core/PingFang.ttc", // IOS
-	"C:\\Windows\\Fonts\\msyh.ttc",            // Microsoft YaHei
-	"C:\\Windows\\Fonts\\msyhbd.ttc",          // Microsoft YaHei Bold
+	"/system/fonts/VivoFont.ttf",
+	"/system/fonts/MiSans.ttf",
+	"/system/fonts/HwChinese.ttf",
+	"/system/fonts/OPPOSans.ttf",
+	"/system/fonts/SamsungOne.ttf",
+	"/system/fonts/SamsungChinese.ttf",
+	"/system/fonts/OnePlusSans.ttf",
+	"/system/fonts/realmeSans.ttf",
+	"/system/fonts/HonorSans.ttf",
+	"/system/fonts/GoogleSans.ttf",
+	"/system/fonts/NotoSansCJK-Regular.ttc", // Android
+	"C:\\Windows\\Fonts\\msyh.ttc",          // Microsoft YaHei
+	"C:\\Windows\\Fonts\\msyhbd.ttc",        // Microsoft YaHei Bold
+}
+
+func WithFamilyAndStyle(f text.FontFace, face string, style font.Style) text.FontFace {
+	f.Font.Typeface = font.Typeface(face)
+	f.Font.Style = style
+	return f
 }
 
 func merge() []text.FontFace {
@@ -69,11 +89,17 @@ func merge() []text.FontFace {
 	for _, f := range builtinFonts {
 		ret = append(ret, f...)
 	}
-	for _, fontPath := range MacOsPingFang() {
+	for _, fontPath := range ApplePingFang() {
 		ret = tryAdd(ret, fontPath)
 	}
 	for _, fontPath := range SystemFonts {
 		ret = tryAdd(ret, fontPath)
+	}
+	if runtime.GOOS == "android" {
+		ret = append(ret, []text.FontFace{
+			WithFamilyAndStyle(scBold[0], "Noto Sans CJK SC", font.Italic),
+			WithFamilyAndStyle(scBold[0], "Noto Sans CJK SC", font.Regular),
+		}...)
 	}
 	return ret
 }
@@ -83,6 +109,9 @@ func tryAdd(ret []text.FontFace, fontPath string) []text.FontFace {
 	if TTF != nil {
 		var parsedFonts, _ = opentype.ParseCollection(TTF)
 		ret = append(ret, parsedFonts...)
+		for _, f := range parsedFonts {
+			ret = append(ret, WithFamilyAndStyle(f, string(f.Font.Typeface), font.Italic))
+		}
 	}
 	return ret
 }
@@ -100,18 +129,18 @@ func tryLoad(path string) []byte {
 	return buf
 }
 
-func MacOsPingFang() []string {
+func ApplePingFang() []string {
 	targets := []string{
 		"PingFang.ttc",
-		"PingFangSC.ttc",
 	}
 
 	baseDir := "/System/Library/AssetsV2"
 	searchDirs, err := findDirs(baseDir, "com_apple_MobileAsset_Font")
 	if err != nil {
 		log.Printf("search failed: %v", err)
-		return []string{}
+		searchDirs = []string{}
 	}
+	searchDirs = append(searchDirs, "/System/Library/Fonts")
 
 	return find(targets, searchDirs)
 }
@@ -126,16 +155,6 @@ func find(targets []string, searchDirs []string) []string {
 				continue
 			}
 			foundPaths = append(foundPaths, paths...)
-		}
-
-		if len(foundPaths) == 0 {
-			// 尝试在系统字体目录查找
-			paths, _ := findFontFiles("/System/Library/Fonts", target)
-			if len(paths) > 0 {
-				for _, path := range paths {
-					foundPaths = append(foundPaths, path)
-				}
-			}
 		}
 	}
 
