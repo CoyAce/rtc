@@ -58,7 +58,7 @@ func NewSettingsForm(onSuccess func(gtx layout.Context)) *SettingsForm {
 		core.DefaultClient.SetServerAddr(s.serverAddrEditor.Text())
 		// SendSign first, bind uuid to sign
 		core.DefaultClient.SendSign()
-		if nicknameChanged {
+		if nicknameChanged && s.avatar.AvatarType != Default {
 			// then sync icon
 			if s.avatar.AvatarType == IMG {
 				SyncSelectedIcon(s.avatar.Image, nil)
