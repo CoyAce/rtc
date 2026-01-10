@@ -170,7 +170,7 @@ func (i *InteractiveSpan) Layout(gtx layout.Context) layout.Dimensions {
 		}
 		switch e := e.(type) {
 		case key.FocusEvent:
-			if !e.Focus && !i.hovering {
+			if !e.Focus {
 				i.longPressed = false
 			}
 		}
@@ -613,7 +613,9 @@ func (m *Message) drawBorder(gtx layout.Context, d layout.Dimensions, call op.Ca
 		Max: d.Size,
 	}, SE: sE, SW: sW, NW: nW, NE: nE}.Push(gtx.Ops).Pop()
 	defer pointer.PassOp{}.Push(gtx.Ops).Pop()
+	filterOp := pointer.FilterOp{}.Push(gtx.Ops)
 	m.InteractiveSpan.Layout(gtx)
+	filterOp.Pop()
 	component.Rect{Color: bgColor, Size: d.Size}.Layout(gtx)
 	// draw text
 	call.Add(gtx.Ops)
