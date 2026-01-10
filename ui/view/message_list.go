@@ -14,6 +14,7 @@ import (
 
 	"gioui.org/io/key"
 	"gioui.org/layout"
+	"gioui.org/op"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 )
@@ -54,6 +55,7 @@ func (l *MessageList) scrollToEndIfFirstAndLastItemVisible() {
 func (l *MessageList) getFocusAndResetIconStackIfClicked(gtx layout.Context) {
 	if l.Clicked(gtx) {
 		gtx.Execute(key.FocusCmd{Tag: &l.Clickable})
+		gtx.Execute(op.InvalidateCmd{})
 		iconStackAnimation.Disappear(gtx.Now)
 	}
 }

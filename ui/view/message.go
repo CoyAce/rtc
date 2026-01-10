@@ -402,8 +402,28 @@ func (m *Message) drawMessage(gtx layout.Context) layout.Dimensions {
 }
 
 func (m *Message) getFocusIfClickedToEnableFocusLostEvent(gtx layout.Context) {
-	if m.Clicked(gtx) {
-		gtx.Execute(key.FocusCmd{Tag: &m.InteractiveSpan})
+	for {
+		e, ok := m.InteractiveSpan.Update(gtx)
+		if !ok {
+			break
+		}
+		if e.Type == LongPress {
+			if m.TextSelected() {
+				m.longPressed = false
+			}
+			gtx.Execute(key.FocusCmd{Tag: &m.InteractiveSpan})
+		}
+		if e.Type == Click || e.Type == LongPressRelease {
+			editorExist := m.Editor != nil
+			if editorExist {
+				m.Editor.ClearSelection()
+			}
+			editorFocused := editorExist && gtx.Focused(&m.Editor)
+			gtx.Execute(key.FocusCmd{Tag: &m.InteractiveSpan})
+			if editorFocused {
+				gtx.Execute(key.FocusCmd{Tag: &m.Editor})
+			}
+		}
 	}
 }
 
@@ -430,7 +450,11 @@ func (m *Message) drawStateAndContent(gtx layout.Context) layout.Dimensions {
 }
 
 func (m *Message) operationNeeded() bool {
-	return m.longPressed || m.Editor != nil && m.Editor.SelectionLen() > 0
+	return m.longPressed || m.TextSelected()
+}
+
+func (m *Message) TextSelected() bool {
+	return m.Editor != nil && m.Editor.SelectionLen() > 0
 }
 
 func (m *Message) FilePath() string {
