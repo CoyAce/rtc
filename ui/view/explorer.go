@@ -81,7 +81,7 @@ func LoadImage(filePath string, reload bool) (*image.Image, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		imageCache[filePath] = &assets.AppIconImage
-		log.Printf("open file error: %v", err)
+		log.Printf("open %v error: %v", filePath, err)
 		return nil, err
 	}
 	defer file.Close()
@@ -103,7 +103,7 @@ func LoadGif(filePath string, reload bool) (*Gif, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		GifCache[filePath] = &EmptyGif
-		log.Printf("open file error: %v", err)
+		log.Printf("open %v error: %v", filePath, err)
 		return nil, err
 	}
 	defer file.Close()

@@ -186,17 +186,18 @@ func (i *InteractiveSpan) Layout(gtx layout.Context) layout.Dimensions {
 type Message struct {
 	State
 	MediaControl
-	*material.Theme `json:"-"`
-	InteractiveSpan `json:"-"`
-	FileControl     `json:"-"`
-	TextControl     `json:"-"`
-	Filename        string
-	Size            uint64
-	Type            MessageType
-	UUID            string
-	Text            string
-	Sender          string
-	CreatedAt       time.Time
+	*material.Theme  `json:"-"`
+	InteractiveSpan  `json:"-"`
+	FileControl      `json:"-"`
+	TextControl      `json:"-"`
+	Filename         string
+	ExternalFilePath string
+	Size             uint64
+	Type             MessageType
+	UUID             string
+	Text             string
+	Sender           string
+	CreatedAt        time.Time
 }
 
 type TextControl struct {
@@ -339,7 +340,7 @@ func (m *Message) Layout(gtx layout.Context) (d layout.Dimensions) {
 	if m.Type == Text && m.Text == "" {
 		return d
 	}
-	if (m.Type == Image || m.Type == Voice) && m.Filename == "" {
+	if (m.Type == Image || m.Type == Voice) && m.fileNotExist() {
 		return d
 	}
 
@@ -464,6 +465,13 @@ func (m *Message) FilePath() string {
 	return core.GetPath(m.UUID, m.Filename)
 }
 
+func (m *Message) OptimizedFilePath() string {
+	if m.isMe() {
+		return m.ExternalFilePath
+	}
+	return m.FilePath()
+}
+
 func (m *Message) drawOperation(gtx layout.Context) layout.Dimensions {
 	if m.imageBroken {
 		return layout.Dimensions{}
@@ -500,30 +508,34 @@ func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
 		m.drawBorder(gtx, d, call)
 		return d
 	case Image:
-		if m.Filename == "" {
+		if m.fileNotExist() {
 			return layout.Dimensions{}
 		}
-		img, err := m.loadImage(m.FilePath())
+		img, err := m.loadImage(m.OptimizedFilePath())
 		if err != nil || img == nil || img == &assets.AppIconImage {
 			return m.drawBrokenImage(gtx)
 		}
 		return m.drawImage(gtx, *img)
 	case GIF:
-		if m.Filename == "" {
+		if m.fileNotExist() {
 			return layout.Dimensions{}
 		}
-		gifImg, err := m.loadGif(m.FilePath())
+		gifImg, err := m.loadGif(m.OptimizedFilePath())
 		if err != nil || gifImg == nil || gifImg == &EmptyGif {
 			return m.drawBrokenImage(gtx)
 		}
 		return m.drawGif(gtx, gifImg)
 	case Voice:
-		if m.Filename == "" {
+		if m.fileNotExist() {
 			return layout.Dimensions{}
 		}
 		return m.drawVoice(gtx)
 	}
 	return layout.Dimensions{}
+}
+
+func (m *Message) fileNotExist() bool {
+	return m.Filename == "" && m.ExternalFilePath == ""
 }
 
 func (m *Message) drawVoice(gtx layout.Context) layout.Dimensions {
