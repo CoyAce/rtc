@@ -53,7 +53,9 @@ func (s *Server) Serve(conn net.PacketConn) error {
 		pkt := buf[:n]
 		switch {
 		case sign.Unmarshal(pkt) == nil:
+			s.lock.Lock()
 			s.SignMap[addr.String()] = sign
+			s.lock.Unlock()
 			s.ack(conn, addr, OpSign, 0)
 			log.Printf("[%s] set sign: [%s]", addr.String(), sign)
 		case msg.Unmarshal(pkt) == nil:
@@ -113,6 +115,8 @@ func (s *Server) ack(conn net.PacketConn, clientAddr net.Addr, code OpCode, bloc
 }
 
 func (s *Server) handle(sign Sign, bytes []byte) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
 	for addr, v := range s.SignMap {
 		if v.Sign == sign.Sign && v.UUID != sign.UUID {
 			// use goroutine to avoid blocking by slow connection
