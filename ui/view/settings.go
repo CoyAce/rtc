@@ -128,7 +128,6 @@ func (s *SettingsForm) Layout(gtx layout.Context) layout.Dimensions {
 		}),
 	)
 	defer clip.Rect(image.Rectangle{Max: dimensions.Size}).Push(gtx.Ops).Pop()
-	defer pointer.PassOp{}.Push(gtx.Ops).Pop()
 	event.Op(gtx.Ops, s)
 	return dimensions
 }

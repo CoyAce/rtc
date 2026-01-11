@@ -612,7 +612,6 @@ func (m *Message) drawBorder(gtx layout.Context, d layout.Dimensions, call op.Ca
 	defer clip.RRect{Rect: image.Rectangle{
 		Max: d.Size,
 	}, SE: sE, SW: sW, NW: nW, NE: nE}.Push(gtx.Ops).Pop()
-	defer pointer.PassOp{}.Push(gtx.Ops).Pop()
 	filterOp := pointer.FilterOp{}.Push(gtx.Ops)
 	m.InteractiveSpan.Layout(gtx)
 	filterOp.Pop()

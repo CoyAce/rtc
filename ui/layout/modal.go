@@ -84,6 +84,7 @@ func (m *appModal) Layout(gtx layout.Context) layout.Dimensions {
 		layout.Stacked(m.drawBackdropButton),
 		// widget area
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+			defer pointer.FilterOp{}.Push(gtx.Ops).Pop()
 			state := m.Animation.State
 			progress := m.Animation.Revealed(gtx)
 			// invisible case
@@ -114,7 +115,6 @@ func (m *appModal) Layout(gtx layout.Context) layout.Dimensions {
 
 func (m *appModal) drawBackdropButton(gtx layout.Context) layout.Dimensions {
 	defer clip.Rect(image.Rectangle{Max: gtx.Constraints.Max}).Push(gtx.Ops).Pop()
-	defer pointer.PassOp{}.Push(gtx.Ops).Pop()
 	return m.backdropButton.Layout(gtx,
 		func(gtx layout.Context) layout.Dimensions {
 			if m.Animation.Revealed(gtx) == 0 || m.widget == nil {
