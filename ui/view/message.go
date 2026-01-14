@@ -612,12 +612,17 @@ func (m *Message) drawBorder(gtx layout.Context, d layout.Dimensions, call op.Ca
 	defer clip.RRect{Rect: image.Rectangle{
 		Max: d.Size,
 	}, SE: sE, SW: sW, NW: nW, NE: nE}.Push(gtx.Ops).Pop()
-	filterOp := pointer.FilterOp{}.Push(gtx.Ops)
-	m.InteractiveSpan.Layout(gtx)
-	filterOp.Pop()
+	m.addInteractiveSpan(gtx)
 	component.Rect{Color: bgColor, Size: d.Size}.Layout(gtx)
 	// draw text
 	call.Add(gtx.Ops)
+}
+
+func (m *Message) addInteractiveSpan(gtx layout.Context) {
+	if m.InteractiveSpan.pressing {
+		defer pointer.StopOp{}.Push(gtx.Ops).Pop()
+	}
+	m.InteractiveSpan.Layout(gtx)
 }
 
 func (m *Message) drawState(gtx layout.Context) layout.Dimensions {

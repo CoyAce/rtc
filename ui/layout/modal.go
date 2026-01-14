@@ -84,7 +84,7 @@ func (m *appModal) Layout(gtx layout.Context) layout.Dimensions {
 		layout.Stacked(m.drawBackdropButton),
 		// widget area
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-			defer pointer.FilterOp{}.Push(gtx.Ops).Pop()
+			defer pointer.StopOp{}.Push(gtx.Ops).Pop()
 			state := m.Animation.State
 			progress := m.Animation.Revealed(gtx)
 			// invisible case
