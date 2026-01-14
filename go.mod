@@ -4,9 +4,9 @@ go 1.24.0
 
 toolchain go1.24.11
 
-replace gioui.org/x v0.9.0 => /Users/liuhongliang/GolandProjects/gio-x
+replace gioui.org/x v0.9.0 => ../gio-x
 
-replace gioui.org v0.9.1-0.20260107121033-99647591f6b9 => /Users/liuhongliang/GolandProjects/gio
+replace gioui.org v0.9.1-0.20260107121033-99647591f6b9 => ../gio
 
 require (
 	gioui.org v0.9.1-0.20260107121033-99647591f6b9
