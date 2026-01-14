@@ -65,7 +65,10 @@ func NewTheme() *material.Theme {
 var SystemFonts = []string{
 	"/system/fonts/VivoFont.ttf",
 	"/system/fonts/MiSans.ttf",
+	"/system/fonts/HwSans.ttf",
 	"/system/fonts/HwChinese.ttf",
+	"/system/fonts/MeizuSans.ttf",
+	"/system/fonts/MeizuChinese.ttf",
 	"/system/fonts/OPPOSans.ttf",
 	"/system/fonts/SamsungOne.ttf",
 	"/system/fonts/SamsungChinese.ttf",
