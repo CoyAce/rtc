@@ -415,6 +415,9 @@ func (m *Message) getFocusIfClickedToEnableFocusLostEvent(gtx layout.Context) {
 				gtx.Execute(key.FocusCmd{Tag: &m.InteractiveSpan})
 			}
 		}
+		if e.Type == Press {
+			gtx.Execute(key.FocusCmd{Tag: &m.InteractiveSpan})
+		}
 	}
 }
 
