@@ -181,6 +181,9 @@ func (e *textView) closestToXY(x fixed.Int26_6, y int) combinedPos {
 func (e *textView) closestToXYGraphemes(x fixed.Int26_6, y int) combinedPos {
 	// Find the closest existing rune position to the provided coordinates.
 	pos := e.closestToXY(x, y)
+	if e.index.atStartOfLine(pos) {
+		return pos
+	}
 	// Resolve cluster boundaries on either side of the rune position.
 	firstOption := e.moveByGraphemes(pos.runes, 0)
 	distance := 1
