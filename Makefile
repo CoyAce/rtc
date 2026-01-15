@@ -1,5 +1,5 @@
 # https://gioui.org/doc/install
-NAME=RTC
+NAME=流言
 BIN_DIR=bin
 VERSION=$(shell cat assets/assets.go | grep 'Version =' | sed 's/.*\"\(.*\)\".*/\1/g')
 GO_BUILD=CGO_ENABLED=0 go build --ldflags="-s -w" -v -x -a
