@@ -21,6 +21,7 @@ type IconButton struct {
 	*material.Theme
 	Icon    *widget.Icon
 	Enabled bool
+	Hidden  bool
 	Active  bool
 	OnClick func(gtx layout.Context)
 	button  widget.Clickable
@@ -48,6 +49,7 @@ func (b *IconButton) Layout(gtx layout.Context) layout.Dimensions {
 
 type IconStack struct {
 	*material.Theme
+	*component.VisibilityAnimation
 	IconButtons []*IconButton
 }
 
@@ -55,20 +57,24 @@ func (s *IconStack) drawIconStackItems(gtx layout.Context) layout.Dimensions {
 	flex := layout.Flex{Axis: layout.Vertical}
 	var children []layout.FlexChild
 	for _, button := range s.IconButtons {
+		if button.Hidden {
+			continue
+		}
 		children = append(children, layout.Rigid(button.Layout))
 		children = append(children, layout.Rigid(layout.Spacer{Height: unit.Dp(8)}.Layout))
 	}
 	return flex.Layout(gtx, children...)
 }
 
-func (s *IconStack) Layout(gtx layout.Context) layout.Dimensions {
+func (s *IconStack) Layout(gtx layout.Context) (layout.Dimensions, layout.Dimensions) {
+	var d layout.Dimensions
 	return layout.Stack{Alignment: layout.SE}.Layout(gtx,
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 			offset := image.Pt(-gtx.Dp(8), -gtx.Dp(57))
 			op.Offset(offset).Add(gtx.Ops)
-			progress := iconStackAnimation.Revealed(gtx)
+			progress := s.VisibilityAnimation.Revealed(gtx)
 			macro := op.Record(gtx.Ops)
-			d := s.drawIconStackItems(gtx)
+			d = s.drawIconStackItems(gtx)
 			call := macro.Stop()
 			d.Size.Y = int(float32(d.Size.Y) * progress)
 			component.Rect{Size: d.Size, Color: color.NRGBA{}}.Layout(gtx)
@@ -76,7 +82,7 @@ func (s *IconStack) Layout(gtx layout.Context) layout.Dimensions {
 			call.Add(gtx.Ops)
 			return d
 		}),
-	)
+	), d
 }
 
 var iconStackAnimation = component.VisibilityAnimation{
@@ -85,16 +91,24 @@ var iconStackAnimation = component.VisibilityAnimation{
 	Started:  time.Time{},
 }
 
+var audioStackAnimation = component.VisibilityAnimation{
+	Duration: time.Millisecond * 100,
+	State:    component.Invisible,
+	Started:  time.Time{},
+}
+
 var VoiceMode = false
 var AudioCall = false
+var audioCall = &IconButton{Theme: fonts.DefaultTheme, Icon: audioCallIcon, Enabled: true}
+var audioAcceptCall = &IconButton{Theme: fonts.DefaultTheme, Icon: audioCallIcon, Enabled: true}
 
-func NewIconStack(streamConfig audio.StreamConfig) *IconStack {
+func NewIconStack() *IconStack {
 	settings := NewSettingsForm(OnSettingsSubmit)
-	audioCall := &IconButton{Theme: fonts.DefaultTheme, Icon: audioCallIcon, Enabled: true}
-	audioCall.OnClick = SwitchBetweenCallStatus(audioCall, streamConfig)
+	audioCall.OnClick = MakeAudioCall(audioCall)
 	voiceMessage := &IconButton{Theme: fonts.DefaultTheme, Icon: voiceMessageIcon, Enabled: true}
 	voiceMessage.OnClick = SwitchBetweenTextAndVoice(voiceMessage)
 	return &IconStack{Theme: fonts.DefaultTheme,
+		VisibilityAnimation: &iconStackAnimation,
 		IconButtons: []*IconButton{
 			{Theme: fonts.DefaultTheme, Icon: settingsIcon, Enabled: true, OnClick: settings.ShowWithModal},
 			{Theme: fonts.DefaultTheme, Icon: filesIcon},
@@ -106,13 +120,37 @@ func NewIconStack(streamConfig audio.StreamConfig) *IconStack {
 	}
 }
 
-func SwitchBetweenCallStatus(audioCall *IconButton, streamConfig audio.StreamConfig) func(gtx layout.Context) {
+func NewAudioIconStack(streamConfig audio.StreamConfig) *IconStack {
+	audioAcceptCall.OnClick = func(gtx layout.Context) {
+		audioAcceptCall.Hidden = true
+	}
+	audioEndCall := &IconButton{Theme: fonts.DefaultTheme, Icon: audioCallIcon, Enabled: true, Active: true}
+	audioEndCall.OnClick = func(gtx layout.Context) {
+		AudioCall = false
+		audioCall.Hidden = false
+		audioStackAnimation.Disappear(gtx.Now)
+		time.AfterFunc(audioStackAnimation.Duration, func() {
+			audioAcceptCall.Hidden = false
+		})
+	}
+	return &IconStack{Theme: fonts.DefaultTheme,
+		VisibilityAnimation: &audioStackAnimation,
+		IconButtons: []*IconButton{
+			audioAcceptCall,
+			audioEndCall,
+		},
+	}
+}
+
+func MakeAudioCall(audioCall *IconButton) func(gtx layout.Context) {
 	return func(gtx layout.Context) {
 		AudioCall = !AudioCall
 		if AudioCall {
-			audioCall.Active = true
-		} else {
-			audioCall.Active = false
+			audioCall.Hidden = true
+			audioAcceptCall.Hidden = true
+			time.AfterFunc(iconStackAnimation.Duration, func() {
+				audioStackAnimation.Appear(gtx.Now)
+			})
 		}
 	}
 }
