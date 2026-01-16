@@ -26,14 +26,22 @@ const (
 	OpSendImage
 	OpSendGif
 	OpSendVoice
+	OpAudioCall
+	OpAcceptAudioCall
+	OpEndAudioCall
+	OpNotifyAudioStart
+	OpNotifyAudioEnd
 )
 
 var wrqSet = map[OpCode]bool{
-	OpWRQ:       true,
-	OpSyncIcon:  true,
-	OpSendImage: true,
-	OpSendGif:   true,
-	OpSendVoice: true,
+	OpWRQ:             true,
+	OpSyncIcon:        true,
+	OpSendImage:       true,
+	OpSendGif:         true,
+	OpSendVoice:       true,
+	OpAudioCall:       true,
+	OpAcceptAudioCall: true,
+	OpEndAudioCall:    true,
 }
 
 type WriteReq struct {

@@ -163,11 +163,43 @@ func (c *Client) SendVoice(filename string, duration uint64) error {
 	return c.sendFile(r, OpSendVoice, filename, 0, duration)
 }
 
+func (c *Client) MakeAudioCall() error {
+	return c.sendReq(OpAudioCall)
+}
+
+func (c *Client) EndAudioCall() error {
+	return c.sendReq(OpEndAudioCall)
+}
+
+func (c *Client) AcceptAudioCall() error {
+	return c.sendReq(OpAcceptAudioCall)
+}
+
+func (c *Client) sendReq(code OpCode) error {
+	conn, err := net.Dial("udp", c.ServerAddr)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = conn.Close() }()
+	hash := Hash(unsafe.Pointer(&conn))
+	wrq := WriteReq{Code: code, FileId: hash, UUID: c.FullID()}
+	pkt, err := wrq.Marshal()
+	if err != nil {
+		return err
+	}
+	pktBuf := make([]byte, DatagramSize)
+	_, err = c.sendPacket(conn, pktBuf, pkt, 0)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (c *Client) sendFile(reader io.Reader, code OpCode,
 	filename string, size uint64, duration uint64) error {
 	conn, err := net.Dial("udp", c.ServerAddr)
 	if err != nil {
-		log.Printf("[%s] dial failed: %v", c.ServerAddr, err)
+		return err
 	}
 	defer func() { _ = conn.Close() }()
 
@@ -180,7 +212,7 @@ func (c *Client) sendFile(reader io.Reader, code OpCode,
 		Filename: filename, Size: size, Duration: duration}
 	pkt, err := wrq.Marshal()
 	if err != nil {
-		log.Printf("[%v] write request marshal failed: %v", wrq, err)
+		return err
 	}
 	_, err = c.sendPacket(conn, pktBuf, pkt, 0)
 	if err != nil {

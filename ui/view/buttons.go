@@ -4,6 +4,7 @@ import (
 	"image"
 	"image/color"
 	"rtc/assets/fonts"
+	"rtc/internal/audio"
 	"time"
 
 	"gioui.org/layout"
@@ -87,10 +88,10 @@ var iconStackAnimation = component.VisibilityAnimation{
 var VoiceMode = false
 var AudioCall = false
 
-func NewIconStack() *IconStack {
+func NewIconStack(streamConfig audio.StreamConfig) *IconStack {
 	settings := NewSettingsForm(OnSettingsSubmit)
 	audioCall := &IconButton{Theme: fonts.DefaultTheme, Icon: audioCallIcon, Enabled: true}
-	audioCall.OnClick = SwitchBetweenCallStatus(audioCall)
+	audioCall.OnClick = SwitchBetweenCallStatus(audioCall, streamConfig)
 	voiceMessage := &IconButton{Theme: fonts.DefaultTheme, Icon: voiceMessageIcon, Enabled: true}
 	voiceMessage.OnClick = SwitchBetweenTextAndVoice(voiceMessage)
 	return &IconStack{Theme: fonts.DefaultTheme,
@@ -105,7 +106,7 @@ func NewIconStack() *IconStack {
 	}
 }
 
-func SwitchBetweenCallStatus(audioCall *IconButton) func(gtx layout.Context) {
+func SwitchBetweenCallStatus(audioCall *IconButton, streamConfig audio.StreamConfig) func(gtx layout.Context) {
 	return func(gtx layout.Context) {
 		AudioCall = !AudioCall
 		if AudioCall {

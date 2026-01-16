@@ -109,7 +109,7 @@ func Draw(window *app.Window, c *core.Client) error {
 	core.DefaultClient.SyncFunc = view.SyncCachedIcon
 	inputField := component.TextField{Editor: ui.Editor{Submit: true}}
 	messageEditor := view.MessageEditor{InputField: &inputField, Theme: fonts.DefaultTheme}
-	iconStack := view.NewIconStack()
+	iconStack := view.NewIconStack(streamConfig)
 	view.DefaultPicker = explorer.NewExplorer(window)
 	if runtime.GOOS == "android" {
 		view.DefaultPicker = native.NewExplorer(window)

@@ -5,17 +5,21 @@ import (
 	"errors"
 	"log"
 	"net"
+	"slices"
 	"sync"
 	"syscall"
 	"time"
 )
 
 type Server struct {
-	SignMap map[string]Sign
-	WrqMap  map[uint32]WriteReq
-	Retries uint8         // the number of times to retry a failed transmission
-	Timeout time.Duration // the duration to wait for an acknowledgement
-	lock    sync.Mutex
+	SignMap       map[string]Sign
+	FileMap       map[uint32]WriteReq
+	AudioMap      map[uint32]WriteReq
+	AudioReceiver map[uint32][]string
+	Retries       uint8         // the number of times to retry a failed transmission
+	Timeout       time.Duration // the duration to wait for an acknowledgement
+	signLock      sync.Mutex
+	wrqLock       sync.Mutex
 }
 
 func (s *Server) ListenAndServe(addr string) error {
@@ -53,9 +57,9 @@ func (s *Server) Serve(conn net.PacketConn) error {
 		pkt := buf[:n]
 		switch {
 		case sign.Unmarshal(pkt) == nil:
-			s.lock.Lock()
+			s.signLock.Lock()
 			s.SignMap[addr.String()] = sign
-			s.lock.Unlock()
+			s.signLock.Unlock()
 			s.ack(conn, addr, OpSign, 0)
 			log.Printf("[%s] set sign: [%s]", addr.String(), sign)
 		case msg.Unmarshal(pkt) == nil:
@@ -64,22 +68,64 @@ func (s *Server) Serve(conn net.PacketConn) error {
 			s.ack(conn, addr, OpSignedMSG, 0)
 		case wrq.Unmarshal(pkt) == nil:
 			go s.handle(s.findSignByUUID(wrq.UUID), pkt)
-			s.WrqMap[wrq.FileId] = wrq
+			s.wrqLock.Lock()
+			switch wrq.Code {
+			case OpAudioCall:
+				s.addAudioStream(wrq)
+				fallthrough
+			case OpAcceptAudioCall:
+				s.addAudioReceiver(wrq)
+			case OpEndAudioCall:
+				s.deleteAudioReceiver(wrq)
+				s.cleanupAudioResource(wrq)
+			default:
+				s.addFile(wrq)
+			}
+			s.wrqLock.Unlock()
 			s.ack(conn, addr, wrq.Code, 0)
 		case data.Unmarshal(pkt) == nil:
 			go s.handle(s.findSignByFileId(data.FileId), pkt)
 			s.ack(conn, addr, OpData, data.Block)
 			b := data.Payload.(*bytes.Buffer)
 			if b.Len() < BlockSize {
-				delete(s.WrqMap, wrq.FileId)
+				s.wrqLock.Lock()
+				delete(s.FileMap, wrq.FileId)
+				s.wrqLock.Unlock()
 			}
 		}
 	}
 }
 
+func (s *Server) cleanupAudioResource(wrq WriteReq) {
+	if len(s.AudioReceiver[wrq.FileId]) == 0 {
+		delete(s.AudioReceiver, wrq.FileId)
+		delete(s.AudioMap, wrq.FileId)
+	}
+}
+
+func (s *Server) deleteAudioReceiver(wrq WriteReq) {
+	s.AudioReceiver[wrq.FileId] = slices.DeleteFunc(s.AudioReceiver[wrq.FileId], func(e string) bool {
+		return e == wrq.UUID
+	})
+}
+
+func (s *Server) addFile(wrq WriteReq) {
+	s.FileMap[wrq.FileId] = wrq
+}
+
+func (s *Server) addAudioStream(wrq WriteReq) {
+	s.AudioMap[wrq.FileId] = wrq
+}
+
+func (s *Server) addAudioReceiver(wrq WriteReq) {
+	if !slices.Contains(s.AudioReceiver[wrq.FileId], wrq.UUID) {
+		s.AudioReceiver[wrq.FileId] = append(s.AudioReceiver[wrq.FileId], wrq.UUID)
+	}
+}
+
 func (s *Server) init() {
 	s.SignMap = make(map[string]Sign)
-	s.WrqMap = make(map[uint32]WriteReq)
+	s.FileMap = make(map[uint32]WriteReq)
 
 	if s.Retries == 0 {
 		s.Retries = 3
@@ -100,7 +146,9 @@ func (s *Server) findSignByUUID(uuid string) Sign {
 }
 
 func (s *Server) findSignByFileId(fileId uint32) Sign {
-	wrq := s.WrqMap[fileId]
+	s.wrqLock.Lock()
+	wrq := s.FileMap[fileId]
+	s.wrqLock.Unlock()
 	return s.findSignByUUID(wrq.UUID)
 }
 
@@ -115,8 +163,8 @@ func (s *Server) ack(conn net.PacketConn, clientAddr net.Addr, code OpCode, bloc
 }
 
 func (s *Server) handle(sign Sign, bytes []byte) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	s.signLock.Lock()
+	defer s.signLock.Unlock()
 	for addr, v := range s.SignMap {
 		if v.Sign == sign.Sign && v.UUID != sign.UUID {
 			// use goroutine to avoid blocking by slow connection
@@ -129,9 +177,9 @@ func (s *Server) connectAndDispatch(addr string, bytes []byte) {
 	conn, err := net.Dial("udp", addr)
 	if err != nil {
 		log.Printf("[%s] dial failed: %v", addr, err)
-		s.lock.Lock()
+		s.signLock.Lock()
 		delete(s.SignMap, addr)
-		s.lock.Unlock()
+		s.signLock.Unlock()
 	}
 	defer func() { _ = conn.Close() }()
 
@@ -162,9 +210,9 @@ RETRY:
 				continue RETRY
 			}
 			if errors.Is(err, syscall.ECONNREFUSED) {
-				s.lock.Lock()
+				s.signLock.Lock()
 				delete(s.SignMap, clientAddr.String())
-				s.lock.Unlock()
+				s.signLock.Unlock()
 				log.Printf("[%s] connection refused", clientAddr)
 			}
 			log.Printf("[%s] waiting for ACK: %v", clientAddr, err)
