@@ -4,7 +4,6 @@ import (
 	"image"
 	"image/color"
 	"rtc/assets/fonts"
-	"rtc/internal/audio"
 	"time"
 
 	"gioui.org/layout"
@@ -17,12 +16,20 @@ import (
 	"golang.org/x/exp/shiny/materialdesign/colornames"
 )
 
+type Mode uint8
+
+const (
+	None Mode = iota
+	Accept
+	Decline
+)
+
 type IconButton struct {
 	*material.Theme
 	Icon    *widget.Icon
 	Enabled bool
 	Hidden  bool
-	Active  bool
+	Mode
 	OnClick func(gtx layout.Context)
 	button  widget.Clickable
 }
@@ -34,8 +41,13 @@ func (b *IconButton) Layout(gtx layout.Context) layout.Dimensions {
 	bg := b.Theme.ContrastBg
 	if !b.Enabled {
 		bg = color.NRGBA(colornames.Grey500)
-	} else if b.Active {
+	}
+	switch b.Mode {
+	case Accept:
+		bg = color.NRGBA(colornames.Green400)
+	case Decline:
 		bg = color.NRGBA(colornames.Red400)
+	default:
 	}
 	return material.IconButtonStyle{
 		Background: bg,
@@ -91,22 +103,11 @@ var iconStackAnimation = component.VisibilityAnimation{
 	Started:  time.Time{},
 }
 
-var audioStackAnimation = component.VisibilityAnimation{
-	Duration: time.Millisecond * 100,
-	State:    component.Invisible,
-	Started:  time.Time{},
-}
-
-var VoiceMode = false
-var AudioCall = false
-var audioCall = &IconButton{Theme: fonts.DefaultTheme, Icon: audioCallIcon, Enabled: true}
-var audioAcceptCall = &IconButton{Theme: fonts.DefaultTheme, Icon: audioCallIcon, Enabled: true}
-
 func NewIconStack() *IconStack {
 	settings := NewSettingsForm(OnSettingsSubmit)
-	audioCall.OnClick = MakeAudioCall(audioCall)
-	voiceMessage := &IconButton{Theme: fonts.DefaultTheme, Icon: voiceMessageIcon, Enabled: true}
-	voiceMessage.OnClick = SwitchBetweenTextAndVoice(voiceMessage)
+	audioMakeButton.OnClick = MakeAudioCall(audioMakeButton)
+	voiceMessageSwitch := &IconButton{Theme: fonts.DefaultTheme, Icon: voiceMessageIcon, Enabled: true}
+	voiceMessageSwitch.OnClick = SwitchBetweenTextAndVoice(voiceMessageSwitch)
 	return &IconStack{Theme: fonts.DefaultTheme,
 		VisibilityAnimation: &iconStackAnimation,
 		IconButtons: []*IconButton{
@@ -114,56 +115,9 @@ func NewIconStack() *IconStack {
 			{Theme: fonts.DefaultTheme, Icon: filesIcon},
 			{Theme: fonts.DefaultTheme, Icon: photoLibraryIcon, Enabled: true, OnClick: ChooseAndSendPhoto},
 			{Theme: fonts.DefaultTheme, Icon: videoCallIcon},
-			audioCall,
-			voiceMessage,
+			audioMakeButton,
+			voiceMessageSwitch,
 		},
-	}
-}
-
-func NewAudioIconStack(streamConfig audio.StreamConfig) *IconStack {
-	audioAcceptCall.OnClick = func(gtx layout.Context) {
-		audioAcceptCall.Hidden = true
-	}
-	audioEndCall := &IconButton{Theme: fonts.DefaultTheme, Icon: audioCallIcon, Enabled: true, Active: true}
-	audioEndCall.OnClick = func(gtx layout.Context) {
-		AudioCall = false
-		audioCall.Hidden = false
-		audioStackAnimation.Disappear(gtx.Now)
-		time.AfterFunc(audioStackAnimation.Duration, func() {
-			audioAcceptCall.Hidden = false
-		})
-	}
-	return &IconStack{Theme: fonts.DefaultTheme,
-		VisibilityAnimation: &audioStackAnimation,
-		IconButtons: []*IconButton{
-			audioAcceptCall,
-			audioEndCall,
-		},
-	}
-}
-
-func MakeAudioCall(audioCall *IconButton) func(gtx layout.Context) {
-	return func(gtx layout.Context) {
-		AudioCall = !AudioCall
-		if AudioCall {
-			audioCall.Hidden = true
-			audioAcceptCall.Hidden = true
-			time.AfterFunc(iconStackAnimation.Duration, func() {
-				audioStackAnimation.Appear(gtx.Now)
-			})
-		}
-	}
-}
-
-func SwitchBetweenTextAndVoice(voiceMessage *IconButton) func(gtx layout.Context) {
-	return func(gtx layout.Context) {
-		iconStackAnimation.Disappear(gtx.Now)
-		VoiceMode = !VoiceMode
-		if VoiceMode {
-			voiceMessage.Icon = chatIcon
-		} else {
-			voiceMessage.Icon = voiceMessageIcon
-		}
 	}
 }
 

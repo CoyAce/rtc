@@ -29,8 +29,6 @@ const (
 	OpAudioCall
 	OpAcceptAudioCall
 	OpEndAudioCall
-	OpNotifyAudioStart
-	OpNotifyAudioEnd
 )
 
 var wrqSet = map[OpCode]bool{

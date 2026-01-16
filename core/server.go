@@ -13,11 +13,11 @@ import (
 
 type Server struct {
 	SignMap       map[string]Sign
-	FileMap       map[uint32]WriteReq
-	AudioMap      map[uint32]WriteReq
-	AudioReceiver map[uint32][]string
 	Retries       uint8         // the number of times to retry a failed transmission
 	Timeout       time.Duration // the duration to wait for an acknowledgement
+	fileMap       map[uint32]WriteReq
+	audioMap      map[uint32]WriteReq
+	audioReceiver map[uint32][]string
 	signLock      sync.Mutex
 	wrqLock       sync.Mutex
 }
@@ -89,7 +89,7 @@ func (s *Server) Serve(conn net.PacketConn) error {
 			b := data.Payload.(*bytes.Buffer)
 			if b.Len() < BlockSize {
 				s.wrqLock.Lock()
-				delete(s.FileMap, wrq.FileId)
+				delete(s.fileMap, wrq.FileId)
 				s.wrqLock.Unlock()
 			}
 		}
@@ -97,35 +97,37 @@ func (s *Server) Serve(conn net.PacketConn) error {
 }
 
 func (s *Server) cleanupAudioResource(wrq WriteReq) {
-	if len(s.AudioReceiver[wrq.FileId]) == 0 {
-		delete(s.AudioReceiver, wrq.FileId)
-		delete(s.AudioMap, wrq.FileId)
+	if len(s.audioReceiver[wrq.FileId]) == 0 {
+		delete(s.audioReceiver, wrq.FileId)
+		delete(s.audioMap, wrq.FileId)
 	}
 }
 
 func (s *Server) deleteAudioReceiver(wrq WriteReq) {
-	s.AudioReceiver[wrq.FileId] = slices.DeleteFunc(s.AudioReceiver[wrq.FileId], func(e string) bool {
+	s.audioReceiver[wrq.FileId] = slices.DeleteFunc(s.audioReceiver[wrq.FileId], func(e string) bool {
 		return e == wrq.UUID
 	})
 }
 
 func (s *Server) addFile(wrq WriteReq) {
-	s.FileMap[wrq.FileId] = wrq
+	s.fileMap[wrq.FileId] = wrq
 }
 
 func (s *Server) addAudioStream(wrq WriteReq) {
-	s.AudioMap[wrq.FileId] = wrq
+	s.audioMap[wrq.FileId] = wrq
 }
 
 func (s *Server) addAudioReceiver(wrq WriteReq) {
-	if !slices.Contains(s.AudioReceiver[wrq.FileId], wrq.UUID) {
-		s.AudioReceiver[wrq.FileId] = append(s.AudioReceiver[wrq.FileId], wrq.UUID)
+	if !slices.Contains(s.audioReceiver[wrq.FileId], wrq.UUID) {
+		s.audioReceiver[wrq.FileId] = append(s.audioReceiver[wrq.FileId], wrq.UUID)
 	}
 }
 
 func (s *Server) init() {
 	s.SignMap = make(map[string]Sign)
-	s.FileMap = make(map[uint32]WriteReq)
+	s.fileMap = make(map[uint32]WriteReq)
+	s.audioMap = make(map[uint32]WriteReq)
+	s.audioReceiver = make(map[uint32][]string)
 
 	if s.Retries == 0 {
 		s.Retries = 3
@@ -147,7 +149,7 @@ func (s *Server) findSignByUUID(uuid string) Sign {
 
 func (s *Server) findSignByFileId(fileId uint32) Sign {
 	s.wrqLock.Lock()
-	wrq := s.FileMap[fileId]
+	wrq := s.fileMap[fileId]
 	s.wrqLock.Unlock()
 	return s.findSignByUUID(wrq.UUID)
 }
