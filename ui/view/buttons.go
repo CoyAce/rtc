@@ -20,6 +20,7 @@ type IconButton struct {
 	*material.Theme
 	Icon    *widget.Icon
 	Enabled bool
+	Active  bool
 	OnClick func(gtx layout.Context)
 	button  widget.Clickable
 }
@@ -31,6 +32,8 @@ func (b *IconButton) Layout(gtx layout.Context) layout.Dimensions {
 	bg := b.Theme.ContrastBg
 	if !b.Enabled {
 		bg = color.NRGBA(colornames.Grey500)
+	} else if b.Active {
+		bg = color.NRGBA(colornames.Red400)
 	}
 	return material.IconButtonStyle{
 		Background: bg,
@@ -82,30 +85,45 @@ var iconStackAnimation = component.VisibilityAnimation{
 }
 
 var VoiceMode = false
+var AudioCall = false
 
 func NewIconStack() *IconStack {
 	settings := NewSettingsForm(OnSettingsSubmit)
-	icon := *voiceMessageIcon
+	audioCall := &IconButton{Theme: fonts.DefaultTheme, Icon: audioCallIcon, Enabled: true}
+	audioCall.OnClick = SwitchBetweenCallStatus(audioCall)
+	voiceMessage := &IconButton{Theme: fonts.DefaultTheme, Icon: voiceMessageIcon, Enabled: true}
+	voiceMessage.OnClick = SwitchBetweenTextAndVoice(voiceMessage)
 	return &IconStack{Theme: fonts.DefaultTheme,
 		IconButtons: []*IconButton{
 			{Theme: fonts.DefaultTheme, Icon: settingsIcon, Enabled: true, OnClick: settings.ShowWithModal},
 			{Theme: fonts.DefaultTheme, Icon: filesIcon},
 			{Theme: fonts.DefaultTheme, Icon: photoLibraryIcon, Enabled: true, OnClick: ChooseAndSendPhoto},
 			{Theme: fonts.DefaultTheme, Icon: videoCallIcon},
-			{Theme: fonts.DefaultTheme, Icon: audioCallIcon},
-			{Theme: fonts.DefaultTheme, Icon: &icon, Enabled: true, OnClick: SwitchBetweenTextAndVoice(&icon)},
+			audioCall,
+			voiceMessage,
 		},
 	}
 }
 
-func SwitchBetweenTextAndVoice(icon *widget.Icon) func(gtx layout.Context) {
+func SwitchBetweenCallStatus(audioCall *IconButton) func(gtx layout.Context) {
+	return func(gtx layout.Context) {
+		AudioCall = !AudioCall
+		if AudioCall {
+			audioCall.Active = true
+		} else {
+			audioCall.Active = false
+		}
+	}
+}
+
+func SwitchBetweenTextAndVoice(voiceMessage *IconButton) func(gtx layout.Context) {
 	return func(gtx layout.Context) {
 		iconStackAnimation.Disappear(gtx.Now)
 		VoiceMode = !VoiceMode
 		if VoiceMode {
-			*icon = *chatIcon
+			voiceMessage.Icon = chatIcon
 		} else {
-			*icon = *voiceMessageIcon
+			voiceMessage.Icon = voiceMessageIcon
 		}
 	}
 }
