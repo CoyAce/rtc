@@ -401,8 +401,8 @@ func (c *Client) serve(conn net.PacketConn) {
 			switch wrq.Code {
 			case OpAudioCall:
 				c.addAudioStream(wrq)
+				c.addAudioReceiver(wrq)
 				c.FileMessages <- wrq
-				fallthrough
 			case OpAcceptAudioCall:
 				c.addAudioReceiver(wrq)
 				c.FileMessages <- wrq

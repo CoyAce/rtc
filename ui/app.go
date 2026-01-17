@@ -51,6 +51,7 @@ func Draw(window *app.Window, c *core.Client) error {
 	var messageKeeper = &view.MessageKeeper{MessageChannel: make(chan *view.Message, 1), StreamConfig: streamConfig}
 	messageList.Messages = messageKeeper.Messages()
 	go messageKeeper.Loop()
+	go view.ConsumeAudioData(streamConfig)
 	// listen for events in the messages channel
 	go func() {
 		handleOp := func(m core.WriteReq) {
