@@ -166,6 +166,19 @@ func (c *Client) SendVoice(filename string, duration uint64) error {
 	return c.sendFile(r, OpSendVoice, filename, 0, duration)
 }
 
+func (c *Client) SendAudioPacket(fileId uint32, packet []byte) error {
+	data := Data{FileId: fileId, Payload: bytes.NewReader(packet)}
+	pkt, err := data.Marshal()
+	if err != nil {
+		return err
+	}
+	_, err = c.conn.WriteTo(pkt, c.SAddr)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (c *Client) MakeAudioCall() (uint32, error) {
 	fileId := Hash(unsafe.Pointer(&struct{}{}))
 	return fileId, c.sendReq(OpAudioCall, fileId)

@@ -84,15 +84,29 @@ func (s *Server) Serve(conn net.PacketConn) error {
 			s.wrqLock.Unlock()
 			s.ack(conn, addr, wrq.Code, 0)
 		case data.Unmarshal(pkt) == nil:
-			go s.handle(s.findSignByFileId(data.FileId), pkt)
-			s.ack(conn, addr, OpData, data.Block)
-			b := data.Payload.(*bytes.Buffer)
-			if b.Len() < BlockSize {
-				s.wrqLock.Lock()
-				delete(s.fileMap, wrq.FileId)
-				s.wrqLock.Unlock()
+			isAudioCall := s.audioMap[data.FileId].FileId == data.FileId
+			if isAudioCall {
+				s.handleStreamData(conn, data, pkt, addr)
+				continue
 			}
+			s.handleFileData(conn, data, pkt, addr)
 		}
+	}
+}
+
+func (s *Server) handleStreamData(conn net.PacketConn, data Data, pkt []byte, addr net.Addr) {
+	go s.handleStream(data.FileId, addr, pkt)
+	s.ack(conn, addr, OpData, data.Block)
+}
+
+func (s *Server) handleFileData(conn net.PacketConn, data Data, pkt []byte, addr net.Addr) {
+	go s.handle(s.findSignByFileId(data.FileId), pkt)
+	s.ack(conn, addr, OpData, data.Block)
+	b := data.Payload.(*bytes.Buffer)
+	if b.Len() < BlockSize {
+		s.wrqLock.Lock()
+		delete(s.fileMap, data.FileId)
+		s.wrqLock.Unlock()
 	}
 }
 
@@ -147,6 +161,15 @@ func (s *Server) findSignByUUID(uuid string) Sign {
 	return Sign{UUID: uuid}
 }
 
+func (s *Server) findAddrByUUID(uuid string) string {
+	for addr, v := range s.SignMap {
+		if v.UUID == uuid {
+			return addr
+		}
+	}
+	return ""
+}
+
 func (s *Server) findSignByFileId(fileId uint32) Sign {
 	s.wrqLock.Lock()
 	wrq := s.fileMap[fileId]
@@ -161,6 +184,17 @@ func (s *Server) ack(conn net.PacketConn, clientAddr net.Addr, code OpCode, bloc
 	if err != nil {
 		log.Printf("[%s] write failed: %v", clientAddr, err)
 		return
+	}
+}
+
+func (s *Server) handleStream(fileId uint32, sender net.Addr, bytes []byte) {
+	senderSign := s.SignMap[sender.String()]
+	receivers := s.audioReceiver[fileId]
+	for _, UUID := range receivers {
+		if UUID != senderSign.UUID {
+			receiverAddr := s.findAddrByUUID(UUID)
+			go s.connectAndDispatch(receiverAddr, bytes)
+		}
 	}
 }
 
