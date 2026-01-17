@@ -48,10 +48,13 @@ func (f *FileWriter) Loop() {
 			// remove before append
 			RemoveFile(GetPath(req.UUID, req.Filename))
 		case data := <-f.FileData:
+			req := f.wrq[data.FileId]
+			if req.FileId != data.FileId {
+				continue
+			}
 			f.fileData[data.FileId] = append(f.fileData[data.FileId], data)
 			// received ~100kb
 			if len(f.fileData[data.FileId]) >= 70 {
-				req := f.wrq[data.FileId]
 				d := write(GetPath(req.UUID, req.Filename), f.fileData[data.FileId])
 				if d != nil {
 					// not consecutive, store for later use
@@ -96,6 +99,7 @@ type Client struct {
 	FileMessages   chan WriteReq      `json:"-"`
 	Status         chan struct{}      `json:"-"`
 	Connected      bool               `json:"-"`
+	AudioData      chan Data          `json:"-"`
 	MessageCounter uint32
 	SyncFunc       func() `json:"-"`
 	Sign           string
@@ -167,7 +171,7 @@ func (c *Client) SendVoice(filename string, duration uint64) error {
 }
 
 func (c *Client) SendAudioPacket(fileId uint32, packet []byte) error {
-	data := Data{FileId: fileId, Payload: bytes.NewReader(packet)}
+	data := Data{FileId: fileId, Block: Hash(unsafe.Pointer(c)), Payload: bytes.NewReader(packet)}
 	pkt, err := data.Marshal()
 	if err != nil {
 		return err
@@ -181,10 +185,15 @@ func (c *Client) SendAudioPacket(fileId uint32, packet []byte) error {
 
 func (c *Client) MakeAudioCall() (uint32, error) {
 	fileId := Hash(unsafe.Pointer(&struct{}{}))
+	c.addAudioStream(WriteReq{Code: OpAudioCall, FileId: fileId, UUID: c.FullID()})
 	return fileId, c.sendReq(OpAudioCall, fileId)
 }
 
 func (c *Client) EndAudioCall(fileId uint32) error {
+	wrq := WriteReq{Code: OpEndAudioCall, FileId: fileId, UUID: c.FullID()}
+	c.deleteAudioReceiver(wrq)
+	c.cleanupAudioResource(wrq)
+	c.FileMessages <- wrq
 	return c.sendReq(OpEndAudioCall, fileId)
 }
 
@@ -332,9 +341,10 @@ func (c *Client) init() {
 	c.FileMessages = make(chan WriteReq, 100)
 	c.audioMap = make(map[uint32]WriteReq)
 	c.audioReceiver = make(map[uint32][]string)
+	c.AudioData = make(chan Data, 100)
 
 	c.fileWriter = &FileWriter{Wrq: make(chan WriteReq), FileData: make(chan Data),
-		FileId: make(chan uint32), wrq: make(map[uint32]WriteReq, 0), fileData: make(map[uint32][]Data)}
+		FileId: make(chan uint32), wrq: make(map[uint32]WriteReq), fileData: make(map[uint32][]Data)}
 }
 
 func (c *Client) SendSign() {
@@ -357,9 +367,10 @@ func (c *Client) serve(conn net.PacketConn) {
 		data Data
 		wrq  WriteReq
 	)
-	buf := make([]byte, DatagramSize)
 
 	for {
+		buf := make([]byte, DatagramSize)
+		_ = conn.SetReadDeadline(time.Now().Add(c.Timeout))
 		n, addr, err := conn.ReadFrom(buf)
 		if err != nil {
 			var nErr net.Error
@@ -405,16 +416,25 @@ func (c *Client) serve(conn net.PacketConn) {
 				c.addFile(wrq)
 			}
 		case data.Unmarshal(buf[:n]) == nil:
-			c.ack(conn, addr, OpData, data.Block)
-			//log.Printf("received block: %v\n", data.Block)
-			// assign memory for every data pkt, maybe optimized using pooled buffer
-			buf = make([]byte, DatagramSize)
-			c.fileWriter.FileData <- data
-			if n < DatagramSize {
-				c.fileWriter.FileId <- data.FileId
-				log.Printf("file id: [%d] received", data.FileId)
+			if c.isAudio(data.FileId) {
+				c.AudioData <- data
+				continue
 			}
+			c.handleFileData(conn, addr, data, n)
 		}
+	}
+}
+
+func (c *Client) isAudio(fileId uint32) bool {
+	return c.audioMap[fileId].FileId == fileId
+}
+
+func (c *Client) handleFileData(conn net.PacketConn, addr net.Addr, data Data, n int) {
+	c.ack(conn, addr, OpData, data.Block)
+	c.fileWriter.FileData <- data
+	if n < DatagramSize {
+		c.fileWriter.FileId <- data.FileId
+		log.Printf("file id: [%d] received", data.FileId)
 	}
 }
 

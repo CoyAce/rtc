@@ -1,6 +1,10 @@
 package view
 
 import (
+	"bytes"
+	"context"
+	"errors"
+	"io"
 	"log"
 	"rtc/assets/fonts"
 	"rtc/core"
@@ -9,6 +13,8 @@ import (
 
 	"gioui.org/layout"
 	"gioui.org/x/component"
+	"github.com/CoyAce/opus"
+	"github.com/CoyAce/opus/ogg"
 )
 
 var audioStackAnimation = component.VisibilityAnimation{
@@ -17,14 +23,20 @@ var audioStackAnimation = component.VisibilityAnimation{
 	Started:  time.Time{},
 }
 
-var audioMode Mode
-
-var audioId uint32
-var audioMakeButton = &IconButton{Theme: fonts.DefaultTheme, Icon: audioCallIcon, Enabled: true}
-var audioAcceptButton = &IconButton{Theme: fonts.DefaultTheme, Icon: audioCallIcon, Enabled: true, Mode: Accept}
+var (
+	audioMode                 Mode
+	audioId                   uint32
+	audioMakeButton           = &IconButton{Theme: fonts.DefaultTheme, Icon: audioCallIcon, Enabled: true}
+	audioAcceptButton         = &IconButton{Theme: fonts.DefaultTheme, Icon: audioCallIcon, Enabled: true, Mode: Accept}
+	bytesOf20ms               = ogg.FrameSize * ogg.Channels * 2
+	bytesOf100ms              = bytesOf20ms * 5
+	captureCtx, captureCancel = context.WithCancel(context.Background())
+	playbackCancels           []context.CancelFunc
+	players                   = make(map[uint32]chan *bytes.Buffer)
+)
 
 func NewAudioIconStack(streamConfig audio.StreamConfig) *IconStack {
-	audioAcceptButton.OnClick = acceptAudioCall()
+	audioAcceptButton.OnClick = acceptAudioCall(streamConfig)
 	var audioDeclineButton = &IconButton{Theme: fonts.DefaultTheme, Icon: audioCallIcon, Enabled: true, Mode: Decline}
 	audioDeclineButton.OnClick = func(gtx layout.Context) {
 		audioMakeButton.Hidden = false
@@ -32,6 +44,7 @@ func NewAudioIconStack(streamConfig audio.StreamConfig) *IconStack {
 		time.AfterFunc(audioStackAnimation.Duration, func() {
 			audioAcceptButton.Hidden = false
 		})
+		captureCancel()
 		go func() {
 			var text string
 			switch audioMode {
@@ -64,7 +77,7 @@ func NewAudioIconStack(streamConfig audio.StreamConfig) *IconStack {
 	}
 }
 
-func acceptAudioCall() func(gtx layout.Context) {
+func acceptAudioCall(streamConfig audio.StreamConfig) func(gtx layout.Context) {
 	return func(gtx layout.Context) {
 		audioAcceptButton.Hidden = true
 		audioMode = Accept
@@ -77,7 +90,7 @@ func acceptAudioCall() func(gtx layout.Context) {
 			if err != nil {
 				log.Printf("audio call error: %v", err)
 			}
-			AcceptAudioCall()
+			PostAudioCallAccept(streamConfig)
 		}()
 	}
 }
@@ -94,15 +107,95 @@ func ShowIncomingCall(wrq core.WriteReq) {
 }
 
 func EndIncomingCall() {
+	if audioMode != Accept {
+		return
+	}
 	audioMode = None
 	audioAcceptButton.Hidden = true
 	audioMakeButton.Hidden = false
 	audioStackAnimation.Disappear(time.Now())
+	captureCancel()
 }
 
-func AcceptAudioCall() {
+func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 	audioMode = Accept
-	core.DefaultClient.SendText("audio accepted")
+	audioChunks := make(chan *bytes.Buffer, 10)
+	writer := newChunkWriter(captureCtx, audioChunks)
+	captureCtx, captureCancel = context.WithCancel(context.Background())
+	go func() {
+		if err := audio.Capture(captureCtx, writer, streamConfig); err != nil {
+			if errors.Is(err, context.Canceled) {
+				return
+			}
+			log.Printf("capture audio failed, %s", err)
+			captureCancel()
+		}
+	}()
+	go func() {
+		enc, err := opus.NewEncoder(ogg.SampleRate, ogg.Channels, opus.AppVoIP)
+		if err != nil {
+			log.Printf("create audio encoder failed, %s", err)
+			return
+		}
+		pcmProcessor := audio.NewPCMProcessor()
+		for {
+			var cur *bytes.Buffer
+			select {
+			// Received from audioChunkWriter
+			case cur = <-audioChunks:
+			case <-captureCtx.Done():
+				return
+			}
+			data := make([]byte, ogg.FrameSize)
+			n, err := enc.Encode(pcmProcessor.Normalize(audio.ToPcmInts(cur.Bytes())), data)
+			if err != nil {
+				log.Printf("audio encode failed, %s", err)
+			}
+			err = core.DefaultClient.SendAudioPacket(audioId, data[:n])
+			if err != nil {
+				log.Printf("audio call error: %v", err)
+			}
+		}
+	}()
+	go func() {
+		dec, err := opus.NewDecoder(ogg.SampleRate, ogg.Channels)
+		if err != nil {
+			log.Printf("create audio decoder failed, %s", err)
+			return
+		}
+		for {
+			select {
+			case data := <-core.DefaultClient.AudioData:
+				if players[data.Block] == nil {
+					pcmChunks := make(chan *bytes.Buffer, 10)
+					players[data.Block] = pcmChunks
+					go newPlayer(pcmChunks, streamConfig)
+				}
+				packet, err := io.ReadAll(data.Payload)
+				if err != nil {
+					log.Printf("read audio packet failed, %s", err)
+					continue
+				}
+				buf := make([]int16, ogg.FrameSize*int(ogg.Channels))
+				n, err := dec.Decode(packet, buf)
+				players[data.Block] <- bytes.NewBuffer(audio.ToPcmBytes(buf[:n*ogg.Channels]))
+			case <-captureCtx.Done():
+				for _, cancel := range playbackCancels {
+					cancel()
+				}
+				return
+			}
+		}
+	}()
+}
+
+func newPlayer(pcmChunks <-chan *bytes.Buffer, streamConfig audio.StreamConfig) {
+	playbackCtx, playbackCancel := context.WithCancel(context.Background())
+	playbackCancels = append(playbackCancels, playbackCancel)
+	reader := newChunkReader(playbackCtx, pcmChunks)
+	if err := audio.Playback(playbackCtx, reader, streamConfig); err != nil && !errors.Is(err, io.EOF) {
+		log.Printf("audio playback: %w", err)
+	}
 }
 
 func MakeAudioCall(audioButton *IconButton) func(gtx layout.Context) {
@@ -124,5 +217,69 @@ func MakeAudioCall(audioButton *IconButton) func(gtx layout.Context) {
 				audioStackAnimation.Disappear(gtx.Now)
 			}
 		}()
+	}
+}
+
+type audioChunkWriter struct {
+	ctx     context.Context
+	ready   chan<- *bytes.Buffer
+	current *bytes.Buffer
+}
+
+func newChunkWriter(ctx context.Context, ready chan<- *bytes.Buffer) *audioChunkWriter {
+	buf := new(bytes.Buffer)
+	buf.Grow(bytesOf100ms) // 100ms
+	return &audioChunkWriter{
+		ctx:     ctx,
+		ready:   ready,
+		current: buf,
+	}
+}
+
+func (rbw *audioChunkWriter) Write(p []byte) (n int, err error) {
+	if rbw.current.Len() >= bytesOf20ms {
+		buf := new(bytes.Buffer)
+		buf.Grow(bytesOf20ms)
+		_, err = io.CopyN(buf, rbw.current, int64(bytesOf20ms))
+		select {
+		case rbw.ready <- buf:
+			break
+		case <-rbw.ctx.Done():
+			return 0, rbw.ctx.Err()
+		}
+		rbw.current = bytes.NewBuffer(rbw.current.Bytes())
+	}
+
+	return rbw.current.Write(p)
+}
+
+func newChunkReader(ctx context.Context, ready <-chan *bytes.Buffer) *audioChunkReader {
+	buf := new(bytes.Buffer)
+	buf.Grow(bytesOf100ms) // 100ms
+	return &audioChunkReader{
+		ctx:     ctx,
+		ready:   ready,
+		current: buf,
+	}
+}
+
+type audioChunkReader struct {
+	ctx     context.Context
+	ready   <-chan *bytes.Buffer
+	current *bytes.Buffer
+}
+
+func (rbr *audioChunkReader) Read(p []byte) (n int, err error) {
+	if rbr.current.Len() >= len(p) {
+		return rbr.current.Read(p)
+	}
+	n, err = rbr.current.Read(p)
+	rbr.current.Reset()
+	select {
+	case buf := <-rbr.ready:
+		_, err = io.Copy(rbr.current, buf)
+		return
+	case <-rbr.ctx.Done():
+		return 0, rbr.ctx.Err()
 	}
 }

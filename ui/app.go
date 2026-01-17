@@ -53,6 +53,24 @@ func Draw(window *app.Window, c *core.Client) error {
 	go messageKeeper.Loop()
 	// listen for events in the messages channel
 	go func() {
+		handleOp := func(m core.WriteReq) {
+			switch m.Code {
+			case core.OpSyncIcon:
+				avatar := view.AvatarCache.LoadOrElseNew(m.UUID)
+				if filepath.Ext(m.Filename) == ".gif" {
+					avatar.Reload(view.GIF_IMG)
+				} else {
+					avatar.Reload(view.IMG)
+				}
+			case core.OpAudioCall:
+				view.ShowIncomingCall(m)
+			case core.OpAcceptAudioCall:
+				go view.PostAudioCallAccept(streamConfig)
+			case core.OpEndAudioCall:
+				view.EndIncomingCall()
+			default:
+			}
+		}
 		for {
 			var message *view.Message
 			select {
@@ -88,24 +106,8 @@ func Draw(window *app.Window, c *core.Client) error {
 						UUID: core.DefaultClient.FullID(), Type: view.Voice, Filename: m.Filename,
 						Sender: m.UUID, CreatedAt: time.Now(),
 						MediaControl: view.MediaControl{StreamConfig: streamConfig, Duration: m.Duration}}
-				case core.OpSyncIcon:
-					avatar := view.AvatarCache.LoadOrElseNew(m.UUID)
-					if filepath.Ext(m.Filename) == ".gif" {
-						avatar.Reload(view.GIF_IMG)
-					} else {
-						avatar.Reload(view.IMG)
-					}
-					continue
-				case core.OpAudioCall:
-					view.ShowIncomingCall(m)
-					continue
-				case core.OpAcceptAudioCall:
-					go view.AcceptAudioCall()
-					continue
-				case core.OpEndAudioCall:
-					view.EndIncomingCall()
-					continue
 				default:
+					handleOp(m)
 					continue
 				}
 			}

@@ -11,7 +11,7 @@ type PCMProcessor struct {
 	TargetPeak float64 // 目标峰值 (0.0-1.0)
 }
 
-func toPcmInts(pcm []byte) []int16 {
+func ToPcmInts(pcm []byte) []int16 {
 	ret := make([]int16, len(pcm)/2)
 	for i := 0; i < len(pcm); i += 2 {
 		ret[i/2] = int16(binary.NativeEndian.Uint16(pcm[i : i+2]))
@@ -19,7 +19,7 @@ func toPcmInts(pcm []byte) []int16 {
 	return ret
 }
 
-func toPcmBytes(pcm []int16) []byte {
+func ToPcmBytes(pcm []int16) []byte {
 	ret := make([]byte, len(pcm)*2)
 	for i, v := range pcm {
 		binary.NativeEndian.PutUint16(ret[i*2:], uint16(v)) // 将int16值写入到byte切片中
@@ -28,7 +28,11 @@ func toPcmBytes(pcm []int16) []byte {
 }
 
 func Normalize(pcm []byte) []byte {
-	return toPcmBytes(NewPCMProcessor().Normalize(toPcmInts(pcm)))
+	return ToPcmBytes(NormalizeToInts(pcm))
+}
+
+func NormalizeToInts(pcm []byte) []int16 {
+	return NewPCMProcessor().Normalize(ToPcmInts(pcm))
 }
 
 // NewPCMProcessor 创建处理器

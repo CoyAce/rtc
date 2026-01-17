@@ -1,9 +1,9 @@
 package core
 
 import (
-	"bytes"
 	"errors"
 	"log"
+	"maps"
 	"net"
 	"slices"
 	"sync"
@@ -58,6 +58,7 @@ func (s *Server) Serve(conn net.PacketConn) error {
 		switch {
 		case sign.Unmarshal(pkt) == nil:
 			s.signLock.Lock()
+			s.remove(sign)
 			s.SignMap[addr.String()] = sign
 			s.signLock.Unlock()
 			s.ack(conn, addr, OpSign, 0)
@@ -84,26 +85,43 @@ func (s *Server) Serve(conn net.PacketConn) error {
 			s.wrqLock.Unlock()
 			s.ack(conn, addr, wrq.Code, 0)
 		case data.Unmarshal(pkt) == nil:
-			isAudioCall := s.audioMap[data.FileId].FileId == data.FileId
-			if isAudioCall {
-				s.handleStreamData(conn, data, pkt, addr)
+			if s.isAudio(data.FileId) {
+				go s.handleStreamData(conn, data, pkt, addr)
 				continue
 			}
-			s.handleFileData(conn, data, pkt, addr)
+			s.handleFileData(conn, data, pkt, addr, n)
 		}
 	}
 }
 
-func (s *Server) handleStreamData(conn net.PacketConn, data Data, pkt []byte, addr net.Addr) {
-	go s.handleStream(data.FileId, addr, pkt)
-	s.ack(conn, addr, OpData, data.Block)
+func (s *Server) remove(sign Sign) {
+	maps.DeleteFunc(s.SignMap, func(s string, sn Sign) bool {
+		return sn.UUID == sign.UUID
+	})
 }
 
-func (s *Server) handleFileData(conn net.PacketConn, data Data, pkt []byte, addr net.Addr) {
+func (s *Server) isAudio(fileId uint32) bool {
+	return s.audioMap[fileId].FileId == fileId
+}
+
+func (s *Server) handleStreamData(conn net.PacketConn, data Data, pkt []byte, sender net.Addr) {
+	senderSign := s.SignMap[sender.String()]
+	receivers := s.audioReceiver[data.FileId]
+	for _, UUID := range receivers {
+		if UUID != senderSign.UUID {
+			receiverAddr := s.findAddrByUUID(UUID)
+			go func() {
+				udpAddr, _ := net.ResolveUDPAddr("udp", receiverAddr)
+				_, _ = conn.WriteTo(pkt, udpAddr)
+			}()
+		}
+	}
+}
+
+func (s *Server) handleFileData(conn net.PacketConn, data Data, pkt []byte, addr net.Addr, n int) {
 	go s.handle(s.findSignByFileId(data.FileId), pkt)
 	s.ack(conn, addr, OpData, data.Block)
-	b := data.Payload.(*bytes.Buffer)
-	if b.Len() < BlockSize {
+	if n < DatagramSize {
 		s.wrqLock.Lock()
 		delete(s.fileMap, data.FileId)
 		s.wrqLock.Unlock()
@@ -187,17 +205,6 @@ func (s *Server) ack(conn net.PacketConn, clientAddr net.Addr, code OpCode, bloc
 	}
 }
 
-func (s *Server) handleStream(fileId uint32, sender net.Addr, bytes []byte) {
-	senderSign := s.SignMap[sender.String()]
-	receivers := s.audioReceiver[fileId]
-	for _, UUID := range receivers {
-		if UUID != senderSign.UUID {
-			receiverAddr := s.findAddrByUUID(UUID)
-			go s.connectAndDispatch(receiverAddr, bytes)
-		}
-	}
-}
-
 func (s *Server) handle(sign Sign, bytes []byte) {
 	s.signLock.Lock()
 	defer s.signLock.Unlock()
@@ -210,6 +217,7 @@ func (s *Server) handle(sign Sign, bytes []byte) {
 }
 
 func (s *Server) connectAndDispatch(addr string, bytes []byte) {
+	udpAddr, _ := net.ResolveUDPAddr("udp", addr)
 	conn, err := net.Dial("udp", addr)
 	if err != nil {
 		log.Printf("[%s] dial failed: %v", addr, err)
@@ -217,10 +225,13 @@ func (s *Server) connectAndDispatch(addr string, bytes []byte) {
 		delete(s.SignMap, addr)
 		s.signLock.Unlock()
 	}
-	defer func() { _ = conn.Close() }()
+	defer func() {
+		if conn != nil {
+			_ = conn.Close()
+		}
+	}()
 
-	ad, _ := net.ResolveUDPAddr("udp", addr)
-	s.dispatch(ad, conn, bytes)
+	s.dispatch(udpAddr, conn, bytes)
 }
 
 func (s *Server) dispatch(clientAddr net.Addr, conn net.Conn, bytes []byte) {
