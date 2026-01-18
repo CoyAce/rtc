@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"math"
@@ -36,6 +37,7 @@ var (
 	captureCtx, captureCancel = context.WithCancel(context.Background())
 	playbackCancels           []context.CancelFunc
 	players                   = make(map[uint16]chan *bytes.Buffer)
+	aec                       = audio.NewRealTimeEchoCancel(nil)
 )
 
 type BlockId uint32
@@ -165,6 +167,8 @@ func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 		pcmProcessor := audio.NewPCMProcessor()
 		fileId := encodeAudioId()
 		blockId := BlockId(0)
+		var totalERLE float64
+		processedFrames := 0
 		for {
 			var cur *bytes.Buffer
 			select {
@@ -182,13 +186,34 @@ func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 				return
 			}
 			data := make([]byte, ogg.FrameSize)
-			n, err := enc.Encode(pcmProcessor.Normalize(audio.ToPcmInts(cur.Bytes())), data)
+			n, err := enc.Encode(pcmProcessor.Normalize(aec.ProcessFrame(audio.ToPcmInts(cur.Bytes()))), data)
 			if err != nil {
 				log.Printf("audio encode failed, %s", err)
 			}
 			err = core.DefaultClient.SendAudioPacket(fileId, blockId.next(), data[:n])
 			if err != nil {
 				log.Printf("audio call error: %v", err)
+			}
+			stats := aec.GetStats()
+			totalERLE += float64(stats.ERLE)
+			processedFrames++
+			avgERLE := totalERLE / float64(processedFrames)
+
+			fmt.Printf("平均ERLE: %.2f dB\n", avgERLE)
+			fmt.Printf("最终ERLE: %.2f dB\n", stats.ERLE)
+			fmt.Printf("估计延迟: %d 样本 (%.2f ms)\n",
+				stats.Delay, float64(stats.Delay)*1000/48000)
+			fmt.Printf("滤波器收敛: %v\n", stats.FilterConverged)
+			fmt.Printf("运行时间: %v\n", stats.GetUptime())
+			fmt.Printf("处理帧数: %d\n", stats.FrameCount)
+
+			// 保存示例输出（可选）
+			if avgERLE > 10 {
+				fmt.Println("✅ 回声消除效果良好")
+			} else if avgERLE > 5 {
+				fmt.Println("⚠️  回声消除效果一般")
+			} else {
+				fmt.Println("❌ 回声消除效果不佳，需要调参")
 			}
 		}
 	}()
@@ -218,6 +243,7 @@ func ConsumeAudioData(streamConfig audio.StreamConfig) {
 		}
 		buf := make([]int16, ogg.FrameSize*int(ogg.Channels))
 		n, err := dec.Decode(packet, buf)
+		aec.AddFarEnd(buf[:n*ogg.Channels])
 		select {
 		case players[identity] <- bytes.NewBuffer(audio.ToPcmBytes(buf[:n*ogg.Channels])):
 		default:
