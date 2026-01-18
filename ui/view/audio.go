@@ -35,7 +35,7 @@ var (
 	bytesOf100ms              = bytesOf20ms * 5
 	captureCtx, captureCancel = context.WithCancel(context.Background())
 	playbackCancels           []context.CancelFunc
-	players                   = make(map[uint32]chan *bytes.Buffer)
+	players                   = make(map[uint16]chan *bytes.Buffer)
 )
 
 type BlockId uint32
@@ -175,7 +175,7 @@ func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 					cancel()
 				}
 				playbackCancels = playbackCancels[:0]
-				players = make(map[uint32]chan *bytes.Buffer)
+				players = make(map[uint16]chan *bytes.Buffer)
 				return
 			}
 			data := make([]byte, ogg.FrameSize)
@@ -200,11 +200,12 @@ func ConsumeAudioData(streamConfig audio.StreamConfig) {
 		if captureCtx.Err() != nil {
 			continue
 		}
+		identity := core.GetLow16(data.FileId)
 		log.Printf("fileId:%d, timestamp: %d,block id %d",
-			core.GetHigh16(data.FileId), core.GetLow16(data.FileId), data.Block)
-		if players[data.Block] == nil {
+			core.GetHigh16(data.FileId), identity, data.Block)
+		if players[identity] == nil {
 			pcmChunks := make(chan *bytes.Buffer, 15000)
-			players[data.Block] = pcmChunks
+			players[identity] = pcmChunks
 			go newPlayer(pcmChunks, streamConfig)
 		}
 		packet, err := io.ReadAll(data.Payload)
@@ -214,7 +215,7 @@ func ConsumeAudioData(streamConfig audio.StreamConfig) {
 		}
 		buf := make([]int16, ogg.FrameSize*int(ogg.Channels))
 		n, err := dec.Decode(packet, buf)
-		players[data.Block] <- bytes.NewBuffer(audio.ToPcmBytes(buf[:n*ogg.Channels]))
+		players[identity] <- bytes.NewBuffer(audio.ToPcmBytes(buf[:n*ogg.Channels]))
 	}
 }
 
