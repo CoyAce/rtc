@@ -209,3 +209,29 @@ func EncodeImg(w io.Writer, filename string, img image.Image) error {
 	}
 	return nil
 }
+
+func GetHigh16(num uint32) uint16 {
+	return uint16(num >> 16)
+}
+
+func GetLow16(num uint32) uint16 {
+	return uint16(num & 0xFFFF)
+}
+
+func SplitUint32(num uint32) (high, low uint16) {
+	high = uint16(num >> 16)
+	low = uint16(num & 0xFFFF)
+	return high, low
+}
+
+func SetHigh16(num uint32, high uint16) uint32 {
+	return (num & 0x0000FFFF) | (uint32(high) << 16)
+}
+
+func SetLow16(num uint32, low uint16) uint32 {
+	return (num & 0xFFFF0000) | uint32(low)
+}
+
+func CombineUint32(high, low uint16) uint32 {
+	return uint32(high)<<16 | uint32(low)
+}

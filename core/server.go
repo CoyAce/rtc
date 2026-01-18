@@ -5,21 +5,19 @@ import (
 	"log"
 	"maps"
 	"net"
-	"slices"
 	"sync"
 	"syscall"
 	"time"
 )
 
 type Server struct {
-	SignMap       map[string]Sign
-	Retries       uint8         // the number of times to retry a failed transmission
-	Timeout       time.Duration // the duration to wait for an acknowledgement
-	fileMap       map[uint32]WriteReq
-	audioMap      map[uint32]WriteReq
-	audioReceiver map[uint32][]string
-	signLock      sync.Mutex
-	wrqLock       sync.Mutex
+	SignMap  map[string]Sign
+	Retries  uint8         // the number of times to retry a failed transmission
+	Timeout  time.Duration // the duration to wait for an acknowledgement
+	fileMap  map[uint32]WriteReq
+	signLock sync.Mutex
+	wrqLock  sync.Mutex
+	audioMetaInfo
 }
 
 func (s *Server) ListenAndServe(addr string) error {
@@ -69,16 +67,17 @@ func (s *Server) Serve(conn net.PacketConn) error {
 			s.ack(conn, addr, OpSignedMSG, 0)
 		case wrq.Unmarshal(pkt) == nil:
 			go s.handle(s.findSignByUUID(wrq.UUID), pkt)
+			audioId := s.decodeAudioId(wrq.FileId)
 			s.wrqLock.Lock()
 			switch wrq.Code {
 			case OpAudioCall:
 				s.addAudioStream(wrq)
 				fallthrough
 			case OpAcceptAudioCall:
-				s.addAudioReceiver(wrq)
+				s.addAudioReceiver(audioId, wrq)
 			case OpEndAudioCall:
-				s.deleteAudioReceiver(wrq)
-				s.cleanupAudioResource(wrq)
+				s.deleteAudioReceiver(audioId, wrq.UUID)
+				s.cleanupAudioResource(audioId)
 			default:
 				s.addFile(wrq)
 			}
@@ -100,16 +99,12 @@ func (s *Server) remove(sign Sign) {
 	})
 }
 
-func (s *Server) isAudio(fileId uint32) bool {
-	return s.audioMap[fileId].FileId == fileId
-}
-
 func (s *Server) handleStreamData(conn net.PacketConn, data Data, pkt []byte, sender net.Addr) {
 	senderSign := s.SignMap[sender.String()]
-	receivers := s.audioReceiver[data.FileId]
-	for _, UUID := range receivers {
-		if UUID != senderSign.UUID {
-			receiverAddr := s.findAddrByUUID(UUID)
+	receivers := s.audioReceiver[s.decodeAudioId(data.FileId)]
+	for _, wrq := range receivers {
+		if wrq.UUID != senderSign.UUID {
+			receiverAddr := s.findAddrByUUID(wrq.UUID)
 			go func() {
 				udpAddr, _ := net.ResolveUDPAddr("udp", receiverAddr)
 				_, _ = conn.WriteTo(pkt, udpAddr)
@@ -128,38 +123,15 @@ func (s *Server) handleFileData(conn net.PacketConn, data Data, pkt []byte, addr
 	}
 }
 
-func (s *Server) cleanupAudioResource(wrq WriteReq) {
-	if len(s.audioReceiver[wrq.FileId]) == 0 {
-		delete(s.audioReceiver, wrq.FileId)
-		delete(s.audioMap, wrq.FileId)
-	}
-}
-
-func (s *Server) deleteAudioReceiver(wrq WriteReq) {
-	s.audioReceiver[wrq.FileId] = slices.DeleteFunc(s.audioReceiver[wrq.FileId], func(e string) bool {
-		return e == wrq.UUID
-	})
-}
-
 func (s *Server) addFile(wrq WriteReq) {
 	s.fileMap[wrq.FileId] = wrq
-}
-
-func (s *Server) addAudioStream(wrq WriteReq) {
-	s.audioMap[wrq.FileId] = wrq
-}
-
-func (s *Server) addAudioReceiver(wrq WriteReq) {
-	if !slices.Contains(s.audioReceiver[wrq.FileId], wrq.UUID) {
-		s.audioReceiver[wrq.FileId] = append(s.audioReceiver[wrq.FileId], wrq.UUID)
-	}
 }
 
 func (s *Server) init() {
 	s.SignMap = make(map[string]Sign)
 	s.fileMap = make(map[uint32]WriteReq)
-	s.audioMap = make(map[uint32]WriteReq)
-	s.audioReceiver = make(map[uint32][]string)
+	s.audioMap = make(map[uint16]WriteReq)
+	s.audioReceiver = make(map[uint16][]WriteReq)
 
 	if s.Retries == 0 {
 		s.Retries = 3

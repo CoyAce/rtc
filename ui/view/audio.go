@@ -6,10 +6,12 @@ import (
 	"errors"
 	"io"
 	"log"
+	"math"
 	"rtc/assets/fonts"
 	"rtc/core"
 	"rtc/internal/audio"
 	"time"
+	"unsafe"
 
 	"gioui.org/layout"
 	"gioui.org/x/component"
@@ -25,7 +27,8 @@ var audioStackAnimation = component.VisibilityAnimation{
 
 var (
 	audioMode                 Mode
-	audioId                   uint32
+	audioId                   uint16
+	timestamp                 uint16
 	audioMakeButton           = &IconButton{Theme: fonts.DefaultTheme, Icon: audioCallIcon, Enabled: true}
 	audioAcceptButton         = &IconButton{Theme: fonts.DefaultTheme, Icon: audioCallIcon, Enabled: true, Mode: Accept}
 	bytesOf20ms               = ogg.FrameSize * ogg.Channels * 2
@@ -34,6 +37,26 @@ var (
 	playbackCancels           []context.CancelFunc
 	players                   = make(map[uint32]chan *bytes.Buffer)
 )
+
+type BlockId uint32
+
+func (b *BlockId) next() uint32 {
+	*b++
+	if *b == math.MaxUint32 {
+		*b = 0
+	}
+	return uint32(*b)
+}
+
+func encodeAudioId() uint32 {
+	return core.CombineUint32(audioId, timestamp)
+}
+
+func generateAudioId() uint32 {
+	audioId = uint16(core.Hash(unsafe.Pointer(&struct{}{})))
+	timestamp = uint16(time.Now().Unix())
+	return core.CombineUint32(audioId, timestamp)
+}
 
 func NewAudioIconStack(streamConfig audio.StreamConfig) *IconStack {
 	audioAcceptButton.OnClick = acceptAudioCall(streamConfig)
@@ -62,7 +85,7 @@ func NewAudioIconStack(streamConfig audio.StreamConfig) *IconStack {
 			if err != nil {
 				log.Printf("audio call failed: %v", err)
 			}
-			err = core.DefaultClient.EndAudioCall(audioId)
+			err = core.DefaultClient.EndAudioCall(encodeAudioId())
 			if err != nil {
 				log.Printf("audio call error: %v", err)
 			}
@@ -81,12 +104,14 @@ func acceptAudioCall(streamConfig audio.StreamConfig) func(gtx layout.Context) {
 	return func(gtx layout.Context) {
 		audioAcceptButton.Hidden = true
 		audioMode = Accept
+		timestamp = uint16(time.Now().Unix())
+		encodedAudioId := encodeAudioId()
 		go func() {
 			err := core.DefaultClient.SendText("接受了语音通话")
 			if err != nil {
 				log.Printf("audio call error: %v", err)
 			}
-			err = core.DefaultClient.AcceptAudioCall(audioId)
+			err = core.DefaultClient.AcceptAudioCall(encodedAudioId)
 			if err != nil {
 				log.Printf("audio call error: %v", err)
 			}
@@ -99,7 +124,7 @@ func ShowIncomingCall(wrq core.WriteReq) {
 	if audioMode == Accept {
 		return
 	}
-	audioId = wrq.FileId
+	audioId = core.GetHigh16(wrq.FileId)
 	audioMode = Decline
 	audioAcceptButton.Hidden = false
 	audioMakeButton.Hidden = true
@@ -138,6 +163,8 @@ func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 			return
 		}
 		pcmProcessor := audio.NewPCMProcessor()
+		fileId := encodeAudioId()
+		blockId := BlockId(0)
 		for {
 			var cur *bytes.Buffer
 			select {
@@ -156,7 +183,7 @@ func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 			if err != nil {
 				log.Printf("audio encode failed, %s", err)
 			}
-			err = core.DefaultClient.SendAudioPacket(audioId, data[:n])
+			err = core.DefaultClient.SendAudioPacket(fileId, blockId.next(), data[:n])
 			if err != nil {
 				log.Printf("audio call error: %v", err)
 			}
@@ -211,7 +238,8 @@ func MakeAudioCall(audioButton *IconButton) func(gtx layout.Context) {
 			if err != nil {
 				log.Printf("audio call error: %v", err)
 			}
-			audioId, err = core.DefaultClient.MakeAudioCall()
+
+			err = core.DefaultClient.MakeAudioCall(generateAudioId())
 			if err != nil {
 				log.Printf("audio call err: %v", err)
 				audioStackAnimation.Disappear(gtx.Now)

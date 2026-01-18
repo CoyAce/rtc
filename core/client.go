@@ -99,7 +99,6 @@ type Client struct {
 	FileMessages   chan WriteReq      `json:"-"`
 	Status         chan struct{}      `json:"-"`
 	Connected      bool               `json:"-"`
-	AudioData      chan Data          `json:"-"`
 	MessageCounter uint32
 	SyncFunc       func() `json:"-"`
 	Sign           string
@@ -108,9 +107,47 @@ type Client struct {
 	Retries        uint8         // the number of times to retry a failed transmission
 	Timeout        time.Duration // the duration to wait for an acknowledgement
 	fileWriter     *FileWriter
-	audioMap       map[uint32]WriteReq
-	audioReceiver  map[uint32][]string
 	conn           net.PacketConn
+	audioMetaInfo
+}
+
+type audioMetaInfo struct {
+	audioMap      map[uint16]WriteReq
+	audioReceiver map[uint16][]WriteReq
+	AudioData     chan Data `json:"-"`
+}
+
+func (a *audioMetaInfo) addAudioStream(wrq WriteReq) {
+	a.audioMap[GetHigh16(wrq.FileId)] = wrq
+}
+
+func (a *audioMetaInfo) isAudio(fileId uint32) bool {
+	return a.audioMap[a.decodeAudioId(fileId)].FileId == fileId
+}
+
+func (a *audioMetaInfo) decodeAudioId(fileId uint32) uint16 {
+	return GetHigh16(fileId)
+}
+
+func (a *audioMetaInfo) addAudioReceiver(fileId uint16, wrq WriteReq) {
+	if !slices.Contains(a.audioReceiver[fileId], wrq) {
+		a.audioReceiver[fileId] = append(a.audioReceiver[fileId], wrq)
+	}
+}
+
+func (a *audioMetaInfo) deleteAudioReceiver(fileId uint16, UUID string) {
+	a.audioReceiver[fileId] = slices.DeleteFunc(a.audioReceiver[fileId], func(w WriteReq) bool {
+		return w.UUID == UUID
+	})
+}
+
+func (a *audioMetaInfo) cleanupAudioResource(fileId uint16) bool {
+	if len(a.audioReceiver[fileId]) == 0 {
+		delete(a.audioReceiver, fileId)
+		delete(a.audioMap, fileId)
+		return true
+	}
+	return false
 }
 
 func (c *Client) Ready() {
@@ -170,8 +207,8 @@ func (c *Client) SendVoice(filename string, duration uint64) error {
 	return c.sendFile(r, OpSendVoice, filename, 0, duration)
 }
 
-func (c *Client) SendAudioPacket(fileId uint32, packet []byte) error {
-	data := Data{FileId: fileId, Block: Hash(unsafe.Pointer(c)), Payload: bytes.NewReader(packet)}
+func (c *Client) SendAudioPacket(fileId uint32, blockId uint32, packet []byte) error {
+	data := Data{FileId: fileId, Block: blockId, Payload: bytes.NewReader(packet)}
 	pkt, err := data.Marshal()
 	if err != nil {
 		return err
@@ -183,17 +220,16 @@ func (c *Client) SendAudioPacket(fileId uint32, packet []byte) error {
 	return nil
 }
 
-func (c *Client) MakeAudioCall() (uint32, error) {
-	fileId := Hash(unsafe.Pointer(&struct{}{}))
+func (c *Client) MakeAudioCall(fileId uint32) error {
 	c.addAudioStream(WriteReq{Code: OpAudioCall, FileId: fileId, UUID: c.FullID()})
-	return fileId, c.sendReq(OpAudioCall, fileId)
+	return c.sendReq(OpAudioCall, fileId)
 }
 
 func (c *Client) EndAudioCall(fileId uint32) error {
-	wrq := WriteReq{Code: OpEndAudioCall, FileId: fileId, UUID: c.FullID()}
-	c.deleteAudioReceiver(wrq)
-	c.cleanupAudioResource(wrq)
-	c.FileMessages <- wrq
+	audioId := GetHigh16(fileId)
+	c.deleteAudioReceiver(audioId, c.FullID())
+	c.cleanupAudioResource(audioId)
+	c.FileMessages <- WriteReq{Code: OpEndAudioCall, FileId: fileId, UUID: c.FullID()}
 	return c.sendReq(OpEndAudioCall, fileId)
 }
 
@@ -201,13 +237,13 @@ func (c *Client) AcceptAudioCall(fileId uint32) error {
 	return c.sendReq(OpAcceptAudioCall, fileId)
 }
 
-func (c *Client) sendReq(code OpCode, hash uint32) error {
+func (c *Client) sendReq(code OpCode, fileId uint32) error {
 	conn, err := net.Dial("udp", c.ServerAddr)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = conn.Close() }()
-	wrq := WriteReq{Code: code, FileId: hash, UUID: c.FullID()}
+	wrq := WriteReq{Code: code, FileId: fileId, UUID: c.FullID()}
 	pkt, err := wrq.Marshal()
 	if err != nil {
 		return err
@@ -339,8 +375,8 @@ func (c *Client) init() {
 
 	c.SignedMessages = make(chan SignedMessage, 100)
 	c.FileMessages = make(chan WriteReq, 100)
-	c.audioMap = make(map[uint32]WriteReq)
-	c.audioReceiver = make(map[uint32][]string)
+	c.audioMap = make(map[uint16]WriteReq)
+	c.audioReceiver = make(map[uint16][]WriteReq)
 	c.AudioData = make(chan Data, 100)
 
 	c.fileWriter = &FileWriter{Wrq: make(chan WriteReq), FileData: make(chan Data),
@@ -397,17 +433,18 @@ func (c *Client) serve(conn net.PacketConn) {
 				c.ack(conn, addr, OpSignedMSG, 0)
 			case wrq.Unmarshal(buf[:n]) == nil:
 				c.ack(conn, addr, wrq.Code, 0)
+				audioId := c.decodeAudioId(wrq.FileId)
 				switch wrq.Code {
 				case OpAudioCall:
 					c.addAudioStream(wrq)
-					c.addAudioReceiver(wrq)
+					c.addAudioReceiver(audioId, wrq)
 					c.FileMessages <- wrq
 				case OpAcceptAudioCall:
-					c.addAudioReceiver(wrq)
+					c.addAudioReceiver(audioId, wrq)
 					c.FileMessages <- wrq
 				case OpEndAudioCall:
-					c.deleteAudioReceiver(wrq)
-					cleanup := c.cleanupAudioResource(wrq)
+					c.deleteAudioReceiver(audioId, wrq.UUID)
+					cleanup := c.cleanupAudioResource(audioId)
 					if cleanup {
 						c.FileMessages <- wrq
 					}
@@ -425,10 +462,6 @@ func (c *Client) serve(conn net.PacketConn) {
 	}
 }
 
-func (c *Client) isAudio(fileId uint32) bool {
-	return c.audioMap[fileId].FileId == fileId
-}
-
 func (c *Client) handleFileData(conn net.PacketConn, addr net.Addr, data Data, n int) {
 	c.ack(conn, addr, OpData, data.Block)
 	c.fileWriter.FileData <- data
@@ -436,31 +469,6 @@ func (c *Client) handleFileData(conn net.PacketConn, addr net.Addr, data Data, n
 		c.fileWriter.FileId <- data.FileId
 		log.Printf("file id: [%d] received", data.FileId)
 	}
-}
-
-func (c *Client) addAudioStream(wrq WriteReq) {
-	c.audioMap[wrq.FileId] = wrq
-}
-
-func (c *Client) addAudioReceiver(wrq WriteReq) {
-	if !slices.Contains(c.audioReceiver[wrq.FileId], wrq.UUID) {
-		c.audioReceiver[wrq.FileId] = append(c.audioReceiver[wrq.FileId], wrq.UUID)
-	}
-}
-
-func (c *Client) deleteAudioReceiver(wrq WriteReq) {
-	c.audioReceiver[wrq.FileId] = slices.DeleteFunc(c.audioReceiver[wrq.FileId], func(e string) bool {
-		return e == wrq.UUID
-	})
-}
-
-func (c *Client) cleanupAudioResource(wrq WriteReq) bool {
-	if len(c.audioReceiver[wrq.FileId]) == 0 {
-		delete(c.audioReceiver, wrq.FileId)
-		delete(c.audioMap, wrq.FileId)
-		return true
-	}
-	return false
 }
 
 func (c *Client) addFile(wrq WriteReq) {
