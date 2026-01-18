@@ -200,6 +200,8 @@ func ConsumeAudioData(streamConfig audio.StreamConfig) {
 		if captureCtx.Err() != nil {
 			continue
 		}
+		log.Printf("fileId:%d, timestamp: %d,block id %d",
+			core.GetHigh16(data.FileId), core.GetLow16(data.FileId), data.Block)
 		if players[data.Block] == nil {
 			pcmChunks := make(chan *bytes.Buffer, 15000)
 			players[data.Block] = pcmChunks
