@@ -384,44 +384,44 @@ func (c *Client) serve(conn net.PacketConn) {
 			//log.Printf("[%s] receive text: %v", c.ServerAddr, err)
 			continue
 		}
-
-		switch {
-		case ack.Unmarshal(buf[:n]) == nil:
-			if ack.SrcOp == OpSign {
-				c.Connected = true
-			}
-			continue
-		case msg.Unmarshal(buf[:n]) == nil:
-			s := string(msg.Payload)
-			log.Printf("received text [%s] from [%s]\n", s, msg.Sign.UUID)
-			c.SignedMessages <- msg
-			c.ack(conn, addr, OpSignedMSG, 0)
-		case wrq.Unmarshal(buf[:n]) == nil:
-			c.ack(conn, addr, wrq.Code, 0)
-			switch wrq.Code {
-			case OpAudioCall:
-				c.addAudioStream(wrq)
-				c.addAudioReceiver(wrq)
-				c.FileMessages <- wrq
-			case OpAcceptAudioCall:
-				c.addAudioReceiver(wrq)
-				c.FileMessages <- wrq
-			case OpEndAudioCall:
-				c.deleteAudioReceiver(wrq)
-				cleanup := c.cleanupAudioResource(wrq)
-				if cleanup {
-					c.FileMessages <- wrq
+		go func() {
+			switch {
+			case ack.Unmarshal(buf[:n]) == nil:
+				if ack.SrcOp == OpSign {
+					c.Connected = true
 				}
-			default:
-				c.addFile(wrq)
+			case msg.Unmarshal(buf[:n]) == nil:
+				s := string(msg.Payload)
+				log.Printf("received text [%s] from [%s]\n", s, msg.Sign.UUID)
+				c.SignedMessages <- msg
+				c.ack(conn, addr, OpSignedMSG, 0)
+			case wrq.Unmarshal(buf[:n]) == nil:
+				c.ack(conn, addr, wrq.Code, 0)
+				switch wrq.Code {
+				case OpAudioCall:
+					c.addAudioStream(wrq)
+					c.addAudioReceiver(wrq)
+					c.FileMessages <- wrq
+				case OpAcceptAudioCall:
+					c.addAudioReceiver(wrq)
+					c.FileMessages <- wrq
+				case OpEndAudioCall:
+					c.deleteAudioReceiver(wrq)
+					cleanup := c.cleanupAudioResource(wrq)
+					if cleanup {
+						c.FileMessages <- wrq
+					}
+				default:
+					c.addFile(wrq)
+				}
+			case data.Unmarshal(buf[:n]) == nil:
+				if c.isAudio(data.FileId) {
+					c.AudioData <- data
+					return
+				}
+				c.handleFileData(conn, addr, data, n)
 			}
-		case data.Unmarshal(buf[:n]) == nil:
-			if c.isAudio(data.FileId) {
-				c.AudioData <- data
-				continue
-			}
-			c.handleFileData(conn, addr, data, n)
-		}
+		}()
 	}
 }
 

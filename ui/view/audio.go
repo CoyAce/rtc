@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io"
 	"log"
-	"os"
 	"rtc/assets/fonts"
 	"rtc/core"
 	"rtc/internal/audio"
@@ -124,18 +123,12 @@ func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 	captureCtx, captureCancel = context.WithCancel(context.Background())
 	writer := newChunkWriter(captureCtx, audioChunks)
 	go func() {
-		input, err := os.Open("sample.opus")
-		if err != nil {
-			log.Printf("Error opening file: %v", err)
-		}
-		defer input.Close()
-		pcm, err := ogg.Decode(input)
-		if err != nil {
-			log.Printf("Couldn't decode file: %v", err)
-		}
-		_, err = io.Copy(writer, bytes.NewReader(pcm))
-		if err != nil {
-			log.Printf("Error copying file: %v", err)
+		if err := audio.Capture(captureCtx, writer, streamConfig); err != nil {
+			if errors.Is(err, context.Canceled) {
+				return
+			}
+			log.Printf("capture audio failed, %s", err)
+			captureCancel()
 		}
 	}()
 	go func() {
@@ -151,6 +144,11 @@ func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 			// Received from audioChunkWriter
 			case cur = <-audioChunks:
 			case <-captureCtx.Done():
+				for _, cancel := range playbackCancels {
+					cancel()
+				}
+				playbackCancels = playbackCancels[:0]
+				players = make(map[uint32]chan *bytes.Buffer)
 				return
 			}
 			data := make([]byte, ogg.FrameSize)
@@ -171,28 +169,23 @@ func ConsumeAudioData(streamConfig audio.StreamConfig) {
 	if err != nil {
 		log.Printf("create audio decoder failed, %s", err)
 	}
-	for {
-		select {
-		case data := <-core.DefaultClient.AudioData:
-			if players[data.Block] == nil {
-				pcmChunks := make(chan *bytes.Buffer, 15000)
-				players[data.Block] = pcmChunks
-				go newPlayer(pcmChunks, streamConfig)
-			}
-			packet, err := io.ReadAll(data.Payload)
-			if err != nil {
-				log.Printf("read audio packet failed, %s", err)
-				continue
-			}
-			buf := make([]int16, ogg.FrameSize*int(ogg.Channels))
-			n, err := dec.Decode(packet, buf)
-			players[data.Block] <- bytes.NewBuffer(audio.ToPcmBytes(buf[:n*ogg.Channels]))
-		case <-captureCtx.Done():
-			for _, cancel := range playbackCancels {
-				cancel()
-			}
-			players = make(map[uint32]chan *bytes.Buffer)
+	for data := range core.DefaultClient.AudioData {
+		if captureCtx.Err() != nil {
+			continue
 		}
+		if players[data.Block] == nil {
+			pcmChunks := make(chan *bytes.Buffer, 15000)
+			players[data.Block] = pcmChunks
+			go newPlayer(pcmChunks, streamConfig)
+		}
+		packet, err := io.ReadAll(data.Payload)
+		if err != nil {
+			log.Printf("read audio packet failed, %s", err)
+			continue
+		}
+		buf := make([]int16, ogg.FrameSize*int(ogg.Channels))
+		n, err := dec.Decode(packet, buf)
+		players[data.Block] <- bytes.NewBuffer(audio.ToPcmBytes(buf[:n*ogg.Channels]))
 	}
 }
 
