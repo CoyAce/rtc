@@ -100,7 +100,9 @@ func (s *Server) remove(sign Sign) {
 }
 
 func (s *Server) handleStreamData(conn net.PacketConn, data Data, pkt []byte, sender net.Addr) {
+	s.signLock.Lock()
 	senderSign := s.SignMap[sender.String()]
+	s.signLock.Unlock()
 	receivers := s.audioReceiver[s.decodeAudioId(data.FileId)]
 	for _, wrq := range receivers {
 		if wrq.UUID != senderSign.UUID {
@@ -143,6 +145,8 @@ func (s *Server) init() {
 }
 
 func (s *Server) findSignByUUID(uuid string) Sign {
+	s.signLock.Lock()
+	defer s.signLock.Unlock()
 	for _, sign := range s.SignMap {
 		if sign.UUID == uuid {
 			return sign
@@ -152,6 +156,8 @@ func (s *Server) findSignByUUID(uuid string) Sign {
 }
 
 func (s *Server) findAddrByUUID(uuid string) string {
+	s.signLock.Lock()
+	defer s.signLock.Unlock()
 	for addr, v := range s.SignMap {
 		if v.UUID == uuid {
 			return addr

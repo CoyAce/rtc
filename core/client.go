@@ -122,7 +122,8 @@ func (a *audioMetaInfo) addAudioStream(wrq WriteReq) {
 }
 
 func (a *audioMetaInfo) isAudio(fileId uint32) bool {
-	return a.audioMap[a.decodeAudioId(fileId)].FileId == fileId
+	audioId := a.decodeAudioId(fileId)
+	return a.decodeAudioId(a.audioMap[audioId].FileId) == audioId
 }
 
 func (a *audioMetaInfo) decodeAudioId(fileId uint32) uint16 {
@@ -130,9 +131,10 @@ func (a *audioMetaInfo) decodeAudioId(fileId uint32) uint16 {
 }
 
 func (a *audioMetaInfo) addAudioReceiver(fileId uint16, wrq WriteReq) {
-	if !slices.Contains(a.audioReceiver[fileId], wrq) {
-		a.audioReceiver[fileId] = append(a.audioReceiver[fileId], wrq)
-	}
+	a.audioReceiver[fileId] = slices.DeleteFunc(a.audioReceiver[fileId], func(w WriteReq) bool {
+		return w.UUID == wrq.UUID
+	})
+	a.audioReceiver[fileId] = append(a.audioReceiver[fileId], wrq)
 }
 
 func (a *audioMetaInfo) deleteAudioReceiver(fileId uint16, UUID string) {
@@ -441,8 +443,7 @@ func (c *Client) handle(buf []byte, conn net.PacketConn, addr net.Addr) {
 		switch wrq.Code {
 		case OpAudioCall:
 			c.addAudioStream(wrq)
-			c.addAudioReceiver(audioId, wrq)
-			c.FileMessages <- wrq
+			fallthrough
 		case OpAcceptAudioCall:
 			c.addAudioReceiver(audioId, wrq)
 			c.FileMessages <- wrq

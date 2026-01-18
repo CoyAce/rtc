@@ -174,6 +174,9 @@ func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 				for _, cancel := range playbackCancels {
 					cancel()
 				}
+				for _, player := range players {
+					close(player)
+				}
 				playbackCancels = playbackCancels[:0]
 				players = make(map[uint16]chan *bytes.Buffer)
 				return
@@ -215,7 +218,11 @@ func ConsumeAudioData(streamConfig audio.StreamConfig) {
 		}
 		buf := make([]int16, ogg.FrameSize*int(ogg.Channels))
 		n, err := dec.Decode(packet, buf)
-		players[identity] <- bytes.NewBuffer(audio.ToPcmBytes(buf[:n*ogg.Channels]))
+		select {
+		case players[identity] <- bytes.NewBuffer(audio.ToPcmBytes(buf[:n*ogg.Channels])):
+		default:
+			log.Printf("buffer full, packet discarded, %s", err)
+		}
 	}
 }
 
@@ -313,7 +320,10 @@ func (rbr *audioChunkReader) Read(p []byte) (n int, err error) {
 	n, err = rbr.current.Read(p)
 	rbr.current.Reset()
 	select {
-	case buf := <-rbr.ready:
+	case buf, ok := <-rbr.ready:
+		if !ok {
+			return n, io.EOF
+		}
 		_, err = io.Copy(rbr.current, buf)
 		return
 	case <-rbr.ctx.Done():
