@@ -131,13 +131,13 @@ func ShowIncomingCall(wrq core.WriteReq) {
 	audioStackAnimation.Appear(time.Now())
 }
 
-func EndIncomingCall() {
-	if audioMode != Accept {
+func EndIncomingCall(cancel bool) {
+	if audioMode != Accept && !cancel {
 		return
 	}
 	audioMode = None
-	audioAcceptButton.Hidden = true
 	audioMakeButton.Hidden = false
+	audioAcceptButton.Hidden = true
 	audioStackAnimation.Disappear(time.Now())
 	captureCancel()
 }

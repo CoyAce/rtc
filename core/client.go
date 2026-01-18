@@ -449,7 +449,11 @@ func (c *Client) handle(buf []byte, conn net.PacketConn, addr net.Addr) {
 			c.FileMessages <- wrq
 		case OpEndAudioCall:
 			c.deleteAudioReceiver(audioId, wrq.UUID)
+			cancel := c.audioMap[audioId].UUID == wrq.UUID
 			cleanup := c.cleanupAudioResource(audioId)
+			if cancel {
+				wrq.FileId = 0
+			}
 			if cleanup {
 				c.FileMessages <- wrq
 			}

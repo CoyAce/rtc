@@ -68,7 +68,7 @@ func Draw(window *app.Window, c *core.Client) error {
 			case core.OpAcceptAudioCall:
 				go view.PostAudioCallAccept(streamConfig)
 			case core.OpEndAudioCall:
-				view.EndIncomingCall()
+				view.EndIncomingCall(m.FileId == 0)
 			default:
 			}
 		}
