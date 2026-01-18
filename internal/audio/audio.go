@@ -125,7 +125,7 @@ func ListCaptureDevices() error {
 // writer returns an error, or the context signals done.
 func Capture(ctx context.Context, w io.Writer, config StreamConfig) error {
 	config.DeviceType = malgo.Capture
-	abortChan := make(chan error)
+	abortChan := make(chan error, 1)
 	defer close(abortChan)
 	aborted := false
 
@@ -152,7 +152,7 @@ func Capture(ctx context.Context, w io.Writer, config StreamConfig) error {
 // reader returns an error, or the context signals done.
 func Playback(ctx context.Context, r io.Reader, config StreamConfig) error {
 	config.DeviceType = malgo.Playback
-	abortChan := make(chan error)
+	abortChan := make(chan error, 1)
 	defer close(abortChan)
 	aborted := false
 
