@@ -397,12 +397,6 @@ func (c *Client) SendSign() {
 }
 
 func (c *Client) serve(conn net.PacketConn) {
-	var (
-		ack  Ack
-		msg  SignedMessage
-		data Data
-		wrq  WriteReq
-	)
 
 	for {
 		buf := make([]byte, DatagramSize)
@@ -420,45 +414,53 @@ func (c *Client) serve(conn net.PacketConn) {
 			//log.Printf("[%s] receive text: %v", c.ServerAddr, err)
 			continue
 		}
-		go func() {
-			switch {
-			case ack.Unmarshal(buf[:n]) == nil:
-				if ack.SrcOp == OpSign {
-					c.Connected = true
-				}
-			case msg.Unmarshal(buf[:n]) == nil:
-				s := string(msg.Payload)
-				log.Printf("received text [%s] from [%s]\n", s, msg.Sign.UUID)
-				c.SignedMessages <- msg
-				c.ack(conn, addr, OpSignedMSG, 0)
-			case wrq.Unmarshal(buf[:n]) == nil:
-				c.ack(conn, addr, wrq.Code, 0)
-				audioId := c.decodeAudioId(wrq.FileId)
-				switch wrq.Code {
-				case OpAudioCall:
-					c.addAudioStream(wrq)
-					c.addAudioReceiver(audioId, wrq)
-					c.FileMessages <- wrq
-				case OpAcceptAudioCall:
-					c.addAudioReceiver(audioId, wrq)
-					c.FileMessages <- wrq
-				case OpEndAudioCall:
-					c.deleteAudioReceiver(audioId, wrq.UUID)
-					cleanup := c.cleanupAudioResource(audioId)
-					if cleanup {
-						c.FileMessages <- wrq
-					}
-				default:
-					c.addFile(wrq)
-				}
-			case data.Unmarshal(buf[:n]) == nil:
-				if c.isAudio(data.FileId) {
-					c.AudioData <- data
-					return
-				}
-				c.handleFileData(conn, addr, data, n)
+		go c.handle(buf[:n], conn, addr)
+	}
+}
+
+func (c *Client) handle(buf []byte, conn net.PacketConn, addr net.Addr) {
+	var (
+		ack  Ack
+		msg  SignedMessage
+		data Data
+		wrq  WriteReq
+	)
+	switch {
+	case ack.Unmarshal(buf) == nil:
+		if ack.SrcOp == OpSign {
+			c.Connected = true
+		}
+	case msg.Unmarshal(buf) == nil:
+		s := string(msg.Payload)
+		log.Printf("received text [%s] from [%s]\n", s, msg.Sign.UUID)
+		c.SignedMessages <- msg
+		c.ack(conn, addr, OpSignedMSG, 0)
+	case wrq.Unmarshal(buf) == nil:
+		c.ack(conn, addr, wrq.Code, 0)
+		audioId := c.decodeAudioId(wrq.FileId)
+		switch wrq.Code {
+		case OpAudioCall:
+			c.addAudioStream(wrq)
+			c.addAudioReceiver(audioId, wrq)
+			c.FileMessages <- wrq
+		case OpAcceptAudioCall:
+			c.addAudioReceiver(audioId, wrq)
+			c.FileMessages <- wrq
+		case OpEndAudioCall:
+			c.deleteAudioReceiver(audioId, wrq.UUID)
+			cleanup := c.cleanupAudioResource(audioId)
+			if cleanup {
+				c.FileMessages <- wrq
 			}
-		}()
+		default:
+			c.addFile(wrq)
+		}
+	case data.Unmarshal(buf) == nil:
+		if c.isAudio(data.FileId) {
+			c.AudioData <- data
+			return
+		}
+		c.handleFileData(conn, addr, data, len(buf))
 	}
 }
 
