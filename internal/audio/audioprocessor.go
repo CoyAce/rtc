@@ -1,8 +1,9 @@
 package audio
 
 import (
-	"encoding/binary"
 	"math"
+
+	"github.com/CoyAce/opus/ogg"
 )
 
 // PCMProcessor PCM处理器
@@ -11,28 +12,12 @@ type PCMProcessor struct {
 	TargetPeak float64 // 目标峰值 (0.0-1.0)
 }
 
-func ToPcmInts(pcm []byte) []int16 {
-	ret := make([]int16, len(pcm)/2)
-	for i := 0; i < len(pcm); i += 2 {
-		ret[i/2] = int16(binary.NativeEndian.Uint16(pcm[i : i+2]))
-	}
-	return ret
-}
-
-func ToPcmBytes(pcm []int16) []byte {
-	ret := make([]byte, len(pcm)*2)
-	for i, v := range pcm {
-		binary.NativeEndian.PutUint16(ret[i*2:], uint16(v)) // 将int16值写入到byte切片中
-	}
-	return ret
-}
-
 func Normalize(pcm []byte) []byte {
-	return ToPcmBytes(NormalizeToInts(pcm))
+	return ogg.ToBytes(NormalizeToInts(pcm))
 }
 
 func NormalizeToInts(pcm []byte) []int16 {
-	return NewPCMProcessor().Normalize(ToPcmInts(pcm))
+	return NewPCMProcessor().Normalize(ogg.ToInts(pcm))
 }
 
 // NewPCMProcessor 创建处理器

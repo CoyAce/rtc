@@ -12,7 +12,7 @@ require (
 	gioui.org v0.9.1-0.20260107121033-99647591f6b9
 	gioui.org/x v0.9.0
 	git.wow.st/gmp/jni v0.0.0-20210610011705-34026c7e22d0
-	github.com/CoyAce/opus v0.1.3
+	github.com/CoyAce/opus v0.1.4
 	github.com/gen2brain/malgo v0.11.24
 	github.com/go-text/typesetting v0.3.0
 	golang.org/x/exp/shiny v0.0.0-20251209150349-8475f28825e9

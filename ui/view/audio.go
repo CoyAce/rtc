@@ -186,7 +186,7 @@ func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 				return
 			}
 			data := make([]byte, ogg.FrameSize)
-			n, err := enc.Encode(pcmProcessor.Normalize(aec.ProcessFrame(audio.ToPcmInts(cur.Bytes()))), data)
+			n, err := enc.Encode(pcmProcessor.Normalize(aec.ProcessFrame(ogg.ToInts(cur.Bytes()))), data)
 			if err != nil {
 				log.Printf("audio encode failed, %s", err)
 			}
@@ -245,7 +245,7 @@ func ConsumeAudioData(streamConfig audio.StreamConfig) {
 		n, err := dec.Decode(packet, buf)
 		aec.AddFarEnd(buf[:n*ogg.Channels])
 		select {
-		case players[identity] <- bytes.NewBuffer(audio.ToPcmBytes(buf[:n*ogg.Channels])):
+		case players[identity] <- bytes.NewBuffer(ogg.ToBytes(buf[:n*ogg.Channels])):
 		default:
 			log.Printf("buffer full, packet discarded, %s", err)
 		}
