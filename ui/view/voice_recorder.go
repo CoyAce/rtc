@@ -19,6 +19,7 @@ import (
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
+	"github.com/CoyAce/opus"
 	"github.com/CoyAce/opus/ogg"
 )
 
@@ -90,19 +91,19 @@ func (v *VoiceRecorder) encodeAndSendAsync() {
 		filePath := core.GetDataPath(timeNow + ".opus")
 		log.Printf("audio filePath %s", filePath)
 		w, err := os.Create(filePath)
-		defer w.Close()
 		if err != nil {
 			log.Printf("create file %s failed, %s", filePath, err)
 			return
 		}
 		pcm := v.buf.Bytes()
-		samples := len(pcm)
-		err = ogg.Encode(w, audio.Normalize(pcm))
+		samples := len(pcm) / 2
+
+		err = ogg.NewEncoder(ogg.FrameSize, 1, opus.AppVoIP).Encode(w, audio.Normalize(pcm))
 		if err != nil {
 			log.Printf("encode file %s failed, %s", filePath, err)
 		}
 		v.buf = nil
-		duration := uint64(ogg.GetDuration(samples/2/ogg.Channels) / time.Millisecond)
+		duration := uint64(ogg.GetDuration(samples) / time.Millisecond)
 		message := Message{
 			State: Stateless,
 			Theme: fonts.DefaultTheme,

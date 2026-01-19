@@ -178,3 +178,12 @@ func Playback(ctx context.Context, r io.Reader, config StreamConfig) error {
 
 	return stream(ctx, abortChan, config, deviceCallbacks)
 }
+
+func NewStreamConfig(maCtx *malgo.AllocatedContext, channels int) StreamConfig {
+	return StreamConfig{
+		Format:       malgo.FormatS16,
+		Channels:     channels,
+		SampleRate:   48000,
+		MalgoContext: maCtx.Context,
+	}
+}

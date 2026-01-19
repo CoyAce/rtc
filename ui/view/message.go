@@ -322,10 +322,11 @@ func (m *MediaControl) playAudioAsync(filePath string) {
 			log.Printf("open file failed, %v", err)
 			return
 		}
-		pcm, err := ogg.Decode(file)
+		pcm, channels, err := ogg.Decode(file)
 		if err != nil {
 			log.Printf("decode file failed, %v", err)
 		}
+		m.StreamConfig.Channels = channels
 		reader := bytes.NewReader(pcm)
 		var ctx context.Context
 		ctx, m.cancel = context.WithCancel(context.Background())

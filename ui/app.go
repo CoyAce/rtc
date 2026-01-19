@@ -36,12 +36,7 @@ func Draw(window *app.Window, c *core.Client) error {
 		_ = maCtx.Uninit()
 		maCtx.Free()
 	}()
-	streamConfig := audio.StreamConfig{
-		Format:       malgo.FormatS16,
-		Channels:     2,
-		SampleRate:   48000,
-		MalgoContext: maCtx.Context,
-	}
+	streamConfig := audio.NewStreamConfig(maCtx, 1)
 	voiceRecorder := view.VoiceRecorder{StreamConfig: streamConfig}
 	// ops are the operations from the UI
 	var ops op.Ops
