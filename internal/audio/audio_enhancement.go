@@ -155,11 +155,11 @@ func DefaultAudioEnhancementConfig() *AudioEnhancementConfig {
 		EchoCancellation: EchoCancellationConfig{
 			Enabled:             false,
 			FilterLength:        200.0,
-			AdaptationRate:      0.5,
+			AdaptationRate:      0.3,
 			NonlinearProcessing: 0.3,
 			DoubleTalkThreshold: 0.5,
 			ComfortNoiseLevel:   -60.0,
-			ResidualSuppression: 0.5,
+			ResidualSuppression: 0.1,
 		},
 		Compression: CompressionConfig{
 			Enabled:     true,
@@ -241,15 +241,14 @@ func NewAudioEnhancer(config *AudioEnhancementConfig) *AudioEnhancer {
 	}
 
 	ae := &AudioEnhancer{
-		config:         config,
-		preamp:         NewPreamp(),
-		delayEstimator: NewDelayEstimator(),
-		farBuffer:      NewCircularBuffer(MaxEchoDelay * 2),
-		agc:            NewAutomaticGainControl(&config.AGC),
-		echo:           NewEchoCanceller(&config.EchoCancellation),
-		compressor:     NewDynamicRangeCompressor(&config.Compression),
-		equalizer:      NewParametricEqualizer(&config.Equalizer),
-		deesser:        NewDeEsser(&config.DeEsser),
+		config:     config,
+		preamp:     NewPreamp(),
+		farBuffer:  NewCircularBuffer(MaxEchoDelay * 2),
+		agc:        NewAutomaticGainControl(&config.AGC),
+		echo:       NewEchoCanceller(&config.EchoCancellation),
+		compressor: NewDynamicRangeCompressor(&config.Compression),
+		equalizer:  NewParametricEqualizer(&config.Equalizer),
+		deesser:    NewDeEsser(&config.DeEsser),
 	}
 
 	return ae
@@ -283,15 +282,10 @@ func (ae *AudioEnhancer) ProcessAudio(samples []float64) ([]float64, error) {
 	// Stage 2: Echo cancellation (should be first)
 	if ae.config.EchoCancellation.Enabled {
 		farFloat := ae.farBuffer.Read(FrameSize)
-		// 估计延时
-		delay := ae.delayEstimator.Estimate(farFloat, output)
-
-		//farFloat = ae.delayEstimator.AdjustDelay(farFloat, delay)
 		output = ae.echo.Process(farFloat, output)
 		ae.metrics.EchoReduction = ae.echo.GetReduction()
 		ae.metrics.EchoReturnLossEnhancement = ae.echo.EchoReturnLossEnhancement
 		ae.metrics.FilterConverged = ae.echo.FilterConverged
-		ae.metrics.Delay = delay
 	}
 
 	// Stage 3: Noise gate (part of AGC)
@@ -532,7 +526,6 @@ func (ec *EchoCanceller) Process(reference, samples []float64) []float64 {
 		ec.updateMetrics(sample, output[i])
 	}
 
-	farPower := calculatePower(reference)
 	nearPower := calculatePower(samples)
 	residualPower := calculatePower(output)
 
@@ -540,8 +533,8 @@ func (ec *EchoCanceller) Process(reference, samples []float64) []float64 {
 	alpha := float64(0.1) // 平滑系数
 
 	// 计算ERLE（dB）
-	if residualPower > 0 && farPower > 0 {
-		erle := 10 * float64(math.Log10(float64(nearPower/residualPower)))
+	if residualPower > 0 {
+		erle := 10 * float64(math.Log10(nearPower/residualPower))
 		ec.EchoReturnLossEnhancement = (1-alpha)*ec.EchoReturnLossEnhancement + alpha*erle
 	}
 
