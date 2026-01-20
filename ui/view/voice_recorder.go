@@ -101,7 +101,8 @@ func (v *VoiceRecorder) encodeAndSendAsync() {
 		if err != nil {
 			log.Printf("process audio failed, %s", err)
 		}
-		err = ogg.NewEncoder(ogg.FrameSize, 1, opus.AppVoIP).Encode(w, ogg.ToBytes(audio.Float64ToInt16(processed)))
+		output := ogg.ToBytes(audio.Float64ToInt16(processed))
+		err = ogg.NewEncoder(ogg.FrameSize, 1, opus.AppVoIP).Encode(w, output)
 		if err != nil {
 			log.Printf("encode file %s failed, %s", filePath, err)
 		}

@@ -26,10 +26,30 @@ type NoiseReducer struct {
 
 	// Lock for thread safety
 	mu sync.Mutex
+}
 
-	// Working buffers
-	buffer         []byte
-	spectrumBuffer []float64
+func DefaultNoiseReducer() *NoiseReducer {
+	config := ProcessingConfig{
+		// Voice Activity Detection
+		EnableVAD:    true,
+		VADThreshold: 0.02, // 2% of max energy
+		VADHoldTime:  20,   // Hold voice detection for 20 frames (400ms at 50fps)
+
+		// Noise Reduction
+		EnableNoiseReduction: true,
+		NoiseFloor:           0.01, // % of max signal
+		NoiseAttenuationDB:   2.0,  // dB attenuation
+
+		// Multi-channel Support
+		ChannelCount: 1,    // Default to mono
+		MixChannels:  true, // Mix channels by default
+
+		// General Processing
+		SampleRate: 48000, // 8kHz (typical for telephony)
+		FrameSize:  960,   // 20ms at 8kHz
+		BufferSize: 2048,  // Processing buffer size
+	}
+	return NewNoiseReducer(config)
 }
 
 // NewNoiseReducer creates a new noise reduction processor
@@ -53,25 +73,35 @@ func NewNoiseReducer(config ProcessingConfig) *NoiseReducer {
 		framesProcessed:       0,
 
 		fftSize: fftSize,
-
-		buffer:         make([]byte, config.BufferSize),
-		spectrumBuffer: make([]float64, fftSize),
 	}
 }
 
 // Process implements AudioProcessor interface
 // This is a simplified spectral subtraction implementation
-func (nr *NoiseReducer) Process(data []byte) ([]byte, error) {
+func (nr *NoiseReducer) Process(samples []float64) []float64 {
+	if nr.profileInitialized {
+		return nr.process(samples)
+	}
+	n := len(samples)
+	denoised := make([]float64, 0, n)
+	for i := 0; i < n; i += nr.frameSize {
+		end := i + nr.frameSize
+		if end >= n {
+			end = n
+		}
+		frame := nr.process(samples[i:end])
+		denoised = append(denoised, frame...)
+	}
+	return denoised
+}
+
+func (nr *NoiseReducer) process(samples []float64) []float64 {
 	if !nr.enabled {
-		return data, nil
+		return samples
 	}
 
 	nr.mu.Lock()
 	defer nr.mu.Unlock()
-
-	// Convert PCM bytes to float samples
-	samples := make([]float64, len(data)/nr.bytesPerSample)
-	bytesToFloat64Samples(data, samples, nr.bytesPerSample)
 
 	// For simplicity in this implementation, we'll use a time-domain approach
 	// rather than a full FFT-based spectral subtraction
@@ -86,7 +116,7 @@ func (nr *NoiseReducer) Process(data []byte) ([]byte, error) {
 		}
 
 		// During noise profile building, return original data
-		return data, nil
+		return samples
 	}
 
 	// Process each sample with noise reduction
@@ -104,12 +134,7 @@ func (nr *NoiseReducer) Process(data []byte) ([]byte, error) {
 			processedSamples[i] = sample * attenuation
 		}
 	}
-
-	// Convert back to bytes
-	result := make([]byte, len(data))
-	float64SamplesToBytes(processedSamples, result, nr.bytesPerSample)
-
-	return result, nil
+	return processedSamples
 }
 
 // updateNoiseProfile analyzes the audio to estimate the noise profile

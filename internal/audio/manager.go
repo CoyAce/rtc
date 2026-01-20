@@ -46,7 +46,7 @@ func NewProcessingManager(config ProcessingConfig) *ProcessingManager {
 	}
 
 	if config.EnableNoiseReduction {
-		pipeline.AddProcessor(noiseReducer) // Then reduce noise
+		//pipeline.AddProcessor(noiseReducer) // Then reduce noise
 	}
 
 	if config.EnableVAD {

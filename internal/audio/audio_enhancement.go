@@ -162,7 +162,7 @@ func DefaultAudioEnhancementConfig() *AudioEnhancementConfig {
 			ResidualSuppression: 0.1,
 		},
 		Compression: CompressionConfig{
-			Enabled:     true,
+			Enabled:     false,
 			Threshold:   -20.0,
 			Ratio:       4.0,
 			Knee:        2.0,
@@ -197,6 +197,7 @@ type AudioEnhancer struct {
 	mu     sync.RWMutex
 
 	preamp *Preamp
+	nr     *NoiseReducer
 
 	// AGC components
 	agc *AutomaticGainControl
@@ -241,6 +242,7 @@ func NewAudioEnhancer(config *AudioEnhancementConfig) *AudioEnhancer {
 	ae := &AudioEnhancer{
 		config:         config,
 		preamp:         NewPreamp(),
+		nr:             DefaultNoiseReducer(),
 		delayEstimator: NewDelayEstimator(),
 		agc:            NewAutomaticGainControl(&config.AGC),
 		echo:           NewEchoCanceller(&config.EchoCancellation),
@@ -295,22 +297,27 @@ func (ae *AudioEnhancer) ProcessAudio(samples []float64) ([]float64, error) {
 		output = ae.agc.ApplyNoiseGate(output)
 	}
 
-	// Stage 4: Equalizer
+	// Stage 4: Noise Reducer
+	if ae.nr.enabled {
+		output = ae.nr.Process(output)
+	}
+
+	// Stage 5: Equalizer
 	if ae.config.Equalizer.Enabled {
 		output = ae.equalizer.Process(output)
 	}
 
-	// Stage 5: De-esser
+	// Stage 6: De-esser
 	if ae.config.DeEsser.Enabled {
 		output = ae.deesser.Process(output)
 	}
 
-	// Stage 6: AGC
+	// Stage 7: AGC
 	if ae.config.AGC.Enabled {
 		output, ae.metrics.CurrentGain = ae.agc.Process(output)
 	}
 
-	// Stage 7: Compression
+	// Stage 8: Compression
 	if ae.config.Compression.Enabled {
 		output, ae.metrics.CompressionGain = ae.compressor.Process(output)
 	}
