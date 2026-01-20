@@ -212,7 +212,7 @@ func (m *TextControl) processTextCopy(gtx layout.Context, textForCopy string) {
 		}
 		gtx.Execute(clipboard.WriteCmd{Type: "application/text", Data: io.NopCloser(strings.NewReader(textForCopy))})
 	}
-	if m.Editor != nil && !gtx.Focused(m.Editor) {
+	if m.Editor != nil && !gtx.Focused(m.Editor) && m.Editor.SelectionLen() > 0 {
 		m.Editor.ClearSelection()
 	}
 }
