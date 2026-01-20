@@ -1,7 +1,6 @@
 package audio
 
 import (
-	"context"
 	"math"
 	"reflect"
 	"testing"
@@ -47,7 +46,6 @@ func TestAudioEnhancer_ProcessAudio(t *testing.T) {
 		samples[i] = amplitude * math.Sin(2*math.Pi*440*float64(i)/8000)
 	}
 
-	ctx := context.Background()
 	processed, err := enhancer.ProcessAudio(samples)
 	if err != nil {
 		t.Error(err)
@@ -86,7 +84,6 @@ func TestAudioEnhancer_ProcessBasic(t *testing.T) {
 		samples[i] = 0.5 * math.Sin(2*math.Pi*440*float64(i)/8000)
 	}
 
-	ctx := context.Background()
 	processed, err := enhancer.ProcessAudio(samples)
 	if err != nil {
 		t.Error(err)
@@ -128,7 +125,6 @@ func TestAudioEnhancer_AllFeaturesEnabled(t *testing.T) {
 		samples[i] = low + mid + high
 	}
 
-	ctx := context.Background()
 	processed, err := enhancer.ProcessAudio(samples)
 	if err != nil {
 		t.Error(err)
@@ -157,7 +153,6 @@ func BenchmarkAudioEnhancer_ProcessAudio(b *testing.B) {
 		samples[i] = math.Sin(2 * math.Pi * 1000 * float64(i) / 8000)
 	}
 
-	ctx := context.Background()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		enhancer.ProcessAudio(samples)

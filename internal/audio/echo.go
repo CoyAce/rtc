@@ -189,8 +189,9 @@ func (de *DelayEstimator) AdjustDelay(reference []float64, delay int) []float64 
 	return adjusted
 }
 
-func (de *DelayEstimator) Estimate(nearEnd []float64) int {
+func (de *DelayEstimator) Estimate(farEnd, nearEnd []float64) int {
 	// 更新历史缓冲区
+	de.farHistory.Write(farEnd)
 	de.nearHistory.Write(nearEnd)
 
 	de.frameCount++
@@ -424,7 +425,7 @@ func (aec *RealTimeEchoCancel) ProcessFrame(nearEnd []int16) []int16 {
 
 	farFloat := aec.farBuffer.Read(FrameSize)
 	// 估计延时
-	delay := aec.delayEstimator.Estimate(nearFloat)
+	delay := aec.delayEstimator.Estimate(farFloat, nearFloat)
 
 	farFloat = aec.delayEstimator.AdjustDelay(farFloat, delay)
 

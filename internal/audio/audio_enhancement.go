@@ -128,6 +128,17 @@ type DeEsserConfig struct {
 	Reduction float64
 }
 
+func EchoCancellationEnhancer() *AudioEnhancer {
+	config := DefaultAudioEnhancementConfig()
+	config.EchoCancellation.Enabled = true
+	return NewAudioEnhancer(config)
+}
+
+func DefaultAudioEnhancer() *AudioEnhancer {
+	config := DefaultAudioEnhancementConfig()
+	return NewAudioEnhancer(config)
+}
+
 // DefaultAudioEnhancementConfig returns default audio enhancement configuration
 func DefaultAudioEnhancementConfig() *AudioEnhancementConfig {
 	return &AudioEnhancementConfig{
@@ -138,11 +149,11 @@ func DefaultAudioEnhancementConfig() *AudioEnhancementConfig {
 			MinGain:            -12.0,
 			AttackTime:         10.0,
 			ReleaseTime:        100.0,
-			NoiseGateThreshold: -32.0,
+			NoiseGateThreshold: -50.0,
 			HoldTime:           50.0,
 		},
 		EchoCancellation: EchoCancellationConfig{
-			Enabled:             true,
+			Enabled:             false,
 			FilterLength:        200.0,
 			AdaptationRate:      0.5,
 			NonlinearProcessing: 0.3,
@@ -185,6 +196,8 @@ type AudioEnhancer struct {
 	config *AudioEnhancementConfig
 	mu     sync.RWMutex
 
+	preamp *Preamp
+
 	// AGC components
 	agc *AutomaticGainControl
 
@@ -202,16 +215,23 @@ type AudioEnhancer struct {
 
 	// Processing metrics
 	metrics AudioEnhancementMetrics
+
+	delayEstimator *DelayEstimator
+
+	farBuffer *CircularBuffer
 }
 
 // AudioEnhancementMetrics tracks enhancement metrics
 type AudioEnhancementMetrics struct {
-	InputLevel      float64
-	OutputLevel     float64
-	CurrentGain     float64
-	EchoReduction   float64
-	CompressionGain float64
-	ProcessedFrames uint64
+	InputLevel                float64
+	OutputLevel               float64
+	CurrentGain               float64
+	EchoReduction             float64
+	CompressionGain           float64
+	ProcessedFrames           uint64
+	EchoReturnLossEnhancement float64
+	FilterConverged           bool
+	Delay                     int
 }
 
 // NewAudioEnhancer creates a new audio enhancer
@@ -221,15 +241,29 @@ func NewAudioEnhancer(config *AudioEnhancementConfig) *AudioEnhancer {
 	}
 
 	ae := &AudioEnhancer{
-		config:     config,
-		agc:        NewAutomaticGainControl(&config.AGC),
-		echo:       NewEchoCanceller(&config.EchoCancellation),
-		compressor: NewDynamicRangeCompressor(&config.Compression),
-		equalizer:  NewParametricEqualizer(&config.Equalizer),
-		deesser:    NewDeEsser(&config.DeEsser),
+		config:         config,
+		preamp:         NewPreamp(),
+		delayEstimator: NewDelayEstimator(),
+		farBuffer:      NewCircularBuffer(MaxEchoDelay * 2),
+		agc:            NewAutomaticGainControl(&config.AGC),
+		echo:           NewEchoCanceller(&config.EchoCancellation),
+		compressor:     NewDynamicRangeCompressor(&config.Compression),
+		equalizer:      NewParametricEqualizer(&config.Equalizer),
+		deesser:        NewDeEsser(&config.DeEsser),
 	}
 
 	return ae
+}
+
+// AddFarEnd - 单独添加远端信号（用于异步处理）
+func (ae *AudioEnhancer) AddFarEnd(farEnd []int16) {
+	ae.mu.Lock()
+	defer ae.mu.Unlock()
+
+	if len(farEnd) == FrameSize {
+		farFloat := Int16ToFloat64(farEnd)
+		ae.farBuffer.Write(farFloat)
+	}
 }
 
 // ProcessAudio applies all enhancement stages to audio
@@ -237,38 +271,50 @@ func (ae *AudioEnhancer) ProcessAudio(samples []float64) ([]float64, error) {
 	ae.mu.Lock()
 	defer ae.mu.Unlock()
 
-	// Track input level
-	ae.metrics.InputLevel = calculateRMS(samples)
 	ae.metrics.ProcessedFrames++
+	// Stage 1: Preamp
+	output, info := ae.preamp.Process(samples)
+	if info == nil || info.Silent {
+		return output, nil
+	}
+	// Track input level
+	ae.metrics.InputLevel = info.RMS
 
-	// Stage 1: Echo cancellation (should be first)
-	output := samples
+	// Stage 2: Echo cancellation (should be first)
 	if ae.config.EchoCancellation.Enabled {
-		output = ae.echo.Process(output)
+		farFloat := ae.farBuffer.Read(FrameSize)
+		// 估计延时
+		delay := ae.delayEstimator.Estimate(farFloat, output)
+
+		//farFloat = ae.delayEstimator.AdjustDelay(farFloat, delay)
+		output = ae.echo.Process(farFloat, output)
 		ae.metrics.EchoReduction = ae.echo.GetReduction()
+		ae.metrics.EchoReturnLossEnhancement = ae.echo.EchoReturnLossEnhancement
+		ae.metrics.FilterConverged = ae.echo.FilterConverged
+		ae.metrics.Delay = delay
 	}
 
-	// Stage 2: Noise gate (part of AGC)
+	// Stage 3: Noise gate (part of AGC)
 	if ae.config.AGC.Enabled {
 		output = ae.agc.ApplyNoiseGate(output)
 	}
 
-	// Stage 3: Equalizer
+	// Stage 4: Equalizer
 	if ae.config.Equalizer.Enabled {
 		output = ae.equalizer.Process(output)
 	}
 
-	// Stage 4: De-esser
+	// Stage 5: De-esser
 	if ae.config.DeEsser.Enabled {
 		output = ae.deesser.Process(output)
 	}
 
-	// Stage 5: AGC
+	// Stage 6: AGC
 	if ae.config.AGC.Enabled {
 		output, ae.metrics.CurrentGain = ae.agc.Process(output)
 	}
 
-	// Stage 6: Compression
+	// Stage 7: Compression
 	if ae.config.Compression.Enabled {
 		output, ae.metrics.CompressionGain = ae.compressor.Process(output)
 	}
@@ -423,7 +469,9 @@ type EchoCanceller struct {
 	doubleTalk   bool
 
 	// Metrics
-	echoReduction float64
+	echoReduction             float64
+	EchoReturnLossEnhancement float64
+	FilterConverged           bool
 }
 
 // NewEchoCanceller creates a new echo canceller
@@ -440,7 +488,7 @@ func NewEchoCanceller(config *EchoCancellationConfig) *EchoCanceller {
 }
 
 // Process removes echo from audio signal
-func (ec *EchoCanceller) Process(samples []float64) []float64 {
+func (ec *EchoCanceller) Process(reference, samples []float64) []float64 {
 	ec.mu.Lock()
 	defer ec.mu.Unlock()
 
@@ -450,9 +498,12 @@ func (ec *EchoCanceller) Process(samples []float64) []float64 {
 
 	output := make([]float64, len(samples))
 
+	ec.referenceBuffer = reference
 	for i, sample := range samples {
 		// Update reference buffer (simulated far-end signal)
-		ec.updateReferenceBuffer(sample)
+		if len(reference) == 0 {
+			ec.updateReferenceBuffer(sample)
+		}
 
 		// Estimate echo using adaptive filter
 		echoEstimate := ec.estimateEcho()
@@ -479,6 +530,24 @@ func (ec *EchoCanceller) Process(samples []float64) []float64 {
 
 		// Update metrics
 		ec.updateMetrics(sample, output[i])
+	}
+
+	farPower := calculatePower(reference)
+	nearPower := calculatePower(samples)
+	residualPower := calculatePower(output)
+
+	// 平滑更新
+	alpha := float64(0.1) // 平滑系数
+
+	// 计算ERLE（dB）
+	if residualPower > 0 && farPower > 0 {
+		erle := 10 * float64(math.Log10(float64(nearPower/residualPower)))
+		ec.EchoReturnLossEnhancement = (1-alpha)*ec.EchoReturnLossEnhancement + alpha*erle
+	}
+
+	// 检查滤波器收敛
+	if ec.EchoReturnLossEnhancement > 15 {
+		ec.FilterConverged = true
 	}
 
 	return output

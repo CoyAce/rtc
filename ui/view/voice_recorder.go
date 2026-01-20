@@ -97,7 +97,7 @@ func (v *VoiceRecorder) encodeAndSendAsync() {
 		}
 		pcm := v.buf.Bytes()
 		samples := len(pcm) / 2
-		processed, err := enhancer.ProcessAudio(audio.Int16ToFloat64(audio.NormalizeToInts(pcm)))
+		processed, err := enhancer.ProcessAudio(audio.Int16ToFloat64(ogg.ToInts(pcm)))
 		if err != nil {
 			log.Printf("process audio failed, %s", err)
 		}

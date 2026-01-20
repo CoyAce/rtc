@@ -37,9 +37,8 @@ var (
 	captureCtx, captureCancel = context.WithCancel(context.Background())
 	playbackCancels           []context.CancelFunc
 	players                   = make(map[uint16]chan *bytes.Buffer)
-	aec                       = audio.NewRealTimeEchoCancel(nil)
-	config                    = audio.DefaultAudioEnhancementConfig()
-	enhancer                  = audio.NewAudioEnhancer(config)
+	ecEnhancer                = audio.EchoCancellationEnhancer()
+	enhancer                  = audio.DefaultAudioEnhancer()
 )
 
 type BlockId uint32
@@ -166,11 +165,11 @@ func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 			log.Printf("create audio encoder failed, %s", err)
 			return
 		}
-		//pcmProcessor := audio.NewPCMProcessor()
 		fileId := encodeAudioId()
 		blockId := BlockId(0)
 		var reduction float64
 		processedFrames := 0
+		erle := 0.0
 		for {
 			var cur *bytes.Buffer
 			select {
@@ -188,7 +187,7 @@ func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 				return
 			}
 			data := make([]byte, ogg.FrameSize)
-			processAudio, err := enhancer.ProcessAudio(audio.Int16ToFloat64(audio.NormalizeToInts(cur.Bytes())))
+			processAudio, err := ecEnhancer.ProcessAudio(audio.Int16ToFloat64(ogg.ToInts(cur.Bytes())))
 			if err != nil {
 				log.Printf("enhancer process audio failed, %s", err)
 			}
@@ -200,12 +199,15 @@ func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 			if err != nil {
 				log.Printf("audio call error: %v", err)
 			}
-			stats := enhancer.GetMetrics()
+			stats := ecEnhancer.GetMetrics()
 			reduction += stats.EchoReduction
+			erle += stats.EchoReturnLossEnhancement
 			processedFrames++
 			avgReduction := reduction / float64(processedFrames)
+			avgErle := erle / float64(processedFrames)
 
-			fmt.Printf("平均reduction: %.2f\n", avgReduction)
+			fmt.Printf("平均reduction: %.2f 平均ERLE: %.1f Delay: %d \n", avgReduction, avgErle, stats.Delay)
+			fmt.Printf("input level: %.6f output level %.6f \n", stats.InputLevel, stats.OutputLevel)
 		}
 	}()
 }
@@ -234,7 +236,7 @@ func ConsumeAudioData(streamConfig audio.StreamConfig) {
 		}
 		buf := make([]int16, ogg.FrameSize)
 		n, err := dec.Decode(packet, buf)
-		aec.AddFarEnd(buf[:n])
+		ecEnhancer.AddFarEnd(buf[:n])
 		select {
 		case players[identity] <- bytes.NewBuffer(ogg.ToBytes(buf[:n])):
 		default:

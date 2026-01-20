@@ -2,29 +2,21 @@ package audio
 
 import (
 	"math"
-
-	"github.com/CoyAce/opus/ogg"
 )
 
-// PCMProcessor PCM处理器
-type PCMProcessor struct {
+// Preamp 前置放大器
+type Preamp struct {
 	TargetRMS  float64 // 目标RMS音量 (0.0-1.0)
 	TargetPeak float64 // 目标峰值 (0.0-1.0)
+	MaxGain    float64 // 最大增益
 }
 
-func Normalize(pcm []byte) []byte {
-	return ogg.ToBytes(NormalizeToInts(pcm))
-}
-
-func NormalizeToInts(pcm []byte) []int16 {
-	return NewPCMProcessor().Normalize(ogg.ToInts(pcm))
-}
-
-// NewPCMProcessor 创建处理器
-func NewPCMProcessor() *PCMProcessor {
-	return &PCMProcessor{
-		TargetRMS:  0.25,
-		TargetPeak: 0.80, // 留20%余量
+// NewPreamp 创建前置放大器
+func NewPreamp() *Preamp {
+	return &Preamp{
+		TargetRMS:  -24, // -24dBFS
+		TargetPeak: -18, // -18dBFS
+		MaxGain:    24,
 	}
 }
 
@@ -40,13 +32,13 @@ type PCMBuffer struct {
 type VolumeInfo struct {
 	RMS    float64 // 均方根音量
 	Peak   float64 // 峰值
-	Max    int16   // 最大样本值
-	Min    int16   // 最小样本值
+	Max    float64 // 最大样本值
+	Min    float64 // 最小样本值
 	Silent bool    // 是否静音
 }
 
 // AnalyzePCM 分析PCM数据音量
-func (p *PCMProcessor) AnalyzePCM(data []int16) VolumeInfo {
+func (p *Preamp) AnalyzePCM(data []float64) VolumeInfo {
 	if len(data) == 0 {
 		return VolumeInfo{Silent: true}
 	}
@@ -54,17 +46,13 @@ func (p *PCMProcessor) AnalyzePCM(data []int16) VolumeInfo {
 	var (
 		sumSquares float64
 		maxPeak    float64
-		maxVal     int16 = -32768
-		minVal     int16 = 32767
-		silent           = true
+		maxVal     = -1.0
+		minVal     = 1.0
+		silent     = true
 	)
 	for _, sample := range data {
-		// 转换为线性值 [-1.0, 1.0]
-		sampleLinear := float64(sample) / 32768.0
-		absSample := math.Abs(sampleLinear)
-
-		// 更新统计
-		sumSquares += sampleLinear * sampleLinear
+		absSample := math.Abs(sample)
+		sumSquares += sample * sample
 		if absSample > maxPeak {
 			maxPeak = absSample
 		}
@@ -91,10 +79,10 @@ func (p *PCMProcessor) AnalyzePCM(data []int16) VolumeInfo {
 	}
 }
 
-// Normalize 标准化PCM数据音量
-func (p *PCMProcessor) Normalize(data []int16) []int16 {
+// Process 前置放大PCM数据音量
+func (p *Preamp) Process(data []float64) ([]float64, *VolumeInfo) {
 	if len(data) == 0 {
-		return data
+		return data, nil
 	}
 
 	// 分析原始音量
@@ -102,51 +90,50 @@ func (p *PCMProcessor) Normalize(data []int16) []int16 {
 
 	// 如果是静音，返回原数据
 	if info.Silent {
-		return data
+		return data, nil
 	}
 
 	// 计算RMS增益
-	rmsGain := p.TargetRMS / info.RMS
+	rmsGain := dbToLinear(p.TargetRMS) / info.RMS
 
 	// 计算峰值增益（防止削波）
-	peakGain := p.TargetPeak / info.Peak
+	peakGain := dbToLinear(p.TargetPeak) / info.Peak
 
 	// 使用较小的增益
 	gain := math.Min(rmsGain, peakGain)
 
 	// 限制最大增益（避免过度放大噪声）
 	if info.RMS < 0.01 { // 非常安静的声音
-		maxGain := 64.0 // 最大放大64倍
-		if gain > maxGain {
-			gain = maxGain
+		if gain > p.MaxGain {
+			gain = p.MaxGain
 		}
 	}
 
 	// 应用增益
-	return p.applyGain(data, gain)
+	return p.applyGain(data, gain), &info
 }
 
 // applyGain 应用增益到PCM数据
-func (p *PCMProcessor) applyGain(data []int16, gain float64) []int16 {
+func (p *Preamp) applyGain(data []float64, gain float64) []float64 {
 	if len(data) == 0 {
 		return data
 	}
 
-	result := make([]int16, len(data))
+	result := make([]float64, len(data))
 	for i, sample := range data {
-		value := float64(sample) * gain
+		value := sample * gain
 
 		// 软限制（防止削波）
-		if value > 32767 {
+		if value > 1.0 {
 			// 使用软限制曲线
-			overshoot := value - 32767
-			value = 32767 + overshoot/(1.0+overshoot*0.0001)
-		} else if value < -32768 {
-			overshoot := value + 32768
-			value = -32768 + overshoot/(1.0+overshoot*0.0001)
+			overshoot := value - 1.0
+			value = 1.0 + overshoot/(1.0+overshoot*0.0001)
+		} else if value < -1.0 {
+			overshoot := value + 1.0
+			value = -1.0 + overshoot/(1.0+overshoot*0.0001)
 		}
 
-		result[i] = int16(value)
+		result[i] = value
 	}
 
 	return result
