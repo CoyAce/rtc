@@ -8,15 +8,15 @@ import (
 
 // 常量定义
 const (
-	SampleRate       = 48000     // 采样率
-	FrameMs          = 20        // 帧时长（毫秒）
-	FrameSize        = 960 * 2   // 帧大小：48000 * 20 * 2 / 1000 = 1920
-	MaxEchoDelayMs   = 500       // 最大回声延迟（毫秒）
-	MaxEchoDelay     = 24000 * 2 // 最大回声延迟样本数：48000 * 500 * 2 / 1000
-	FilterLengthMs   = 200       // 滤波器长度（毫秒）
-	FilterLength     = 9600 * 2  // 滤波器长度样本数：48000 * 200 * 2 / 1000
-	DoubleTalkWindow = 10        // 双讲检测窗口（帧数）
-	ERLECalcWindow   = 50        // ERLE计算窗口（帧数）
+	SampleRate       = 48000 // 采样率
+	FrameMs          = 20    // 帧时长（毫秒）
+	FrameSize        = 960   // 帧大小：48000 * 20 / 1000 = 960
+	MaxEchoDelayMs   = 500   // 最大回声延迟（毫秒）
+	MaxEchoDelay     = 24000 // 最大回声延迟样本数：48000 * 500 / 1000
+	FilterLengthMs   = 200   // 滤波器长度（毫秒）
+	FilterLength     = 9600  // 滤波器长度样本数：48000 * 200 / 1000
+	DoubleTalkWindow = 10    // 双讲检测窗口（帧数）
+	ERLECalcWindow   = 50    // ERLE计算窗口（帧数）
 )
 
 // Int16ToFloat64 - int16转float32 [-32768, 32767] -> [-1.0, 1.0]
@@ -531,7 +531,7 @@ func NewNLMSAEC(sampleRate, channels int) *NLMSAEC {
 	frameSize := int(float64(sampleRate) * frameDuration)
 
 	// 滤波器长度：假设最大回声延迟128ms
-	filterLength := int(float64(sampleRate) * 0.128) // 6144个样本
+	filterLength := int(float64(sampleRate) * 0.128 * float64(channels)) // 6144个样本
 
 	aec := &NLMSAEC{
 		sampleRate:          sampleRate,
@@ -553,37 +553,12 @@ func NewNLMSAEC(sampleRate, channels int) *NLMSAEC {
 	return aec
 }
 
-// Process 处理一帧音频数据
 func (aec *NLMSAEC) Process(reference, mic []float64) []float64 {
-	aec.mu.Lock()
-	defer aec.mu.Unlock()
-
-	if len(reference) != aec.frameSize*aec.channels || len(mic) != aec.frameSize*aec.channels {
-		panic("输入帧大小不匹配")
-	}
-
-	// 转换为浮点数
-	refFloat := split(reference, aec.channels)
-	micFloat := split(mic, aec.channels)
-
-	// 处理每个声道
-	output := make([][]float64, aec.channels)
-	for ch := 0; ch < aec.channels; ch++ {
-		output[ch] = aec.processChannel(refFloat[ch], micFloat[ch])
-	}
-
-	// 转换为int16输出
-	return combine(output, aec.channels)
-}
-
-// processChannel 处理单声道
-func (aec *NLMSAEC) processChannel(reference, mic []float64) []float64 {
 	frameSize := len(reference)
 	output := make([]float64, frameSize)
 
 	// 更新参考信号历史
 	aec.updateReferenceHistory(reference)
-
 	for n := 0; n < frameSize; n++ {
 		// 构建当前输入向量
 		inputVector := aec.getInputVector(n + frameSize - 1)
@@ -607,6 +582,7 @@ func (aec *NLMSAEC) processChannel(reference, mic []float64) []float64 {
 
 		// 应用残留回声抑制
 		output[n] = aec.residualEchoSuppressor.ProcessSample(error, echoEstimate)
+		//output[n] = error
 	}
 
 	aec.frameCount++

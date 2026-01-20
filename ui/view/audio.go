@@ -32,12 +32,14 @@ var (
 	timestamp                 uint16
 	audioMakeButton           = &IconButton{Theme: fonts.DefaultTheme, Icon: audioCallIcon, Enabled: true}
 	audioAcceptButton         = &IconButton{Theme: fonts.DefaultTheme, Icon: audioCallIcon, Enabled: true, Mode: Accept}
-	bytesOf20ms               = ogg.FrameSize * ogg.Channels * 2
+	bytesOf20ms               = ogg.FrameSize * 2
 	bytesOf100ms              = bytesOf20ms * 5
 	captureCtx, captureCancel = context.WithCancel(context.Background())
 	playbackCancels           []context.CancelFunc
 	players                   = make(map[uint16]chan *bytes.Buffer)
 	aec                       = audio.NewRealTimeEchoCancel(nil)
+	config                    = audio.DefaultAudioEnhancementConfig()
+	enhancer                  = audio.NewAudioEnhancer(config)
 )
 
 type BlockId uint32
@@ -159,15 +161,15 @@ func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 		}
 	}()
 	go func() {
-		enc, err := opus.NewEncoder(ogg.SampleRate, ogg.Channels, opus.AppVoIP)
+		enc, err := opus.NewEncoder(ogg.SampleRate, 1, opus.AppVoIP)
 		if err != nil {
 			log.Printf("create audio encoder failed, %s", err)
 			return
 		}
-		pcmProcessor := audio.NewPCMProcessor()
+		//pcmProcessor := audio.NewPCMProcessor()
 		fileId := encodeAudioId()
 		blockId := BlockId(0)
-		var totalERLE float64
+		var reduction float64
 		processedFrames := 0
 		for {
 			var cur *bytes.Buffer
@@ -186,7 +188,11 @@ func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 				return
 			}
 			data := make([]byte, ogg.FrameSize)
-			n, err := enc.Encode(pcmProcessor.Normalize(aec.ProcessFrame(ogg.ToInts(cur.Bytes()))), data)
+			processAudio, err := enhancer.ProcessAudio(audio.Int16ToFloat64(audio.NormalizeToInts(cur.Bytes())))
+			if err != nil {
+				log.Printf("enhancer process audio failed, %s", err)
+			}
+			n, err := enc.Encode(audio.Float64ToInt16(processAudio), data)
 			if err != nil {
 				log.Printf("audio encode failed, %s", err)
 			}
@@ -194,33 +200,18 @@ func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 			if err != nil {
 				log.Printf("audio call error: %v", err)
 			}
-			stats := aec.GetStats()
-			totalERLE += float64(stats.ERLE)
+			stats := enhancer.GetMetrics()
+			reduction += stats.EchoReduction
 			processedFrames++
-			avgERLE := totalERLE / float64(processedFrames)
+			avgReduction := reduction / float64(processedFrames)
 
-			fmt.Printf("平均ERLE: %.2f dB\n", avgERLE)
-			fmt.Printf("最终ERLE: %.2f dB\n", stats.ERLE)
-			fmt.Printf("估计延迟: %d 样本 (%.2f ms)\n",
-				stats.Delay, float64(stats.Delay)*1000/48000)
-			fmt.Printf("滤波器收敛: %v\n", stats.FilterConverged)
-			fmt.Printf("运行时间: %v\n", stats.GetUptime())
-			fmt.Printf("处理帧数: %d\n", stats.FrameCount)
-
-			// 保存示例输出（可选）
-			if avgERLE > 10 {
-				fmt.Println("✅ 回声消除效果良好")
-			} else if avgERLE > 5 {
-				fmt.Println("⚠️  回声消除效果一般")
-			} else {
-				fmt.Println("❌ 回声消除效果不佳，需要调参")
-			}
+			fmt.Printf("平均reduction: %.2f\n", avgReduction)
 		}
 	}()
 }
 
 func ConsumeAudioData(streamConfig audio.StreamConfig) {
-	dec, err := opus.NewDecoder(ogg.SampleRate, ogg.Channels)
+	dec, err := opus.NewDecoder(ogg.SampleRate, 1)
 	if err != nil {
 		log.Printf("create audio decoder failed, %s", err)
 	}
@@ -232,7 +223,7 @@ func ConsumeAudioData(streamConfig audio.StreamConfig) {
 		log.Printf("fileId:%d, timestamp: %d, block id %d",
 			core.GetHigh16(data.FileId), identity, data.Block)
 		if players[identity] == nil {
-			pcmChunks := make(chan *bytes.Buffer, 15000)
+			pcmChunks := make(chan *bytes.Buffer, 15000) // 50 * 300(s) = 5(min)
 			players[identity] = pcmChunks
 			go newPlayer(pcmChunks, streamConfig)
 		}
@@ -241,11 +232,11 @@ func ConsumeAudioData(streamConfig audio.StreamConfig) {
 			log.Printf("read audio packet failed, %s", err)
 			continue
 		}
-		buf := make([]int16, ogg.FrameSize*int(ogg.Channels))
+		buf := make([]int16, ogg.FrameSize)
 		n, err := dec.Decode(packet, buf)
-		aec.AddFarEnd(buf[:n*ogg.Channels])
+		aec.AddFarEnd(buf[:n])
 		select {
-		case players[identity] <- bytes.NewBuffer(ogg.ToBytes(buf[:n*ogg.Channels])):
+		case players[identity] <- bytes.NewBuffer(ogg.ToBytes(buf[:n])):
 		default:
 			log.Printf("buffer full, packet discarded, %s", err)
 		}

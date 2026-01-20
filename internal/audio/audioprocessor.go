@@ -23,8 +23,8 @@ func NormalizeToInts(pcm []byte) []int16 {
 // NewPCMProcessor 创建处理器
 func NewPCMProcessor() *PCMProcessor {
 	return &PCMProcessor{
-		TargetRMS:  0.8,
-		TargetPeak: 0.99, // 留1%余量
+		TargetRMS:  0.25,
+		TargetPeak: 0.80, // 留20%余量
 	}
 }
 
