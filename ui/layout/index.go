@@ -266,7 +266,7 @@ func (g *glyphIndex) closestToLineCol(lineCol screenPos) combinedPos {
 	}
 	pos := g.positions[i]
 	foundInNextLine := pos.lineCol.line > lineCol.line
-	if foundInNextLine {
+	if foundInNextLine && i > 0 {
 		prior := g.positions[i-1]
 		prior.x = g.lines[lineCol.line].getLineEnd()
 		return prior
@@ -299,9 +299,9 @@ func dist(a, b fixed.Int26_6) fixed.Int26_6 {
 	return b - a
 }
 
-func (g *glyphIndex) closestToXY(x fixed.Int26_6, y int) combinedPos {
+func (g *glyphIndex) closestToXY(x fixed.Int26_6, y int) (pos combinedPos, atEndOfLine bool) {
 	if len(g.positions) == 0 {
-		return combinedPos{}
+		return combinedPos{}, false
 	}
 	i := sort.Search(len(g.positions), func(i int) bool {
 		pos := g.positions[i]
@@ -311,7 +311,7 @@ func (g *glyphIndex) closestToXY(x fixed.Int26_6, y int) combinedPos {
 	// short. Return either the last position or (if there are no
 	// positions) the zero position.
 	if i == len(g.positions) {
-		return g.positions[i-1]
+		return g.positions[i-1], false
 	}
 	first := g.positions[i]
 	// Find the best X coordinate.
@@ -327,7 +327,7 @@ func (g *glyphIndex) closestToXY(x fixed.Int26_6, y int) combinedPos {
 		distance := dist(candidate.x, x)
 		// If we are *really* close to the current position candidate, just choose it.
 		if distance.Round() == 0 {
-			return g.positions[i]
+			return g.positions[i], false
 		}
 		if distance < closestDist {
 			closestDist = distance
@@ -339,10 +339,10 @@ func (g *glyphIndex) closestToXY(x fixed.Int26_6, y int) combinedPos {
 	if hasNext && g.atEndOfLine(g.positions[closest]) {
 		distance := dist(g.lines[line].getLineEnd(), x)
 		if distance < closestDist {
-			return g.positions[next]
+			return g.positions[next], true
 		}
 	}
-	return g.positions[closest]
+	return g.positions[closest], false
 }
 
 // makeRegion creates a text-aligned rectangle from start to end. The vertical
