@@ -160,6 +160,7 @@ func EndIncomingCall(cancel bool) {
 func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 	audioMode = Accept
 	micOffButton.Hidden = false
+	mute = false
 	audioChunks := make(chan *bytes.Buffer, 10)
 	captureCtx, captureCancel = context.WithCancel(context.Background())
 	writer := newChunkWriter(captureCtx, audioChunks)
@@ -180,9 +181,6 @@ func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 		}
 		fileId := encodeAudioId()
 		blockId := BlockId(0)
-		var reduction float32
-		processedFrames := 0
-		erle := float32(0.0)
 		for {
 			var cur *bytes.Buffer
 			select {
@@ -216,14 +214,7 @@ func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 				log.Printf("audio call error: %v", err)
 			}
 			stats := ecEnhancer.GetMetrics()
-			reduction += stats.EchoReduction
-			erle += stats.EchoReturnLossEnhancement
-			processedFrames++
-			avgReduction := reduction / float32(processedFrames)
-			avgErle := erle / float32(processedFrames)
-
-			fmt.Printf("平均reduction: %.2f 平均ERLE: %.1f Delay: %d \n", avgReduction, avgErle, stats.Delay)
-			fmt.Printf("input level: %.6f output level %.6f \n", stats.InputLevel, stats.OutputLevel)
+			fmt.Printf("ERLE: %.1f Delay: %d \n", stats.ERLE, stats.Delay)
 		}
 	}()
 }

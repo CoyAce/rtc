@@ -93,6 +93,23 @@ func (cb *CircularBuffer) Read(size int) []float32 {
 	return result
 }
 
+func (cb *CircularBuffer) ReadLast(delay, size int) []float32 {
+	cb.mu.RLock()
+	defer cb.mu.RUnlock()
+
+	if size > cb.size {
+		size = cb.size
+	}
+	result := make([]float32, size)
+	for i := size; i > 0; i-- {
+		idx := (cb.head - i - delay + cb.capacity) % cb.capacity
+		result[i-1] = cb.data[idx]
+	}
+
+	return result
+
+}
+
 func (cb *CircularBuffer) Peek(start, size int) []float32 {
 	cb.mu.RLock()
 	defer cb.mu.RUnlock()
@@ -147,8 +164,8 @@ func NewDelayEstimator() *DelayEstimator {
 		nearHistory:    NewCircularBuffer(MaxEchoDelay * 2),
 		correlation:    make([]float32, MaxEchoDelay),
 		smoothing:      0.95,
-		currentDelay:   100, // 初始假设2ms延迟
-		updatePeriod:   5,   // 每5帧更新一次
+		currentDelay:   1060, // 初始假设2ms延迟
+		updatePeriod:   5,    // 每5帧更新一次
 		minCorrelation: 0.3,
 	}
 }
@@ -160,8 +177,7 @@ func (de *DelayEstimator) AdjustDelay(delay int, frameSize int) []float32 {
 	if time.Now().Sub(de.farHistoryUpdateAt) > time.Duration(500)*time.Millisecond {
 		return nil
 	}
-	readStart := (de.farHistory.head - delay + de.farHistory.capacity) % de.farHistory.capacity
-	return de.farHistory.Peek(readStart, frameSize)
+	return de.farHistory.ReadLast(delay, frameSize)
 }
 
 func (de *DelayEstimator) Estimate(nearEnd []float32) int {
@@ -250,10 +266,11 @@ func (de *DelayEstimator) Reset() {
 	de.frameCount = 0
 }
 
-func calculatePower(samples []float32) float32 {
-	var power float32
-	for _, s := range samples {
-		power += s * s
-	}
-	return power / float32(len(samples))
+// 计算方法
+func calculateERLE(input, output []float32) float64 {
+	inputEnergy := calculateRMS(input)
+	outputEnergy := calculateRMS(output)
+
+	erleDb := 10 * math.Log10(float64(inputEnergy/outputEnergy))
+	return erleDb
 }

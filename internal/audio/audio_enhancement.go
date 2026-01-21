@@ -171,7 +171,7 @@ func DefaultEnhancementConfig() *EnhancementConfig {
 			NonlinearProcessing: 0.3,   // 适度非线性处理
 			DoubleTalkThreshold: 0.5,   // 标准双讲检测
 			ComfortNoiseLevel:   -60.0, // 舒适噪声
-			ResidualSuppression: 0.5,   // 残留回声抑制
+			ResidualSuppression: 0.2,   // 残留回声抑制
 		},
 		Compression: CompressionConfig{
 			Enabled:     false,
@@ -246,15 +246,13 @@ type Enhancer struct {
 
 // EnhancementMetrics tracks enhancement metrics
 type EnhancementMetrics struct {
-	InputLevel                float32
-	OutputLevel               float32
-	CurrentGain               float32
-	EchoReduction             float32
-	CompressionGain           float32
-	ProcessedFrames           uint64
-	EchoReturnLossEnhancement float32
-	FilterConverged           bool
-	Delay                     int
+	InputLevel      float32
+	OutputLevel     float32
+	CurrentGain     float32
+	CompressionGain float32
+	ProcessedFrames uint64
+	ERLE            float32
+	Delay           int
 }
 
 // NewEnhancer creates a new audio enhancer
@@ -314,9 +312,7 @@ func (ae *Enhancer) ProcessAudio(samples []float32) ([]float32, error) {
 		reference := ae.delayEstimator.AdjustDelay(delay, len(samples))
 
 		output = ae.echo.Process(reference, output)
-		ae.metrics.EchoReduction = ae.echo.GetReduction()
-		ae.metrics.EchoReturnLossEnhancement = ae.echo.EchoReturnLossEnhancement
-		ae.metrics.FilterConverged = ae.echo.FilterConverged
+		ae.metrics.ERLE = ae.echo.ERLE
 		ae.metrics.Delay = delay
 	}
 
@@ -498,9 +494,8 @@ type EchoCanceller struct {
 	doubleTalk   bool
 
 	// Metrics
-	echoReduction             float32
-	EchoReturnLossEnhancement float32
-	FilterConverged           bool
+	echoReduction float32
+	ERLE          float32
 }
 
 // NewEchoCanceller creates a new echo canceller
@@ -558,26 +553,18 @@ func (ec *EchoCanceller) Process(reference, samples []float32) []float32 {
 
 		// Apply residual echo suppression
 		output[i] = ec.suppressResidualEcho(processed, echoEstimate)
-
-		// Update metrics
-		ec.updateMetrics(sample, output[i])
 	}
 
-	nearPower := calculatePower(samples)
-	residualPower := calculatePower(output)
+	inputEnergy := calculateRMS(samples)
+	outputEnergy := calculateRMS(output)
 
 	// 平滑更新
 	alpha := float32(0.1) // 平滑系数
 
 	// 计算ERLE（dB）
-	if residualPower > 0 {
-		erle := 10 * float32(math.Log10(float64(nearPower/residualPower)))
-		ec.EchoReturnLossEnhancement = (1-alpha)*ec.EchoReturnLossEnhancement + alpha*erle
-	}
-
-	// 检查滤波器收敛
-	if ec.EchoReturnLossEnhancement > 15 {
-		ec.FilterConverged = true
+	if outputEnergy > 0 {
+		ERLE := 10 * float32(math.Log10(float64(inputEnergy/outputEnergy)))
+		ec.ERLE = (1-alpha)*ec.ERLE + alpha*ERLE
 	}
 
 	return output
