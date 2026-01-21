@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"strings"
 	"unsafe"
 
@@ -203,4 +204,15 @@ func ToFloat32(pcm []byte) []float32 {
 		cap:  cap,
 	}
 	return *(*[]float32)(unsafe.Pointer(&header))
+}
+
+func dbToLinear(db float32) float32 {
+	return float32(math.Pow(10, float64(db)/20.0))
+}
+
+func linearToDb(linear float32) float32 {
+	if linear <= 0 {
+		return -100.0
+	}
+	return 20 * float32(math.Log10(float64(linear)))
 }

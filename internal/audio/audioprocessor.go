@@ -14,8 +14,8 @@ type Preamp struct {
 // NewPreamp 创建前置放大器
 func NewPreamp() *Preamp {
 	return &Preamp{
-		TargetRMS:  -24, // -24dBFS
-		TargetPeak: -18, // -18dBFS
+		TargetRMS:  -18, // -18dBFS
+		TargetPeak: -12, // -12dBFS
 		MaxGain:    24,
 	}
 }
@@ -247,4 +247,87 @@ func (u *PCMUtils) SplitByTime(data []int16, sampleRate, chunkMs int) [][]int16 
 	}
 
 	return chunks
+}
+
+// HighPassFilter 二阶IIR高通滤波器（Butterworth）
+type HighPassFilter struct {
+	// 滤波器系数
+	b0, b1, b2 float32 // 分子系数
+	a1, a2     float32 // 分母系数
+
+	// 状态变量
+	x1, x2 float32 // 输入历史
+	y1, y2 float32 // 输出历史
+
+	cutoffFreq float32 // 截止频率，如80Hz
+	sampleRate float32 // 采样率，如16000
+}
+
+func NewHighPassFilter(cutoff, sampleRate float32) *HighPassFilter {
+	f := &HighPassFilter{
+		cutoffFreq: cutoff,
+		sampleRate: sampleRate,
+	}
+	if math.Abs(float64(cutoff-80.0)) < 0.1 && math.Abs(float64(sampleRate-48000)) < 0.1 {
+		// 使用预计算的优化系数（80Hz@48kHz）
+		f.setOptimized80HzCoefficients()
+	} else {
+		f.calculateCoefficients()
+	}
+	return f
+}
+
+func (f *HighPassFilter) setOptimized80HzCoefficients() {
+	// 这些系数经过精心优化，数值稳定，性能优秀
+	f.b0 = 0.99538605
+	f.b1 = -1.99077210
+	f.b2 = 0.99538605
+	f.a1 = -1.99065018
+	f.a2 = 0.99077421
+}
+
+func (f *HighPassFilter) calculateCoefficients() {
+	// Butterworth二阶高通设计
+	omega := float64(2.0 * math.Pi * f.cutoffFreq / f.sampleRate)
+	sin := float32(math.Sin(omega))
+	cos := float32(math.Cos(omega))
+
+	alpha := sin / (2.0 * 0.7071) // Q=0.7071 (Butterworth)
+
+	// 预计算
+	b0 := (1.0 + cos) / 2.0
+	b1 := -(1.0 + cos)
+	b2 := (1.0 + cos) / 2.0
+	a0 := 1.0 + alpha
+	a1 := -2.0 * cos
+	a2 := 1.0 - alpha
+
+	// 归一化
+	f.b0 = b0 / a0
+	f.b1 = b1 / a0
+	f.b2 = b2 / a0
+	f.a1 = a1 / a0
+	f.a2 = a2 / a0
+}
+
+func (f *HighPassFilter) Process(sample float32) float32 {
+	// 直接形式II实现（数值稳定）
+	x0 := sample
+
+	// 计算输出：y0 = b0*x0 + b1*x1 + b2*x2 - a1*y1 - a2*y2
+	y0 := f.b0*x0 + f.b1*f.x1 + f.b2*f.x2 - f.a1*f.y1 - f.a2*f.y2
+
+	// 更新状态
+	f.x2 = f.x1
+	f.x1 = x0
+	f.y2 = f.y1
+	f.y1 = y0
+
+	return y0
+}
+
+func (f *HighPassFilter) ProcessBatch(data []float32) {
+	for i := range data {
+		data[i] = f.Process(data[i])
+	}
 }

@@ -95,6 +95,9 @@ func (cb *CircularBuffer) Read(size int) []float32 {
 func (cb *CircularBuffer) Peek(start, size int) []float32 {
 	cb.mu.RLock()
 	defer cb.mu.RUnlock()
+	if cb.size == 0 {
+		return nil
+	}
 
 	result := make([]float32, size)
 	for i := 0; i < size; i++ {
@@ -152,8 +155,8 @@ func (de *DelayEstimator) AdjustDelay(delay int, frameSize int) []float32 {
 	if delay < frameSize {
 		delay = frameSize
 	}
-	readStart := de.nearHistory.head - delay
-	return de.nearHistory.Peek(readStart, frameSize)
+	readStart := de.farHistory.head - delay
+	return de.farHistory.Peek(readStart, frameSize)
 }
 
 func (de *DelayEstimator) Estimate(nearEnd []float32) int {

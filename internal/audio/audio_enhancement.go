@@ -138,39 +138,39 @@ type DeEsserConfig struct {
 }
 
 func EchoCancellationEnhancer() *Enhancer {
-	config := DefaultAudioEnhancementConfig()
+	config := DefaultEnhancementConfig()
 	config.EchoCancellation.Enabled = true
-	return NewAudioEnhancer(config)
+	return NewEnhancer(config)
 }
 
 func DefaultAudioEnhancer() *Enhancer {
-	config := DefaultAudioEnhancementConfig()
-	return NewAudioEnhancer(config)
+	config := DefaultEnhancementConfig()
+	return NewEnhancer(config)
 }
 
-// DefaultAudioEnhancementConfig returns default audio enhancement configuration
-func DefaultAudioEnhancementConfig() *EnhancementConfig {
+// DefaultEnhancementConfig returns default audio enhancement configuration
+func DefaultEnhancementConfig() *EnhancementConfig {
 	return &EnhancementConfig{
 		AGC: AGCConfig{
 			Enabled:            true,
 			SampleRate:         48000,
-			TargetLevel:        -12.0,
-			MaxGain:            24.0,
-			MinGain:            -12.0,
-			AttackTime:         10.0,
-			ReleaseTime:        100.0,
-			NoiseGateThreshold: -50.0,
-			HoldTime:           50.0,
+			TargetLevel:        -23.0, // 标准语音输出电平
+			MaxGain:            12.0,  // 轻度增益补偿
+			MinGain:            -30.0, // 足够衰减大声信号
+			AttackTime:         20.0,  // 平滑起音
+			ReleaseTime:        400.0, // 缓慢释放，避免呼吸声
+			NoiseGateThreshold: -40.0, // 合理噪声门限
+			HoldTime:           50.0,  // 适当保持
 		},
 		EchoCancellation: EchoCancellationConfig{
 			Enabled:             false,
 			SampleRate:          48000,
-			FilterLength:        200.0,
-			AdaptationRate:      0.3,
-			NonlinearProcessing: 0.3,
-			DoubleTalkThreshold: 0.5,
-			ComfortNoiseLevel:   -60.0,
-			ResidualSuppression: 0.1,
+			FilterLength:        128.0, // 适应语音长度
+			AdaptationRate:      0.2,   // 稳定自适应
+			NonlinearProcessing: 0.3,   // 适度非线性处理
+			DoubleTalkThreshold: 0.5,   // 标准双讲检测
+			ComfortNoiseLevel:   -60.0, // 舒适噪声
+			ResidualSuppression: 0.1,   // 残留回声抑制
 		},
 		Compression: CompressionConfig{
 			Enabled:     false,
@@ -186,21 +186,29 @@ func DefaultAudioEnhancementConfig() *EnhancementConfig {
 			Enabled:    true,
 			SampleRate: 48000,
 			Bands: []EqualizerBand{
-				{Frequency: 100, Gain: -2.0, Q: 0.7},  // Reduce low rumble
-				{Frequency: 300, Gain: 1.0, Q: 0.7},   // Boost warmth
-				{Frequency: 1000, Gain: 0.5, Q: 0.7},  // Slight presence boost
-				{Frequency: 3000, Gain: 1.5, Q: 0.7},  // Clarity boost
-				{Frequency: 8000, Gain: -1.0, Q: 0.7}, // Reduce harshness
+				// Low-frequency management: 1 band
+				{Frequency: 120, Gain: -1.0, Q: 1.0},
+
+				// Mid-frequency shaping: 3 core bands
+				{Frequency: 300, Gain: 1.0, Q: 0.7},  // Warmth
+				{Frequency: 1000, Gain: 0.5, Q: 0.7}, // Presence
+				{Frequency: 2500, Gain: 1.5, Q: 0.7}, // Clarity (Key!)
+
+				// High-frequency coordination: 1 band working with DeEsser
+				{Frequency: 5000, Gain: -0.5, Q: 1.5}, // Mild sibilance control
+
+				// Optional: Air recovery (if sound is too dull)
+				{Frequency: 8000, Gain: 0.0, Q: 0.7}, // Neutral or slight boost
 			},
 			PreAmp: 0.0,
 		},
 		DeEsser: DeEsserConfig{
 			Enabled:      true,
 			SampleRate:   48000,
-			FrequencyMin: 4000.0,
-			FrequencyMax: 10000.0,
-			Threshold:    -30.0,
-			Reduction:    0.5,
+			FrequencyMin: 4500.0, // Focus on core sibilance range
+			FrequencyMax: 7000.0, // Avoid interfering with 8000Hz air band
+			Threshold:    -25.0,  // Reduce false triggering
+			Reduction:    0.3,    // Gentle compression
 		},
 	}
 }
@@ -210,8 +218,9 @@ type Enhancer struct {
 	config *EnhancementConfig
 	mu     sync.RWMutex
 
-	preamp *Preamp
-	nr     *NoiseReducer
+	preamp         *Preamp
+	highPassFilter *HighPassFilter
+	nr             *NoiseReducer
 
 	// AGC components
 	agc *AutomaticGainControl
@@ -229,13 +238,13 @@ type Enhancer struct {
 	deesser *DeEsser
 
 	// Processing metrics
-	metrics AudioEnhancementMetrics
+	metrics EnhancementMetrics
 
 	delayEstimator *DelayEstimator
 }
 
-// AudioEnhancementMetrics tracks enhancement metrics
-type AudioEnhancementMetrics struct {
+// EnhancementMetrics tracks enhancement metrics
+type EnhancementMetrics struct {
 	InputLevel                float32
 	OutputLevel               float32
 	CurrentGain               float32
@@ -247,15 +256,16 @@ type AudioEnhancementMetrics struct {
 	Delay                     int
 }
 
-// NewAudioEnhancer creates a new audio enhancer
-func NewAudioEnhancer(config *EnhancementConfig) *Enhancer {
+// NewEnhancer creates a new audio enhancer
+func NewEnhancer(config *EnhancementConfig) *Enhancer {
 	if config == nil {
-		config = DefaultAudioEnhancementConfig()
+		config = DefaultEnhancementConfig()
 	}
 
 	ae := &Enhancer{
 		config:         config,
 		preamp:         NewPreamp(),
+		highPassFilter: NewHighPassFilter(80, config.AGC.SampleRate),
 		nr:             DefaultNoiseReducer(),
 		delayEstimator: NewDelayEstimator(),
 		agc:            NewAutomaticGainControl(&config.AGC),
@@ -285,7 +295,9 @@ func (ae *Enhancer) ProcessAudio(samples []float32) ([]float32, error) {
 	defer ae.mu.Unlock()
 
 	ae.metrics.ProcessedFrames++
-	// Stage 1: Preamp
+	// Stage 1: HighPass Filter
+	ae.highPassFilter.ProcessBatch(samples)
+	// Stage 2: Preamp
 	output, info := ae.preamp.Process(samples)
 	if info == nil || info.Silent {
 		return output, nil
@@ -293,7 +305,7 @@ func (ae *Enhancer) ProcessAudio(samples []float32) ([]float32, error) {
 	// Track input level
 	ae.metrics.InputLevel = info.RMS
 
-	// Stage 2: Echo cancellation (should be first)
+	// Stage 3: Echo cancellation (should be first)
 	if ae.config.EchoCancellation.Enabled {
 		// 估计延时
 		delay := ae.delayEstimator.Estimate(output)
@@ -306,32 +318,32 @@ func (ae *Enhancer) ProcessAudio(samples []float32) ([]float32, error) {
 		ae.metrics.Delay = delay
 	}
 
-	// Stage 3: Noise gate (part of AGC)
+	// Stage 4: Noise gate (part of AGC)
 	if ae.config.AGC.Enabled {
 		output = ae.agc.ApplyNoiseGate(output)
 	}
 
-	// Stage 4: Noise Reducer
+	// Stage 5: Noise Reducer
 	if ae.nr.enabled {
 		output = ae.nr.Process(output)
 	}
 
-	// Stage 5: Equalizer
+	// Stage 6: Equalizer
 	if ae.config.Equalizer.Enabled {
 		output = ae.equalizer.Process(output)
 	}
 
-	// Stage 6: De-esser
+	// Stage 7: De-esser
 	if ae.config.DeEsser.Enabled {
 		output = ae.deesser.Process(output)
 	}
 
-	// Stage 7: AGC
+	// Stage 8: AGC
 	if ae.config.AGC.Enabled {
 		output, ae.metrics.CurrentGain = ae.agc.Process(output)
 	}
 
-	// Stage 8: Compression
+	// Stage 9: Compression
 	if ae.config.Compression.Enabled {
 		output, ae.metrics.CompressionGain = ae.compressor.Process(output)
 	}
@@ -343,7 +355,7 @@ func (ae *Enhancer) ProcessAudio(samples []float32) ([]float32, error) {
 }
 
 // GetMetrics returns current enhancement metrics
-func (ae *Enhancer) GetMetrics() AudioEnhancementMetrics {
+func (ae *Enhancer) GetMetrics() EnhancementMetrics {
 	ae.mu.RLock()
 	defer ae.mu.RUnlock()
 	return ae.metrics
@@ -513,7 +525,9 @@ func (ec *EchoCanceller) Process(reference, samples []float32) []float32 {
 
 	output := make([]float32, len(samples))
 
-	ec.referenceBuffer = reference
+	if len(reference) > 0 {
+		ec.referenceBuffer = reference
+	}
 	for i, sample := range samples {
 		// Update reference buffer (simulated far-end signal)
 		if len(reference) == 0 {
