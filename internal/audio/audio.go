@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"unsafe"
 
 	"github.com/gen2brain/malgo"
 )
@@ -186,4 +187,20 @@ func NewStreamConfig(maCtx *malgo.AllocatedContext, channels int) StreamConfig {
 		SampleRate:   48000,
 		MalgoContext: maCtx.Context,
 	}
+}
+
+func ToFloat32(pcm []byte) []float32 {
+	size := len(pcm) / 4
+	cap := cap(pcm) / 4
+
+	header := struct {
+		data unsafe.Pointer
+		len  int
+		cap  int
+	}{
+		data: unsafe.Pointer(&pcm[0]),
+		len:  size,
+		cap:  cap,
+	}
+	return *(*[]float32)(unsafe.Pointer(&header))
 }

@@ -21,6 +21,7 @@ import (
 	"gioui.org/unit"
 	"github.com/CoyAce/opus"
 	"github.com/CoyAce/opus/ogg"
+	"github.com/gen2brain/malgo"
 )
 
 type VoiceRecorder struct {
@@ -96,8 +97,8 @@ func (v *VoiceRecorder) encodeAndSendAsync() {
 			return
 		}
 		pcm := v.buf.Bytes()
-		samples := len(pcm) / 2
-		processed, err := enhancer.ProcessAudio(audio.Int16ToFloat32(ogg.ToInts(pcm)))
+		samples := len(pcm) / 4
+		processed, err := enhancer.ProcessAudio(audio.ToFloat32(pcm))
 		if err != nil {
 			log.Printf("process audio failed, %s", err)
 		}
@@ -117,6 +118,7 @@ func (v *VoiceRecorder) encodeAndSendAsync() {
 			CreatedAt:    time.Now(),
 			MediaControl: MediaControl{StreamConfig: v.StreamConfig, Duration: duration},
 		}
+		message.Format = malgo.FormatS16
 		MessageBox <- &message
 		err = core.DefaultClient.SendVoice(filepath.Base(filePath), duration)
 		if err != nil {
@@ -133,6 +135,7 @@ func (v *VoiceRecorder) recordAsync() {
 		var ctx context.Context
 		ctx, v.cancel = context.WithCancel(context.Background())
 		v.buf = new(bytes.Buffer)
+		v.StreamConfig.Format = malgo.FormatF32
 		err := audio.Capture(ctx, v.buf, v.StreamConfig)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {

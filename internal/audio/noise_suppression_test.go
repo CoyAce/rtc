@@ -1,7 +1,6 @@
 package audio
 
 import (
-	"context"
 	"math"
 	"testing"
 )
@@ -26,9 +25,8 @@ func TestNoiseSuppressor_ProcessFrame(t *testing.T) {
 
 	t.Run("process silence", func(t *testing.T) {
 		// Process silence (should update noise profile)
-		silence := make([]float64, 512)
-		ctx := context.Background()
-		processed, err := ns.ProcessFrame(ctx, silence)
+		silence := make([]float32, 512)
+		processed, err := ns.ProcessFrame(silence)
 		if err != nil {
 			t.Errorf("ProcessFrame() error = %v", err)
 		}
@@ -49,16 +47,15 @@ func TestNoiseSuppressor_ProcessFrame(t *testing.T) {
 
 	t.Run("process tone with noise", func(t *testing.T) {
 		// Create a test signal with a tone and noise
-		samples := make([]float64, 512)
+		samples := make([]float32, 512)
 		for i := range samples {
 			// 1kHz tone at 8kHz sample rate
 			tone := 0.5 * math.Sin(2*math.Pi*1000*float64(i)/8000)
 			noise := 0.1 * (math.Sin(float64(i)*0.1) + math.Cos(float64(i)*0.3))
-			samples[i] = tone + noise
+			samples[i] = float32(tone + noise)
 		}
 
-		ctx := context.Background()
-		processed, err := ns.ProcessFrame(ctx, samples)
+		processed, err := ns.ProcessFrame(samples)
 		if err != nil {
 			t.Errorf("ProcessFrame() error = %v", err)
 		}
@@ -70,7 +67,7 @@ func TestNoiseSuppressor_ProcessFrame(t *testing.T) {
 		}
 
 		// Verify some noise reduction occurred
-		var originalEnergy, processedEnergy float64
+		var originalEnergy, processedEnergy float32
 		for i := range samples {
 			originalEnergy += samples[i] * samples[i]
 			processedEnergy += processed[i] * processed[i]
@@ -89,16 +86,15 @@ func TestNoiseSuppressor_ConcurrentProcessing(t *testing.T) {
 
 	// Process multiple audio streams concurrently
 	done := make(chan bool)
-	ctx := context.Background()
 
 	for i := 0; i < 10; i++ {
 		go func(id int) {
-			samples := make([]float64, 512)
+			samples := make([]float32, 512)
 			for j := range samples {
-				samples[j] = 0.1 * math.Sin(float64(j+id))
+				samples[j] = float32(0.1 * math.Sin(float64(j+id)))
 			}
 
-			processed, err := ns.ProcessFrame(ctx, samples)
+			processed, err := ns.ProcessFrame(samples)
 			if err != nil {
 				t.Errorf("ProcessFrame() error = %v", err)
 			}
@@ -122,14 +118,13 @@ func TestNoiseSuppressor_ConcurrentProcessing(t *testing.T) {
 func BenchmarkNoiseSuppressor_ProcessFrame(b *testing.B) {
 	config := DefaultNoiseSuppressionConfig()
 	ns := NewNoiseSuppressor(config)
-	samples := make([]float64, 512)
+	samples := make([]float32, 512)
 	for i := range samples {
-		samples[i] = 0.5 * math.Sin(2*math.Pi*1000*float64(i)/8000)
+		samples[i] = float32(0.5 * math.Sin(2*math.Pi*1000*float64(i)/8000))
 	}
 
-	ctx := context.Background()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = ns.ProcessFrame(ctx, samples)
+		_, _ = ns.ProcessFrame(samples)
 	}
 }

@@ -1,7 +1,6 @@
 package audio
 
 import (
-	"context"
 	"math"
 	"sync"
 )
@@ -10,6 +9,8 @@ import (
 type NoiseSuppressionConfig struct {
 	// Enable noise suppression processing
 	Enabled bool
+
+	SampleRate int
 
 	// Noise reduction level (0.0-1.0, where 1.0 is maximum suppression)
 	SuppressionLevel float32
@@ -43,6 +44,7 @@ type NoiseSuppressionConfig struct {
 func DefaultNoiseSuppressionConfig() *NoiseSuppressionConfig {
 	return &NoiseSuppressionConfig{
 		Enabled:                   true,
+		SampleRate:                48000,
 		SuppressionLevel:          0.7,
 		VADThreshold:              0.3,
 		SpectralSubtractionFactor: 2.0,
@@ -119,16 +121,31 @@ func NewNoiseSuppressor(config *NoiseSuppressionConfig) *NoiseSuppressor {
 
 	if config.AdaptiveMode {
 		ns.isLearning = true
-		ns.profileSamples = int(config.LearningDuration * 8000) // Assuming 8kHz sample rate
+		ns.profileSamples = int(config.LearningDuration * float32(config.SampleRate))
 	}
 
 	return ns
 }
 
+func (ns *NoiseSuppressor) Process(samples []float32) []float32 {
+	n := len(samples)
+	hopSize := int(float32(ns.config.WindowSize) * ns.config.OverlapFactor)
+	denoised := make([]float32, 0, n)
+	for i := 0; i < n; i += hopSize {
+		end := i + hopSize
+		if end >= n {
+			end = n
+		}
+		frame := ns.ProcessFrame(samples[i:end])
+		denoised = append(denoised, frame...)
+	}
+	return denoised
+}
+
 // ProcessFrame processes a single frame of audio samples
-func (ns *NoiseSuppressor) ProcessFrame(ctx context.Context, samples []float32) ([]float32, error) {
+func (ns *NoiseSuppressor) ProcessFrame(samples []float32) []float32 {
 	if !ns.config.Enabled {
-		return samples, nil
+		return samples
 	}
 
 	ns.mu.Lock()
@@ -145,7 +162,7 @@ func (ns *NoiseSuppressor) ProcessFrame(ctx context.Context, samples []float32) 
 			ns.isLearning = false
 		}
 		// During learning, pass audio through with minimal processing
-		return ns.applyHighPassFilter(samples), nil
+		return ns.applyHighPassFilter(samples)
 	}
 
 	// Apply windowing
@@ -183,7 +200,7 @@ func (ns *NoiseSuppressor) ProcessFrame(ctx context.Context, samples []float32) 
 
 	ns.suppressedFrames++
 
-	return output, nil
+	return output
 }
 
 // updateNoiseProfile updates the noise profile during learning phase
@@ -195,7 +212,7 @@ func (ns *NoiseSuppressor) updateNoiseProfile(samples []float32) {
 	// Update noise profile using exponential averaging
 	alpha := float32(0.9)
 	for i := range ns.noiseProfile {
-		if ns.profileSamples == int(ns.config.LearningDuration*8000) {
+		if ns.profileSamples == int(ns.config.LearningDuration*float32(ns.config.SampleRate)) {
 			// First frame - initialize
 			ns.noiseProfile[i] = ns.magnitude[i]
 		} else {
