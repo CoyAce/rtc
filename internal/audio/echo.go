@@ -3,6 +3,7 @@ package audio
 import (
 	"math"
 	"sync"
+	"time"
 )
 
 // 常量定义
@@ -125,16 +126,17 @@ func (cb *CircularBuffer) Clear() {
 
 // ==================== 延时估计器 ====================
 type DelayEstimator struct {
-	maxDelay       int
-	historySize    int
-	farHistory     *CircularBuffer
-	nearHistory    *CircularBuffer
-	correlation    []float32
-	smoothing      float32
-	currentDelay   int
-	updatePeriod   int
-	frameCount     int
-	minCorrelation float32
+	maxDelay           int
+	historySize        int
+	farHistory         *CircularBuffer
+	nearHistory        *CircularBuffer
+	farHistoryUpdateAt time.Time
+	correlation        []float32
+	smoothing          float32
+	currentDelay       int
+	updatePeriod       int
+	frameCount         int
+	minCorrelation     float32
 }
 
 func NewDelayEstimator() *DelayEstimator {
@@ -154,6 +156,9 @@ func NewDelayEstimator() *DelayEstimator {
 func (de *DelayEstimator) AdjustDelay(delay int, frameSize int) []float32 {
 	if delay < frameSize {
 		delay = frameSize
+	}
+	if time.Now().Sub(de.farHistoryUpdateAt) > time.Duration(500)*time.Millisecond {
+		return nil
 	}
 	readStart := (de.farHistory.head - delay + de.farHistory.capacity) % de.farHistory.capacity
 	return de.farHistory.Peek(readStart, frameSize)

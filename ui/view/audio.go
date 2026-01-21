@@ -30,6 +30,8 @@ var (
 	audioMode                 Mode
 	audioId                   uint16
 	timestamp                 uint16
+	mute                      bool
+	micOffButton              = &IconButton{Theme: fonts.DefaultTheme, Icon: micOffIcon, Enabled: true, Hidden: true}
 	audioMakeButton           = &IconButton{Theme: fonts.DefaultTheme, Icon: audioCallIcon, Enabled: true}
 	audioAcceptButton         = &IconButton{Theme: fonts.DefaultTheme, Icon: audioCallIcon, Enabled: true, Mode: Accept}
 	bytesOf20ms               = ogg.FrameSize * 2
@@ -66,6 +68,7 @@ func NewAudioIconStack(streamConfig audio.StreamConfig) *IconStack {
 	var audioDeclineButton = &IconButton{Theme: fonts.DefaultTheme, Icon: audioCallIcon, Enabled: true, Mode: Decline}
 	audioDeclineButton.OnClick = func(gtx layout.Context) {
 		audioMakeButton.Hidden = false
+		micOffButton.Hidden = true
 		audioStackAnimation.Disappear(gtx.Now)
 		time.AfterFunc(audioStackAnimation.Duration, func() {
 			audioAcceptButton.Hidden = false
@@ -94,11 +97,19 @@ func NewAudioIconStack(streamConfig audio.StreamConfig) *IconStack {
 			}
 		}()
 	}
+	micOffButton.OnClick = func(gtx layout.Context) {
+		mute = !mute
+		micOffButton.Mode = None
+		if mute {
+			micOffButton.Mode = Decline
+		}
+	}
 	return &IconStack{Theme: fonts.DefaultTheme,
 		VisibilityAnimation: &audioStackAnimation,
 		IconButtons: []*IconButton{
 			audioAcceptButton,
 			audioDeclineButton,
+			micOffButton,
 		},
 	}
 }
@@ -141,12 +152,14 @@ func EndIncomingCall(cancel bool) {
 	audioMode = None
 	audioMakeButton.Hidden = false
 	audioAcceptButton.Hidden = true
+	micOffButton.Hidden = true
 	audioStackAnimation.Disappear(time.Now())
 	captureCancel()
 }
 
 func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 	audioMode = Accept
+	micOffButton.Hidden = false
 	audioChunks := make(chan *bytes.Buffer, 10)
 	captureCtx, captureCancel = context.WithCancel(context.Background())
 	writer := newChunkWriter(captureCtx, audioChunks)
@@ -194,6 +207,9 @@ func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 			n, err := enc.Encode(audio.Float32ToInt16(processAudio), data)
 			if err != nil {
 				log.Printf("audio encode failed, %s", err)
+			}
+			if mute {
+				continue
 			}
 			err = core.DefaultClient.SendAudioPacket(fileId, blockId.next(), data[:n])
 			if err != nil {

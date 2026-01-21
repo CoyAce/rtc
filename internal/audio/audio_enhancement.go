@@ -3,6 +3,7 @@ package audio
 import (
 	"math"
 	"sync"
+	"time"
 )
 
 // EnhancementConfig contains configuration for audio enhancement
@@ -286,6 +287,7 @@ func (ae *Enhancer) AddFarEnd(farEnd []int16) {
 	if len(farEnd) == FrameSize {
 		farFloat := Int16ToFloat32(farEnd)
 		ae.delayEstimator.farHistory.Write(farFloat)
+		ae.delayEstimator.farHistoryUpdateAt = time.Now()
 	}
 }
 
