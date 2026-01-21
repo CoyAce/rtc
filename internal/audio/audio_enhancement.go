@@ -97,6 +97,8 @@ type CompressionConfig struct {
 
 	// Makeup gain in dB
 	MakeupGain float32
+
+	SampleRate int
 }
 
 // EqualizerConfig contains equalizer settings
@@ -108,6 +110,8 @@ type EqualizerConfig struct {
 
 	// Pre-amplification in dB
 	PreAmp float32
+
+	SampleRate int
 }
 
 // EqualizerBand represents a single equalizer band
@@ -129,7 +133,8 @@ type DeEsserConfig struct {
 	Threshold float32
 
 	// Reduction amount (0.0-1.0)
-	Reduction float32
+	Reduction  float32
+	SampleRate int
 }
 
 func EchoCancellationEnhancer() *Enhancer {
@@ -169,6 +174,7 @@ func DefaultAudioEnhancementConfig() *EnhancementConfig {
 		},
 		Compression: CompressionConfig{
 			Enabled:     false,
+			SampleRate:  48000,
 			Threshold:   -20.0,
 			Ratio:       4.0,
 			Knee:        2.0,
@@ -177,7 +183,8 @@ func DefaultAudioEnhancementConfig() *EnhancementConfig {
 			MakeupGain:  0.0,
 		},
 		Equalizer: EqualizerConfig{
-			Enabled: true,
+			Enabled:    true,
+			SampleRate: 48000,
 			Bands: []EqualizerBand{
 				{Frequency: 100, Gain: -2.0, Q: 0.7},  // Reduce low rumble
 				{Frequency: 300, Gain: 1.0, Q: 0.7},   // Boost warmth
@@ -188,7 +195,8 @@ func DefaultAudioEnhancementConfig() *EnhancementConfig {
 			PreAmp: 0.0,
 		},
 		DeEsser: DeEsserConfig{
-			Enabled:      false,
+			Enabled:      true,
+			SampleRate:   48000,
 			FrequencyMin: 4000.0,
 			FrequencyMax: 10000.0,
 			Threshold:    -30.0,
@@ -668,12 +676,11 @@ type DynamicRangeCompressor struct {
 
 // NewDynamicRangeCompressor creates a new compressor
 func NewDynamicRangeCompressor(config *CompressionConfig) *DynamicRangeCompressor {
-	sampleRate := 8000.0
 
 	return &DynamicRangeCompressor{
 		config:       config,
-		attackCoeff:  1.0 - float32(math.Exp(-1.0/(float64(config.AttackTime)*sampleRate/1000.0))),
-		releaseCoeff: 1.0 - float32(math.Exp(-1.0/(float64(config.ReleaseTime)*sampleRate/1000.0))),
+		attackCoeff:  1.0 - float32(math.Exp(-1.0/(float64(config.AttackTime)*float64(config.SampleRate)/1000.0))),
+		releaseCoeff: 1.0 - float32(math.Exp(-1.0/(float64(config.ReleaseTime)*float64(config.SampleRate)/1000.0))),
 	}
 }
 
@@ -738,7 +745,7 @@ func NewParametricEqualizer(config *EqualizerConfig) *ParametricEqualizer {
 
 	// Create biquad filters for each band
 	for i, band := range config.Bands {
-		eq.bands[i] = NewBiquadFilter(band.Frequency, band.Gain, band.Q, 8000.0)
+		eq.bands[i] = NewBiquadFilter(band.Frequency, band.Gain, band.Q, float32(config.SampleRate))
 	}
 
 	return eq
@@ -838,7 +845,7 @@ func NewDeEsser(config *DeEsserConfig) *DeEsser {
 
 	return &DeEsser{
 		config:       config,
-		detector:     NewBiquadFilter(centerFreq, 0, q, 8000.0),
+		detector:     NewBiquadFilter(centerFreq, 0, q, float32(config.SampleRate)),
 		attackCoeff:  0.99,
 		releaseCoeff: 0.999,
 	}

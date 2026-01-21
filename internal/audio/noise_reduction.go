@@ -45,8 +45,8 @@ func DefaultNoiseReducer() *NoiseReducer {
 		MixChannels:  true, // Mix channels by default
 
 		// General Processing
-		SampleRate: 48000, // 8kHz (typical for telephony)
-		FrameSize:  960,   // 20ms at 8kHz
+		SampleRate: 48000, // 48kHz
+		FrameSize:  960,   // 20ms at 48kHz
 		BufferSize: 2048,  // Processing buffer size
 	}
 	return NewNoiseReducer(config)
