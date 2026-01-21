@@ -184,7 +184,7 @@ func (pm *ProcessingManager) IsVoiceActive() bool {
 }
 
 // GetNoiseFloor returns the current estimated noise floor
-func (pm *ProcessingManager) GetNoiseFloor() float64 {
+func (pm *ProcessingManager) GetNoiseFloor() float32 {
 	return pm.noiseReducer.GetNoiseFloor()
 }
 
@@ -198,7 +198,7 @@ type AudioProcessingStats struct {
 	VoiceRatio            float64 `json:"voice_ratio"`
 	PacketsPerSecond      float64 `json:"packets_per_second"`
 	UptimeSeconds         float64 `json:"uptime_seconds"`
-	NoiseFloor            float64 `json:"noise_floor"`
+	NoiseFloor            float32 `json:"noise_floor"`
 	VADEnabled            bool    `json:"vad_enabled"`
 	NoiseReductionEnabled bool    `json:"noise_reduction_enabled"`
 }
@@ -221,7 +221,7 @@ func (pm *ProcessingManager) GetStats() AudioProcessingStats {
 	packetsPerSec := float64(pm.packetsProcessed) / uptime
 
 	// Get noise floor
-	noiseFloor := 0.0
+	noiseFloor := float32(0.0)
 	if pm.config.EnableNoiseReduction && pm.noiseReducer != nil {
 		noiseFloor = pm.noiseReducer.GetNoiseFloor()
 	}

@@ -18,17 +18,17 @@ const (
 	ERLECalcWindow   = 50    // ERLE计算窗口（帧数）
 )
 
-// Int16ToFloat64 - int16转float32 [-32768, 32767] -> [-1.0, 1.0]
-func Int16ToFloat64(pcm []int16) []float64 {
-	floats := make([]float64, len(pcm))
+// Int16ToFloat32 - int16转float32 [-32768, 32767] -> [-1.0, 1.0]
+func Int16ToFloat32(pcm []int16) []float32 {
+	floats := make([]float32, len(pcm))
 	for i, v := range pcm {
-		floats[i] = float64(v) / 32768.0
+		floats[i] = float32(v) / 32768.0
 	}
 	return floats
 }
 
-// Float64ToInt16 - float32转int16 [-1.0, 1.0] -> [-32768, 32767]
-func Float64ToInt16(floats []float64) []int16 {
+// Float32ToInt16 - float32转int16 [-1.0, 1.0] -> [-32768, 32767]
+func Float32ToInt16(floats []float32) []int16 {
 	pcm := make([]int16, len(floats))
 	for i, v := range floats {
 		// 限制范围
@@ -44,7 +44,7 @@ func Float64ToInt16(floats []float64) []int16 {
 
 // ==================== 环形缓冲区 ====================
 type CircularBuffer struct {
-	data     []float64
+	data     []float32
 	size     int
 	capacity int
 	head     int
@@ -54,12 +54,12 @@ type CircularBuffer struct {
 
 func NewCircularBuffer(capacity int) *CircularBuffer {
 	return &CircularBuffer{
-		data:     make([]float64, capacity),
+		data:     make([]float32, capacity),
 		capacity: capacity,
 	}
 }
 
-func (cb *CircularBuffer) Write(samples []float64) {
+func (cb *CircularBuffer) Write(samples []float32) {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
 
@@ -75,7 +75,7 @@ func (cb *CircularBuffer) Write(samples []float64) {
 	}
 }
 
-func (cb *CircularBuffer) Read(size int) []float64 {
+func (cb *CircularBuffer) Read(size int) []float32 {
 	cb.mu.RLock()
 	defer cb.mu.RUnlock()
 
@@ -83,7 +83,7 @@ func (cb *CircularBuffer) Read(size int) []float64 {
 		size = cb.size
 	}
 
-	result := make([]float64, size)
+	result := make([]float32, size)
 	for i := 0; i < size; i++ {
 		idx := (cb.tail + i) % cb.capacity
 		result[i] = cb.data[idx]
@@ -92,11 +92,11 @@ func (cb *CircularBuffer) Read(size int) []float64 {
 	return result
 }
 
-func (cb *CircularBuffer) Peek(start, size int) []float64 {
+func (cb *CircularBuffer) Peek(start, size int) []float32 {
 	cb.mu.RLock()
 	defer cb.mu.RUnlock()
 
-	result := make([]float64, size)
+	result := make([]float32, size)
 	for i := 0; i < size; i++ {
 		idx := (start + i) % cb.capacity
 		if idx < len(cb.data) {
@@ -126,12 +126,12 @@ type DelayEstimator struct {
 	historySize    int
 	farHistory     *CircularBuffer
 	nearHistory    *CircularBuffer
-	correlation    []float64
-	smoothing      float64
+	correlation    []float32
+	smoothing      float32
 	currentDelay   int
 	updatePeriod   int
 	frameCount     int
-	minCorrelation float64
+	minCorrelation float32
 }
 
 func NewDelayEstimator() *DelayEstimator {
@@ -140,7 +140,7 @@ func NewDelayEstimator() *DelayEstimator {
 		historySize:    MaxEchoDelay * 2,
 		farHistory:     NewCircularBuffer(MaxEchoDelay * 2),
 		nearHistory:    NewCircularBuffer(MaxEchoDelay * 2),
-		correlation:    make([]float64, MaxEchoDelay),
+		correlation:    make([]float32, MaxEchoDelay),
 		smoothing:      0.95,
 		currentDelay:   100, // 初始假设2ms延迟
 		updatePeriod:   5,   // 每5帧更新一次
@@ -148,7 +148,7 @@ func NewDelayEstimator() *DelayEstimator {
 	}
 }
 
-func (de *DelayEstimator) AdjustDelay(delay int, frameSize int) []float64 {
+func (de *DelayEstimator) AdjustDelay(delay int, frameSize int) []float32 {
 	if delay < frameSize {
 		delay = frameSize
 	}
@@ -156,7 +156,7 @@ func (de *DelayEstimator) AdjustDelay(delay int, frameSize int) []float64 {
 	return de.nearHistory.Peek(readStart, frameSize)
 }
 
-func (de *DelayEstimator) Estimate(nearEnd []float64) int {
+func (de *DelayEstimator) Estimate(nearEnd []float32) int {
 	// 更新历史缓冲区
 	de.nearHistory.Write(nearEnd)
 
@@ -184,8 +184,8 @@ func (de *DelayEstimator) computeCorrelation() {
 	correlationWindow := 2048 // 约42.7ms窗口
 
 	for d := 0; d < de.maxDelay; d++ {
-		var corr float64
-		var farPower float64
+		var corr float32
+		var farPower float32
 
 		// 计算相关系数
 		for i := 0; i < correlationWindow; i++ {
@@ -202,7 +202,7 @@ func (de *DelayEstimator) computeCorrelation() {
 		}
 
 		if farPower > 0 {
-			de.correlation[d] = corr / float64(math.Sqrt(float64(farPower)))
+			de.correlation[d] = corr / float32(math.Sqrt(float64(farPower)))
 		} else {
 			de.correlation[d] = 0
 		}
@@ -210,7 +210,7 @@ func (de *DelayEstimator) computeCorrelation() {
 }
 
 func (de *DelayEstimator) findBestDelay() {
-	maxCorr := float64(-1.0)
+	maxCorr := float32(-1.0)
 	bestDelay := de.currentDelay
 
 	// 寻找最大相关系数，排除边界
@@ -230,8 +230,8 @@ func (de *DelayEstimator) findBestDelay() {
 
 	// 平滑更新延时估计
 	if maxCorr > de.minCorrelation {
-		de.currentDelay = int(de.smoothing*float64(de.currentDelay) +
-			(1-de.smoothing)*float64(bestDelay))
+		de.currentDelay = int(de.smoothing*float32(de.currentDelay) +
+			(1-de.smoothing)*float32(bestDelay))
 	}
 }
 
@@ -242,10 +242,10 @@ func (de *DelayEstimator) Reset() {
 	de.frameCount = 0
 }
 
-func calculatePower(samples []float64) float64 {
-	var power float64
+func calculatePower(samples []float32) float32 {
+	var power float32
 	for _, s := range samples {
 		power += s * s
 	}
-	return power / float64(len(samples))
+	return power / float32(len(samples))
 }

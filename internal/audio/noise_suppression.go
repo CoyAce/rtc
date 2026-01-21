@@ -12,31 +12,31 @@ type NoiseSuppressionConfig struct {
 	Enabled bool
 
 	// Noise reduction level (0.0-1.0, where 1.0 is maximum suppression)
-	SuppressionLevel float64
+	SuppressionLevel float32
 
 	// Voice Activity Detection threshold (0.0-1.0)
-	VADThreshold float64
+	VADThreshold float32
 
 	// Spectral subtraction factor
-	SpectralSubtractionFactor float64
+	SpectralSubtractionFactor float32
 
 	// Minimum noise floor in dB
-	NoiseFloorDB float64
+	NoiseFloorDB float32
 
 	// Window size for FFT processing (samples)
 	WindowSize int
 
 	// Overlap factor for windowing (0.0-1.0)
-	OverlapFactor float64
+	OverlapFactor float32
 
 	// High-pass filter cutoff frequency (Hz)
-	HighPassCutoff float64
+	HighPassCutoff float32
 
 	// Enable adaptive noise learning
 	AdaptiveMode bool
 
 	// Noise profile learning duration (seconds)
-	LearningDuration float64
+	LearningDuration float32
 }
 
 // DefaultNoiseSuppressionConfig returns default noise suppression configuration
@@ -61,37 +61,37 @@ type NoiseSuppressor struct {
 	mu     sync.RWMutex
 
 	// Noise profile estimation
-	noiseProfile     []float64
-	noiseFloor       float64
+	noiseProfile     []float32
+	noiseFloor       float32
 	profileSamples   int
 	isLearning       bool
 	learningComplete bool
 
 	// Processing buffers
-	inputBuffer    []float64
-	outputBuffer   []float64
-	overlapBuffer  []float64
-	windowFunction []float64
+	inputBuffer    []float32
+	outputBuffer   []float32
+	overlapBuffer  []float32
+	windowFunction []float32
 
 	// FFT components (simplified - in production use a proper FFT library)
 	fftSize   int
-	fftReal   []float64
-	fftImag   []float64
-	magnitude []float64
-	phase     []float64
-	smoothing []float64
+	fftReal   []float32
+	fftImag   []float32
+	magnitude []float32
+	phase     []float32
+	smoothing []float32
 
 	// Voice Activity Detection
 	vadState      bool
 	vadHangover   int
-	energyHistory []float64
+	energyHistory []float32
 
 	// Metrics
 	totalFrames      uint64
 	suppressedFrames uint64
 	voiceFrames      uint64
-	noiseLevel       float64
-	signalLevel      float64
+	noiseLevel       float32
+	signalLevel      float32
 }
 
 // NewNoiseSuppressor creates a new noise suppressor
@@ -103,17 +103,17 @@ func NewNoiseSuppressor(config *NoiseSuppressionConfig) *NoiseSuppressor {
 	ns := &NoiseSuppressor{
 		config:         config,
 		fftSize:        config.WindowSize,
-		inputBuffer:    make([]float64, config.WindowSize),
-		outputBuffer:   make([]float64, config.WindowSize),
-		overlapBuffer:  make([]float64, int(float64(config.WindowSize)*config.OverlapFactor)),
+		inputBuffer:    make([]float32, config.WindowSize),
+		outputBuffer:   make([]float32, config.WindowSize),
+		overlapBuffer:  make([]float32, int(float32(config.WindowSize)*config.OverlapFactor)),
 		windowFunction: generateHanningWindow(config.WindowSize),
-		fftReal:        make([]float64, config.WindowSize),
-		fftImag:        make([]float64, config.WindowSize),
-		magnitude:      make([]float64, config.WindowSize/2+1),
-		phase:          make([]float64, config.WindowSize/2+1),
-		smoothing:      make([]float64, config.WindowSize/2+1),
-		noiseProfile:   make([]float64, config.WindowSize/2+1),
-		energyHistory:  make([]float64, 10),
+		fftReal:        make([]float32, config.WindowSize),
+		fftImag:        make([]float32, config.WindowSize),
+		magnitude:      make([]float32, config.WindowSize/2+1),
+		phase:          make([]float32, config.WindowSize/2+1),
+		smoothing:      make([]float32, config.WindowSize/2+1),
+		noiseProfile:   make([]float32, config.WindowSize/2+1),
+		energyHistory:  make([]float32, 10),
 		noiseFloor:     dbToLinear(config.NoiseFloorDB),
 	}
 
@@ -126,7 +126,7 @@ func NewNoiseSuppressor(config *NoiseSuppressionConfig) *NoiseSuppressor {
 }
 
 // ProcessFrame processes a single frame of audio samples
-func (ns *NoiseSuppressor) ProcessFrame(ctx context.Context, samples []float64) ([]float64, error) {
+func (ns *NoiseSuppressor) ProcessFrame(ctx context.Context, samples []float32) ([]float32, error) {
 	if !ns.config.Enabled {
 		return samples, nil
 	}
@@ -187,13 +187,13 @@ func (ns *NoiseSuppressor) ProcessFrame(ctx context.Context, samples []float64) 
 }
 
 // updateNoiseProfile updates the noise profile during learning phase
-func (ns *NoiseSuppressor) updateNoiseProfile(samples []float64) {
+func (ns *NoiseSuppressor) updateNoiseProfile(samples []float32) {
 	windowed := ns.applyWindow(samples)
 	ns.computeFFT(windowed)
 	ns.computeMagnitudePhase()
 
 	// Update noise profile using exponential averaging
-	alpha := 0.9
+	alpha := float32(0.9)
 	for i := range ns.noiseProfile {
 		if ns.profileSamples == int(ns.config.LearningDuration*8000) {
 			// First frame - initialize
@@ -208,20 +208,20 @@ func (ns *NoiseSuppressor) updateNoiseProfile(samples []float64) {
 }
 
 // detectVoiceActivity detects if the current frame contains voice
-func (ns *NoiseSuppressor) detectVoiceActivity(magnitude []float64) bool {
+func (ns *NoiseSuppressor) detectVoiceActivity(magnitude []float32) bool {
 	// Compute frame energy
-	energy := 0.0
+	energy := float32(0.0)
 	for _, mag := range magnitude {
 		energy += mag * mag
 	}
-	energy = math.Sqrt(energy / float64(len(magnitude)))
+	energy = float32(math.Sqrt(float64(energy / float32(len(magnitude)))))
 
 	// Update energy history
 	ns.energyHistory = append(ns.energyHistory[1:], energy)
 
 	// Compute adaptive threshold
-	minEnergy := math.MaxFloat64
-	maxEnergy := -math.MaxFloat64
+	minEnergy := float32(math.MaxFloat32)
+	maxEnergy := float32(-math.MaxFloat32)
 	for _, e := range ns.energyHistory {
 		if e < minEnergy {
 			minEnergy = e
@@ -256,8 +256,8 @@ func (ns *NoiseSuppressor) detectVoiceActivity(magnitude []float64) bool {
 }
 
 // spectralSubtraction applies spectral subtraction for noise suppression
-func (ns *NoiseSuppressor) spectralSubtraction(magnitude []float64, isVoice bool) []float64 {
-	result := make([]float64, len(magnitude))
+func (ns *NoiseSuppressor) spectralSubtraction(magnitude []float32, isVoice bool) []float32 {
+	result := make([]float32, len(magnitude))
 
 	suppressionFactor := ns.config.SpectralSubtractionFactor
 	if isVoice {
@@ -287,11 +287,11 @@ func (ns *NoiseSuppressor) spectralSubtraction(magnitude []float64, isVoice bool
 }
 
 // applySpectralSmoothing applies smoothing to reduce musical noise
-func (ns *NoiseSuppressor) applySpectralSmoothing(magnitude []float64) []float64 {
-	result := make([]float64, len(magnitude))
+func (ns *NoiseSuppressor) applySpectralSmoothing(magnitude []float32) []float32 {
+	result := make([]float32, len(magnitude))
 
 	// Temporal smoothing
-	alpha := 0.7
+	alpha := float32(0.7)
 	for i := range magnitude {
 		ns.smoothing[i] = alpha*ns.smoothing[i] + (1-alpha)*magnitude[i]
 		result[i] = ns.smoothing[i]
@@ -299,7 +299,7 @@ func (ns *NoiseSuppressor) applySpectralSmoothing(magnitude []float64) []float64
 
 	// Frequency smoothing (3-point median filter)
 	for i := 1; i < len(result)-1; i++ {
-		values := []float64{result[i-1], result[i], result[i+1]}
+		values := []float32{result[i-1], result[i], result[i+1]}
 		result[i] = median(values)
 	}
 
@@ -307,8 +307,8 @@ func (ns *NoiseSuppressor) applySpectralSmoothing(magnitude []float64) []float64
 }
 
 // applyWindow applies a Hanning window to the input samples
-func (ns *NoiseSuppressor) applyWindow(samples []float64) []float64 {
-	result := make([]float64, len(samples))
+func (ns *NoiseSuppressor) applyWindow(samples []float32) []float32 {
+	result := make([]float32, len(samples))
 	minLen := len(samples)
 	if len(ns.windowFunction) < minLen {
 		minLen = len(ns.windowFunction)
@@ -321,13 +321,13 @@ func (ns *NoiseSuppressor) applyWindow(samples []float64) []float64 {
 }
 
 // applyHighPassFilter applies a simple high-pass filter
-func (ns *NoiseSuppressor) applyHighPassFilter(samples []float64) []float64 {
+func (ns *NoiseSuppressor) applyHighPassFilter(samples []float32) []float32 {
 	if ns.config.HighPassCutoff <= 0 {
 		return samples
 	}
 
 	// Simple first-order high-pass filter
-	result := make([]float64, len(samples))
+	result := make([]float32, len(samples))
 	alpha := ns.config.HighPassCutoff / (ns.config.HighPassCutoff + 8000.0) // Assuming 8kHz sample rate
 
 	for i := range samples {
@@ -342,7 +342,7 @@ func (ns *NoiseSuppressor) applyHighPassFilter(samples []float64) []float64 {
 }
 
 // computeFFT performs FFT (simplified - use a proper FFT library in production)
-func (ns *NoiseSuppressor) computeFFT(samples []float64) {
+func (ns *NoiseSuppressor) computeFFT(samples []float32) {
 	// Copy input to real part
 	for i := range ns.fftReal {
 		if i < len(samples) {
@@ -358,12 +358,12 @@ func (ns *NoiseSuppressor) computeFFT(samples []float64) {
 	// This is just for demonstration
 	N := len(ns.fftReal)
 	for k := 0; k < N/2+1; k++ {
-		sumReal := 0.0
-		sumImag := 0.0
+		sumReal := float32(0.0)
+		sumImag := float32(0.0)
 		for n := 0; n < N; n++ {
 			angle := -2.0 * math.Pi * float64(k*n) / float64(N)
-			sumReal += ns.fftReal[n] * math.Cos(angle)
-			sumImag += ns.fftReal[n] * math.Sin(angle)
+			sumReal += ns.fftReal[n] * float32(math.Cos(angle))
+			sumImag += ns.fftReal[n] * float32(math.Sin(angle))
 		}
 		ns.fftReal[k] = sumReal
 		ns.fftImag[k] = sumImag
@@ -375,41 +375,41 @@ func (ns *NoiseSuppressor) computeMagnitudePhase() {
 	for i := range ns.magnitude {
 		real := ns.fftReal[i]
 		imag := ns.fftImag[i]
-		ns.magnitude[i] = math.Sqrt(real*real + imag*imag)
-		ns.phase[i] = math.Atan2(imag, real)
+		ns.magnitude[i] = float32(math.Sqrt(float64(real*real + imag*imag)))
+		ns.phase[i] = float32(math.Atan2(float64(imag), float64(real)))
 	}
 }
 
 // reconstructSignal reconstructs FFT from magnitude and phase
-func (ns *NoiseSuppressor) reconstructSignal(magnitude, phase []float64) {
+func (ns *NoiseSuppressor) reconstructSignal(magnitude, phase []float32) {
 	for i := range magnitude {
-		ns.fftReal[i] = magnitude[i] * math.Cos(phase[i])
-		ns.fftImag[i] = magnitude[i] * math.Sin(phase[i])
+		ns.fftReal[i] = magnitude[i] * float32(math.Cos(float64(phase[i])))
+		ns.fftImag[i] = magnitude[i] * float32(math.Sin(float64(phase[i])))
 	}
 }
 
 // computeInverseFFT performs inverse FFT
-func (ns *NoiseSuppressor) computeInverseFFT() []float64 {
+func (ns *NoiseSuppressor) computeInverseFFT() []float32 {
 	N := len(ns.fftReal)
-	result := make([]float64, N)
+	result := make([]float32, N)
 
 	// Simplified IDFT (in production, use FFT library)
 	for n := 0; n < N; n++ {
-		sum := 0.0
+		sum := float32(0.0)
 		for k := 0; k < N/2+1; k++ {
 			angle := 2.0 * math.Pi * float64(k*n) / float64(N)
-			sum += ns.fftReal[k]*math.Cos(angle) - ns.fftImag[k]*math.Sin(angle)
+			sum += ns.fftReal[k]*float32(math.Cos(angle)) - ns.fftImag[k]*float32(math.Sin(angle))
 		}
-		result[n] = sum / float64(N)
+		result[n] = sum / float32(N)
 	}
 
 	return result
 }
 
 // overlapAdd performs overlap-add synthesis
-func (ns *NoiseSuppressor) overlapAdd(samples []float64) []float64 {
+func (ns *NoiseSuppressor) overlapAdd(samples []float32) []float32 {
 	overlapSize := len(ns.overlapBuffer)
-	result := make([]float64, len(samples))
+	result := make([]float32, len(samples))
 
 	// Add overlap from previous frame
 	for i := 0; i < overlapSize && i < len(result); i++ {
@@ -433,15 +433,15 @@ func (ns *NoiseSuppressor) overlapAdd(samples []float64) []float64 {
 }
 
 // postProcess applies post-processing to the output signal
-func (ns *NoiseSuppressor) postProcess(samples []float64, isVoice bool) []float64 {
-	result := make([]float64, len(samples))
+func (ns *NoiseSuppressor) postProcess(samples []float32, isVoice bool) []float32 {
+	result := make([]float32, len(samples))
 
 	// Apply comfort noise during silence
 	if !isVoice {
 		for i := range samples {
 			// Add low-level comfort noise
-			comfortNoise := (math.Sin(float64(i)*0.1) * 0.001)
-			result[i] = samples[i]*0.5 + comfortNoise
+			comfortNoise := float32(math.Sin(float64(i)*0.1) * 0.001)
+			result[i] = samples[i]*float32(0.5) + comfortNoise
 		}
 	} else {
 		copy(result, samples)
@@ -512,26 +512,26 @@ func (ns *NoiseSuppressor) Reset() {
 
 // Helper functions
 
-func generateHanningWindow(size int) []float64 {
-	window := make([]float64, size)
+func generateHanningWindow(size int) []float32 {
+	window := make([]float32, size)
 	for i := 0; i < size; i++ {
-		window[i] = 0.5 * (1 - math.Cos(2*math.Pi*float64(i)/float64(size-1)))
+		window[i] = float32(0.5 * (1 - math.Cos(float64(2*math.Pi*float32(i)/float32(size-1)))))
 	}
 	return window
 }
 
-func dbToLinear(db float64) float64 {
-	return math.Pow(10, db/20.0)
+func dbToLinear(db float32) float32 {
+	return float32(math.Pow(10, float64(db)/20.0))
 }
 
-func linearToDb(linear float64) float64 {
+func linearToDb(linear float32) float32 {
 	if linear <= 0 {
 		return -100.0
 	}
-	return 20 * math.Log10(linear)
+	return 20 * float32(math.Log10(float64(linear)))
 }
 
-func median(values []float64) float64 {
+func median(values []float32) float32 {
 	if len(values) == 0 {
 		return 0
 	}
@@ -554,9 +554,9 @@ func median(values []float64) float64 {
 		}
 	}
 	// For other sizes, return average (simplified)
-	sum := 0.0
+	sum := float32(0.0)
 	for _, v := range values {
 		sum += v
 	}
-	return sum / float64(len(values))
+	return sum / float32(len(values))
 }

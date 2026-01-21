@@ -14,8 +14,8 @@ type ProcessingConfig struct {
 
 	// Noise Reduction
 	EnableNoiseReduction bool    // Whether to enable noise reduction
-	NoiseFloor           float64 // Noise floor level (0.0-1.0)
-	NoiseAttenuationDB   float64 // Noise attenuation in dB
+	NoiseFloor           float32 // Noise floor level (0.0-1.0)
+	NoiseAttenuationDB   float32 // Noise attenuation in dB
 
 	// Multi-channel Support
 	ChannelCount int  // Number of audio channels

@@ -8,15 +8,15 @@ import (
 // NoiseReducer implements a simple spectral subtraction noise reduction
 type NoiseReducer struct {
 	// Configuration
-	noiseFloor        float64 // Estimated noise floor level
-	attenuationFactor float64 // Noise attenuation factor
+	noiseFloor        float32 // Estimated noise floor level
+	attenuationFactor float32 // Noise attenuation factor
 	sampleRate        int     // Audio sample rate
 	frameSize         int     // Size of audio frames in samples
 	bytesPerSample    int     // Bytes per sample (typically 2 for PCM16)
 
 	// State
 	enabled               bool      // Whether noise reduction is enabled
-	noiseProfile          []float64 // Noise spectral profile
+	noiseProfile          []float32 // Noise spectral profile
 	profileInitialized    bool      // Whether noise profile has been initialized
 	noiseEstimationFrames int       // Number of frames to use for initial noise estimation
 	framesProcessed       int       // Count of frames processed for noise estimation
@@ -57,7 +57,7 @@ func NewNoiseReducer(config ProcessingConfig) *NoiseReducer {
 	fftSize := 512 // Power of 2, larger than typical frame size
 
 	// Convert dB attenuation to linear factor
-	attenuationFactor := math.Pow(10, -config.NoiseAttenuationDB/20.0)
+	attenuationFactor := float32(math.Pow(10, float64(-config.NoiseAttenuationDB/20.0)))
 
 	return &NoiseReducer{
 		noiseFloor:        config.NoiseFloor,
@@ -67,7 +67,7 @@ func NewNoiseReducer(config ProcessingConfig) *NoiseReducer {
 		bytesPerSample:    2, // Assume 16-bit PCM
 
 		enabled:               config.EnableNoiseReduction,
-		noiseProfile:          make([]float64, fftSize/2+1), // Half FFT size + 1 for real signal
+		noiseProfile:          make([]float32, fftSize/2+1), // Half FFT size + 1 for real signal
 		profileInitialized:    false,
 		noiseEstimationFrames: 30, // Use 30 frames (600ms at 20ms frames) for initial noise profile
 		framesProcessed:       0,
@@ -78,12 +78,12 @@ func NewNoiseReducer(config ProcessingConfig) *NoiseReducer {
 
 // Process implements AudioProcessor interface
 // This is a simplified spectral subtraction implementation
-func (nr *NoiseReducer) Process(samples []float64) []float64 {
+func (nr *NoiseReducer) Process(samples []float32) []float32 {
 	if nr.profileInitialized {
 		return nr.process(samples)
 	}
 	n := len(samples)
-	denoised := make([]float64, 0, n)
+	denoised := make([]float32, 0, n)
 	for i := 0; i < n; i += nr.frameSize {
 		end := i + nr.frameSize
 		if end >= n {
@@ -95,7 +95,7 @@ func (nr *NoiseReducer) Process(samples []float64) []float64 {
 	return denoised
 }
 
-func (nr *NoiseReducer) process(samples []float64) []float64 {
+func (nr *NoiseReducer) process(samples []float32) []float32 {
 	if !nr.enabled {
 		return samples
 	}
@@ -120,16 +120,16 @@ func (nr *NoiseReducer) process(samples []float64) []float64 {
 	}
 
 	// Process each sample with noise reduction
-	processedSamples := make([]float64, len(samples))
+	processedSamples := make([]float32, len(samples))
 	for i, sample := range samples {
 		// Simple noise gate with smoothing
-		if math.Abs(sample) < nr.noiseFloor {
+		if float32(math.Abs(float64(sample))) < nr.noiseFloor {
 			// Attenuate noise
 			processedSamples[i] = sample * nr.attenuationFactor
 		} else {
 			// Keep signal above noise floor
 			// Apply soft transition at the threshold for smoother results
-			ratio := math.Min(1.0, (math.Abs(sample)-nr.noiseFloor)/(nr.noiseFloor*2))
+			ratio := float32(math.Min(1.0, (math.Abs(float64(sample))-float64(nr.noiseFloor))/float64(nr.noiseFloor*2)))
 			attenuation := nr.attenuationFactor + (1.0-nr.attenuationFactor)*ratio
 			processedSamples[i] = sample * attenuation
 		}
@@ -138,17 +138,17 @@ func (nr *NoiseReducer) process(samples []float64) []float64 {
 }
 
 // updateNoiseProfile analyzes the audio to estimate the noise profile
-func (nr *NoiseReducer) updateNoiseProfile(samples []float64) {
+func (nr *NoiseReducer) updateNoiseProfile(samples []float32) {
 	// Calculate energy
-	totalEnergy := 0.0
+	totalEnergy := float32(0.0)
 	for _, sample := range samples {
 		totalEnergy += sample * sample
 	}
-	avgEnergy := totalEnergy / float64(len(samples))
+	avgEnergy := totalEnergy / float32(len(samples))
 
 	// Update noise floor estimate with exponential moving average
 	// Use slower adaptation for noise floor to avoid adapting to speech
-	nr.noiseFloor = 0.9*nr.noiseFloor + 0.1*math.Sqrt(avgEnergy)
+	nr.noiseFloor = 0.9*nr.noiseFloor + 0.1*float32(math.Sqrt(float64(avgEnergy)))
 }
 
 // bytesToFloat64Samples converts PCM byte data to float64 samples
@@ -212,7 +212,7 @@ func (nr *NoiseReducer) SetEnabled(enabled bool) {
 }
 
 // GetNoiseFloor returns the current estimated noise floor
-func (nr *NoiseReducer) GetNoiseFloor() float64 {
+func (nr *NoiseReducer) GetNoiseFloor() float32 {
 	nr.mu.Lock()
 	defer nr.mu.Unlock()
 	return nr.noiseFloor

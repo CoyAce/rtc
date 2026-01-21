@@ -167,9 +167,9 @@ func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 		}
 		fileId := encodeAudioId()
 		blockId := BlockId(0)
-		var reduction float64
+		var reduction float32
 		processedFrames := 0
-		erle := 0.0
+		erle := float32(0.0)
 		for {
 			var cur *bytes.Buffer
 			select {
@@ -187,11 +187,11 @@ func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 				return
 			}
 			data := make([]byte, ogg.FrameSize)
-			processAudio, err := ecEnhancer.ProcessAudio(audio.Int16ToFloat64(ogg.ToInts(cur.Bytes())))
+			processAudio, err := ecEnhancer.ProcessAudio(audio.Int16ToFloat32(ogg.ToInts(cur.Bytes())))
 			if err != nil {
 				log.Printf("enhancer process audio failed, %s", err)
 			}
-			n, err := enc.Encode(audio.Float64ToInt16(processAudio), data)
+			n, err := enc.Encode(audio.Float32ToInt16(processAudio), data)
 			if err != nil {
 				log.Printf("audio encode failed, %s", err)
 			}
@@ -203,8 +203,8 @@ func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 			reduction += stats.EchoReduction
 			erle += stats.EchoReturnLossEnhancement
 			processedFrames++
-			avgReduction := reduction / float64(processedFrames)
-			avgErle := erle / float64(processedFrames)
+			avgReduction := reduction / float32(processedFrames)
+			avgErle := erle / float32(processedFrames)
 
 			fmt.Printf("平均reduction: %.2f 平均ERLE: %.1f Delay: %d \n", avgReduction, avgErle, stats.Delay)
 			fmt.Printf("input level: %.6f output level %.6f \n", stats.InputLevel, stats.OutputLevel)

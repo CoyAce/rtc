@@ -5,8 +5,8 @@ import (
 	"sync"
 )
 
-// AudioEnhancementConfig contains configuration for audio enhancement
-type AudioEnhancementConfig struct {
+// EnhancementConfig contains configuration for audio enhancement
+type EnhancementConfig struct {
 	// AGC (Automatic Gain Control) settings
 	AGC AGCConfig
 
@@ -28,25 +28,27 @@ type AGCConfig struct {
 	Enabled bool
 
 	// Target level in dBFS (typically -20 to -10)
-	TargetLevel float64
+	TargetLevel float32
 
 	// Maximum gain in dB (typically 20-30)
-	MaxGain float64
+	MaxGain float32
 
 	// Minimum gain in dB (typically -20 to 0)
-	MinGain float64
+	MinGain float32
 
 	// Attack time in milliseconds (how fast to increase gain)
-	AttackTime float64
+	AttackTime float32
 
 	// Release time in milliseconds (how fast to decrease gain)
-	ReleaseTime float64
+	ReleaseTime float32
 
 	// Noise gate threshold in dB (silence detection)
-	NoiseGateThreshold float64
+	NoiseGateThreshold float32
 
 	// Hold time in milliseconds (prevent rapid gain changes)
-	HoldTime float64
+	HoldTime float32
+
+	SampleRate float32
 }
 
 // EchoCancellationConfig contains echo cancellation configuration
@@ -54,22 +56,24 @@ type EchoCancellationConfig struct {
 	Enabled bool
 
 	// Filter length in milliseconds (typical 100-500ms)
-	FilterLength float64
+	FilterLength float32
 
 	// Adaptation rate (0.0-1.0, higher = faster adaptation)
-	AdaptationRate float64
+	AdaptationRate float32
 
 	// Nonlinear processing strength (0.0-1.0)
-	NonlinearProcessing float64
+	NonlinearProcessing float32
 
 	// Double-talk detection threshold
-	DoubleTalkThreshold float64
+	DoubleTalkThreshold float32
 
 	// Comfort noise level in dB
-	ComfortNoiseLevel float64
+	ComfortNoiseLevel float32
 
 	// Residual echo suppression (0.0-1.0)
-	ResidualSuppression float64
+	ResidualSuppression float32
+
+	SampleRate int
 }
 
 // CompressionConfig contains dynamic range compression settings
@@ -77,22 +81,22 @@ type CompressionConfig struct {
 	Enabled bool
 
 	// Threshold in dB (where compression starts)
-	Threshold float64
+	Threshold float32
 
 	// Compression ratio (e.g., 4:1)
-	Ratio float64
+	Ratio float32
 
 	// Knee width in dB (smooth transition)
-	Knee float64
+	Knee float32
 
 	// Attack time in milliseconds
-	AttackTime float64
+	AttackTime float32
 
 	// Release time in milliseconds
-	ReleaseTime float64
+	ReleaseTime float32
 
 	// Makeup gain in dB
-	MakeupGain float64
+	MakeupGain float32
 }
 
 // EqualizerConfig contains equalizer settings
@@ -103,14 +107,14 @@ type EqualizerConfig struct {
 	Bands []EqualizerBand
 
 	// Pre-amplification in dB
-	PreAmp float64
+	PreAmp float32
 }
 
 // EqualizerBand represents a single equalizer band
 type EqualizerBand struct {
-	Frequency float64 // Center frequency in Hz
-	Gain      float64 // Gain in dB
-	Q         float64 // Q factor (bandwidth)
+	Frequency float32 // Center frequency in Hz
+	Gain      float32 // Gain in dB
+	Q         float32 // Q factor (bandwidth)
 }
 
 // DeEsserConfig contains de-esser configuration
@@ -118,32 +122,33 @@ type DeEsserConfig struct {
 	Enabled bool
 
 	// Frequency range for sibilance detection (Hz)
-	FrequencyMin float64
-	FrequencyMax float64
+	FrequencyMin float32
+	FrequencyMax float32
 
 	// Threshold in dB
-	Threshold float64
+	Threshold float32
 
 	// Reduction amount (0.0-1.0)
-	Reduction float64
+	Reduction float32
 }
 
-func EchoCancellationEnhancer() *AudioEnhancer {
+func EchoCancellationEnhancer() *Enhancer {
 	config := DefaultAudioEnhancementConfig()
 	config.EchoCancellation.Enabled = true
 	return NewAudioEnhancer(config)
 }
 
-func DefaultAudioEnhancer() *AudioEnhancer {
+func DefaultAudioEnhancer() *Enhancer {
 	config := DefaultAudioEnhancementConfig()
 	return NewAudioEnhancer(config)
 }
 
 // DefaultAudioEnhancementConfig returns default audio enhancement configuration
-func DefaultAudioEnhancementConfig() *AudioEnhancementConfig {
-	return &AudioEnhancementConfig{
+func DefaultAudioEnhancementConfig() *EnhancementConfig {
+	return &EnhancementConfig{
 		AGC: AGCConfig{
 			Enabled:            true,
+			SampleRate:         48000,
 			TargetLevel:        -12.0,
 			MaxGain:            24.0,
 			MinGain:            -12.0,
@@ -154,6 +159,7 @@ func DefaultAudioEnhancementConfig() *AudioEnhancementConfig {
 		},
 		EchoCancellation: EchoCancellationConfig{
 			Enabled:             false,
+			SampleRate:          48000,
 			FilterLength:        200.0,
 			AdaptationRate:      0.3,
 			NonlinearProcessing: 0.3,
@@ -191,9 +197,9 @@ func DefaultAudioEnhancementConfig() *AudioEnhancementConfig {
 	}
 }
 
-// AudioEnhancer provides comprehensive audio enhancement
-type AudioEnhancer struct {
-	config *AudioEnhancementConfig
+// Enhancer provides comprehensive audio enhancement
+type Enhancer struct {
+	config *EnhancementConfig
 	mu     sync.RWMutex
 
 	preamp *Preamp
@@ -222,24 +228,24 @@ type AudioEnhancer struct {
 
 // AudioEnhancementMetrics tracks enhancement metrics
 type AudioEnhancementMetrics struct {
-	InputLevel                float64
-	OutputLevel               float64
-	CurrentGain               float64
-	EchoReduction             float64
-	CompressionGain           float64
+	InputLevel                float32
+	OutputLevel               float32
+	CurrentGain               float32
+	EchoReduction             float32
+	CompressionGain           float32
 	ProcessedFrames           uint64
-	EchoReturnLossEnhancement float64
+	EchoReturnLossEnhancement float32
 	FilterConverged           bool
 	Delay                     int
 }
 
 // NewAudioEnhancer creates a new audio enhancer
-func NewAudioEnhancer(config *AudioEnhancementConfig) *AudioEnhancer {
+func NewAudioEnhancer(config *EnhancementConfig) *Enhancer {
 	if config == nil {
 		config = DefaultAudioEnhancementConfig()
 	}
 
-	ae := &AudioEnhancer{
+	ae := &Enhancer{
 		config:         config,
 		preamp:         NewPreamp(),
 		nr:             DefaultNoiseReducer(),
@@ -255,18 +261,18 @@ func NewAudioEnhancer(config *AudioEnhancementConfig) *AudioEnhancer {
 }
 
 // AddFarEnd - 单独添加远端信号（用于异步处理）
-func (ae *AudioEnhancer) AddFarEnd(farEnd []int16) {
+func (ae *Enhancer) AddFarEnd(farEnd []int16) {
 	ae.mu.Lock()
 	defer ae.mu.Unlock()
 
 	if len(farEnd) == FrameSize {
-		farFloat := Int16ToFloat64(farEnd)
+		farFloat := Int16ToFloat32(farEnd)
 		ae.delayEstimator.farHistory.Write(farFloat)
 	}
 }
 
 // ProcessAudio applies all enhancement stages to audio
-func (ae *AudioEnhancer) ProcessAudio(samples []float64) ([]float64, error) {
+func (ae *Enhancer) ProcessAudio(samples []float32) ([]float32, error) {
 	ae.mu.Lock()
 	defer ae.mu.Unlock()
 
@@ -329,7 +335,7 @@ func (ae *AudioEnhancer) ProcessAudio(samples []float64) ([]float64, error) {
 }
 
 // GetMetrics returns current enhancement metrics
-func (ae *AudioEnhancer) GetMetrics() AudioEnhancementMetrics {
+func (ae *Enhancer) GetMetrics() AudioEnhancementMetrics {
 	ae.mu.RLock()
 	defer ae.mu.RUnlock()
 	return ae.metrics
@@ -340,21 +346,19 @@ type AutomaticGainControl struct {
 	config *AGCConfig
 	mu     sync.Mutex
 
-	currentGain   float64
-	targetLevel   float64
-	envelope      float64
-	gateThreshold float64
+	currentGain   float32
+	targetLevel   float32
+	envelope      float32
+	gateThreshold float32
 	holdCounter   int
 
 	// Time constants
-	attackCoeff  float64
-	releaseCoeff float64
+	attackCoeff  float32
+	releaseCoeff float32
 }
 
 // NewAutomaticGainControl creates a new AGC processor
 func NewAutomaticGainControl(config *AGCConfig) *AutomaticGainControl {
-	sampleRate := 8000.0 // Assuming 8kHz
-
 	agc := &AutomaticGainControl{
 		config:        config,
 		currentGain:   1.0,
@@ -363,14 +367,14 @@ func NewAutomaticGainControl(config *AGCConfig) *AutomaticGainControl {
 	}
 
 	// Calculate time constants
-	agc.attackCoeff = 1.0 - math.Exp(-1.0/(config.AttackTime*sampleRate/1000.0))
-	agc.releaseCoeff = 1.0 - math.Exp(-1.0/(config.ReleaseTime*sampleRate/1000.0))
+	agc.attackCoeff = float32(1.0 - math.Exp(float64(-1.0/(config.AttackTime*config.SampleRate/1000.0))))
+	agc.releaseCoeff = float32(1.0 - math.Exp(float64(-1.0/(config.ReleaseTime*config.SampleRate/1000.0))))
 
 	return agc
 }
 
 // Process applies AGC to audio samples
-func (agc *AutomaticGainControl) Process(samples []float64) ([]float64, float64) {
+func (agc *AutomaticGainControl) Process(samples []float32) ([]float32, float32) {
 	agc.mu.Lock()
 	defer agc.mu.Unlock()
 
@@ -378,11 +382,11 @@ func (agc *AutomaticGainControl) Process(samples []float64) ([]float64, float64)
 		return samples, 1.0
 	}
 
-	output := make([]float64, len(samples))
+	output := make([]float32, len(samples))
 
 	for i, sample := range samples {
 		// Update envelope follower
-		absSample := math.Abs(sample)
+		absSample := float32(math.Abs(float64(sample)))
 		if absSample > agc.envelope {
 			agc.envelope += agc.attackCoeff * (absSample - agc.envelope)
 		} else {
@@ -390,7 +394,7 @@ func (agc *AutomaticGainControl) Process(samples []float64) ([]float64, float64)
 		}
 
 		// Calculate desired gain
-		desiredGain := 1.0
+		desiredGain := float32(1.0)
 		if agc.envelope > 0.001 {
 			desiredGain = agc.targetLevel / agc.envelope
 		}
@@ -424,14 +428,14 @@ func (agc *AutomaticGainControl) Process(samples []float64) ([]float64, float64)
 }
 
 // ApplyNoiseGate applies noise gate to silence low-level noise
-func (agc *AutomaticGainControl) ApplyNoiseGate(samples []float64) []float64 {
+func (agc *AutomaticGainControl) ApplyNoiseGate(samples []float32) []float32 {
 	agc.mu.Lock()
 	defer agc.mu.Unlock()
 
-	output := make([]float64, len(samples))
+	output := make([]float32, len(samples))
 
 	for i, sample := range samples {
-		level := math.Abs(sample)
+		level := float32(math.Abs(float64(sample)))
 
 		if level < agc.gateThreshold {
 			// Below threshold - apply gate
@@ -457,41 +461,41 @@ type EchoCanceller struct {
 	mu     sync.Mutex
 
 	// Adaptive filter coefficients
-	filterCoeffs []float64
-	filterBuffer []float64
+	filterCoeffs []float32
+	filterBuffer []float32
 
 	// Reference signal buffer (far-end)
-	referenceBuffer []float64
+	referenceBuffer []float32
 
 	// Error signal for adaptation
-	errorSignal []float64
+	errorSignal []float32
 
 	// Double-talk detector
-	nearEndPower float64
-	farEndPower  float64
+	nearEndPower float32
+	farEndPower  float32
 	doubleTalk   bool
 
 	// Metrics
-	echoReduction             float64
-	EchoReturnLossEnhancement float64
+	echoReduction             float32
+	EchoReturnLossEnhancement float32
 	FilterConverged           bool
 }
 
 // NewEchoCanceller creates a new echo canceller
 func NewEchoCanceller(config *EchoCancellationConfig) *EchoCanceller {
-	filterLen := int(config.FilterLength * 8) // 8 samples per ms at 8kHz
+	filterLen := int(config.FilterLength * float32(config.SampleRate/1000)) // 48 samples per ms at 48kHz
 
 	return &EchoCanceller{
 		config:          config,
-		filterCoeffs:    make([]float64, filterLen),
-		filterBuffer:    make([]float64, filterLen),
-		referenceBuffer: make([]float64, filterLen),
-		errorSignal:     make([]float64, filterLen),
+		filterCoeffs:    make([]float32, filterLen),
+		filterBuffer:    make([]float32, filterLen),
+		referenceBuffer: make([]float32, filterLen),
+		errorSignal:     make([]float32, filterLen),
 	}
 }
 
 // Process removes echo from audio signal
-func (ec *EchoCanceller) Process(reference, samples []float64) []float64 {
+func (ec *EchoCanceller) Process(reference, samples []float32) []float32 {
 	ec.mu.Lock()
 	defer ec.mu.Unlock()
 
@@ -499,7 +503,7 @@ func (ec *EchoCanceller) Process(reference, samples []float64) []float64 {
 		return samples
 	}
 
-	output := make([]float64, len(samples))
+	output := make([]float32, len(samples))
 
 	ec.referenceBuffer = reference
 	for i, sample := range samples {
@@ -539,11 +543,11 @@ func (ec *EchoCanceller) Process(reference, samples []float64) []float64 {
 	residualPower := calculatePower(output)
 
 	// 平滑更新
-	alpha := float64(0.1) // 平滑系数
+	alpha := float32(0.1) // 平滑系数
 
 	// 计算ERLE（dB）
 	if residualPower > 0 {
-		erle := 10 * float64(math.Log10(float64(nearPower/residualPower)))
+		erle := 10 * float32(math.Log10(float64(nearPower/residualPower)))
 		ec.EchoReturnLossEnhancement = (1-alpha)*ec.EchoReturnLossEnhancement + alpha*erle
 	}
 
@@ -556,7 +560,7 @@ func (ec *EchoCanceller) Process(reference, samples []float64) []float64 {
 }
 
 // updateReferenceBuffer updates the reference signal buffer
-func (ec *EchoCanceller) updateReferenceBuffer(sample float64) {
+func (ec *EchoCanceller) updateReferenceBuffer(sample float32) {
 	if len(ec.referenceBuffer) == 0 {
 		return
 	}
@@ -566,8 +570,8 @@ func (ec *EchoCanceller) updateReferenceBuffer(sample float64) {
 }
 
 // estimateEcho estimates the echo signal
-func (ec *EchoCanceller) estimateEcho() float64 {
-	estimate := 0.0
+func (ec *EchoCanceller) estimateEcho() float32 {
+	estimate := float32(0.0)
 	for j := 0; j < len(ec.filterCoeffs); j++ {
 		if j < len(ec.referenceBuffer) {
 			estimate += ec.filterCoeffs[j] * ec.referenceBuffer[j]
@@ -577,9 +581,9 @@ func (ec *EchoCanceller) estimateEcho() float64 {
 }
 
 // detectDoubleTalk detects simultaneous near-end and far-end speech
-func (ec *EchoCanceller) detectDoubleTalk(nearEnd, farEnd float64) {
+func (ec *EchoCanceller) detectDoubleTalk(nearEnd, farEnd float32) {
 	// Update power estimates
-	alpha := 0.99
+	alpha := float32(0.99)
 	ec.nearEndPower = alpha*ec.nearEndPower + (1-alpha)*nearEnd*nearEnd
 	ec.farEndPower = alpha*ec.farEndPower + (1-alpha)*farEnd*farEnd
 
@@ -593,9 +597,9 @@ func (ec *EchoCanceller) detectDoubleTalk(nearEnd, farEnd float64) {
 }
 
 // updateFilterCoefficients updates adaptive filter using NLMS algorithm
-func (ec *EchoCanceller) updateFilterCoefficients(error float64) {
+func (ec *EchoCanceller) updateFilterCoefficients(error float32) {
 	// Calculate step size
-	power := 0.0
+	power := float32(0.0)
 	for _, ref := range ec.referenceBuffer {
 		power += ref * ref
 	}
@@ -613,10 +617,10 @@ func (ec *EchoCanceller) updateFilterCoefficients(error float64) {
 }
 
 // applyNonlinearProcessing applies NLP to remove residual echo
-func (ec *EchoCanceller) applyNonlinearProcessing(signal float64) float64 {
+func (ec *EchoCanceller) applyNonlinearProcessing(signal float32) float32 {
 	threshold := 0.01 * ec.config.NonlinearProcessing
 
-	if math.Abs(signal) < threshold {
+	if float32(math.Abs(float64(signal))) < threshold {
 		// Suppress small signals (likely residual echo)
 		return signal * 0.1
 	}
@@ -625,30 +629,30 @@ func (ec *EchoCanceller) applyNonlinearProcessing(signal float64) float64 {
 }
 
 // addComfortNoise adds comfort noise during suppression
-func (ec *EchoCanceller) addComfortNoise(signal float64) float64 {
+func (ec *EchoCanceller) addComfortNoise(signal float32) float32 {
 	noiseLevel := dbToLinear(ec.config.ComfortNoiseLevel)
-	noise := (math.Sin(float64(ec.farEndPower*1000)) * noiseLevel)
+	noise := float32(math.Sin(float64(ec.farEndPower*1000))) * noiseLevel
 	return signal + noise
 }
 
 // suppressResidualEcho applies residual echo suppression
-func (ec *EchoCanceller) suppressResidualEcho(signal, echoEstimate float64) float64 {
-	if math.Abs(echoEstimate) > 0.001 {
-		suppression := 1.0 - ec.config.ResidualSuppression*math.Min(1.0, math.Abs(echoEstimate)/0.1)
+func (ec *EchoCanceller) suppressResidualEcho(signal, echoEstimate float32) float32 {
+	if math.Abs(float64(echoEstimate)) > 0.001 {
+		suppression := 1.0 - ec.config.ResidualSuppression*float32(math.Min(1.0, math.Abs(float64(echoEstimate))/0.1))
 		return signal * suppression
 	}
 	return signal
 }
 
 // updateMetrics updates echo cancellation metrics
-func (ec *EchoCanceller) updateMetrics(input, output float64) {
-	if math.Abs(input) > 0.001 {
-		ec.echoReduction = 1.0 - math.Abs(output)/math.Abs(input)
+func (ec *EchoCanceller) updateMetrics(input, output float32) {
+	if math.Abs(float64(input)) > 0.001 {
+		ec.echoReduction = 1.0 - float32(math.Abs(float64(output))/math.Abs(float64(input)))
 	}
 }
 
 // GetReduction returns current echo reduction amount
-func (ec *EchoCanceller) GetReduction() float64 {
+func (ec *EchoCanceller) GetReduction() float32 {
 	ec.mu.Lock()
 	defer ec.mu.Unlock()
 	return ec.echoReduction
@@ -657,9 +661,9 @@ func (ec *EchoCanceller) GetReduction() float64 {
 // DynamicRangeCompressor implements audio compression
 type DynamicRangeCompressor struct {
 	config       *CompressionConfig
-	envelope     float64
-	attackCoeff  float64
-	releaseCoeff float64
+	envelope     float32
+	attackCoeff  float32
+	releaseCoeff float32
 }
 
 // NewDynamicRangeCompressor creates a new compressor
@@ -668,23 +672,23 @@ func NewDynamicRangeCompressor(config *CompressionConfig) *DynamicRangeCompresso
 
 	return &DynamicRangeCompressor{
 		config:       config,
-		attackCoeff:  1.0 - math.Exp(-1.0/(config.AttackTime*sampleRate/1000.0)),
-		releaseCoeff: 1.0 - math.Exp(-1.0/(config.ReleaseTime*sampleRate/1000.0)),
+		attackCoeff:  1.0 - float32(math.Exp(-1.0/(float64(config.AttackTime)*sampleRate/1000.0))),
+		releaseCoeff: 1.0 - float32(math.Exp(-1.0/(float64(config.ReleaseTime)*sampleRate/1000.0))),
 	}
 }
 
 // Process applies dynamic range compression
-func (drc *DynamicRangeCompressor) Process(samples []float64) ([]float64, float64) {
+func (drc *DynamicRangeCompressor) Process(samples []float32) ([]float32, float32) {
 	if !drc.config.Enabled {
 		return samples, 1.0
 	}
 
-	output := make([]float64, len(samples))
-	avgGain := 0.0
+	output := make([]float32, len(samples))
+	avgGain := float32(0.0)
 
 	for i, sample := range samples {
 		// Update envelope
-		level := math.Abs(sample)
+		level := float32(math.Abs(float64(sample)))
 		if level > drc.envelope {
 			drc.envelope += drc.attackCoeff * (level - drc.envelope)
 		} else {
@@ -692,7 +696,7 @@ func (drc *DynamicRangeCompressor) Process(samples []float64) ([]float64, float6
 		}
 
 		// Calculate gain reduction
-		gainReduction := 1.0
+		gainReduction := float32(1.0)
 		levelDb := linearToDb(drc.envelope)
 
 		if levelDb > drc.config.Threshold {
@@ -716,7 +720,7 @@ func (drc *DynamicRangeCompressor) Process(samples []float64) ([]float64, float6
 		avgGain += gain
 	}
 
-	return output, avgGain / float64(len(samples))
+	return output, avgGain / float32(len(samples))
 }
 
 // ParametricEqualizer implements multi-band parametric EQ
@@ -741,12 +745,12 @@ func NewParametricEqualizer(config *EqualizerConfig) *ParametricEqualizer {
 }
 
 // Process applies equalization
-func (eq *ParametricEqualizer) Process(samples []float64) []float64 {
+func (eq *ParametricEqualizer) Process(samples []float32) []float32 {
 	if !eq.config.Enabled {
 		return samples
 	}
 
-	output := make([]float64, len(samples))
+	output := make([]float32, len(samples))
 	copy(output, samples)
 
 	// Apply pre-amplification
@@ -767,24 +771,24 @@ func (eq *ParametricEqualizer) Process(samples []float64) []float64 {
 
 // BiquadFilter implements a second-order IIR filter
 type BiquadFilter struct {
-	a0, a1, a2 float64 // Feedforward coefficients
-	b1, b2     float64 // Feedback coefficients
-	x1, x2     float64 // Input delay line
-	y1, y2     float64 // Output delay line
+	a0, a1, a2 float32 // Feedforward coefficients
+	b1, b2     float32 // Feedback coefficients
+	x1, x2     float32 // Input delay line
+	y1, y2     float32 // Output delay line
 }
 
 // NewBiquadFilter creates a peaking EQ biquad filter
-func NewBiquadFilter(frequency, gain, q, sampleRate float64) *BiquadFilter {
-	omega := 2.0 * math.Pi * frequency / sampleRate
-	alpha := math.Sin(omega) / (2.0 * q)
-	A := math.Sqrt(dbToLinear(gain))
+func NewBiquadFilter(frequency, gain, q, sampleRate float32) *BiquadFilter {
+	omega := float64(2.0 * math.Pi * frequency / sampleRate)
+	alpha := float32(math.Sin(omega)) / (2.0 * q)
+	A := float32(math.Sqrt(float64(dbToLinear(gain))))
 
 	// Peaking EQ coefficients
 	b0 := 1.0 + alpha*A
-	b1 := -2.0 * math.Cos(omega)
+	b1 := -2.0 * float32(math.Cos(omega))
 	b2 := 1.0 - alpha*A
 	a0 := 1.0 + alpha/A
-	a1 := -2.0 * math.Cos(omega)
+	a1 := -2.0 * float32(math.Cos(omega))
 	a2 := 1.0 - alpha/A
 
 	// Normalize
@@ -798,8 +802,8 @@ func NewBiquadFilter(frequency, gain, q, sampleRate float64) *BiquadFilter {
 }
 
 // Process applies the biquad filter
-func (bf *BiquadFilter) Process(samples []float64) []float64 {
-	output := make([]float64, len(samples))
+func (bf *BiquadFilter) Process(samples []float32) []float32 {
+	output := make([]float32, len(samples))
 
 	for i, x0 := range samples {
 		// Direct Form II
@@ -821,9 +825,9 @@ func (bf *BiquadFilter) Process(samples []float64) []float64 {
 type DeEsser struct {
 	config       *DeEsserConfig
 	detector     *BiquadFilter
-	envelope     float64
-	attackCoeff  float64
-	releaseCoeff float64
+	envelope     float32
+	attackCoeff  float32
+	releaseCoeff float32
 }
 
 // NewDeEsser creates a new de-esser
@@ -841,18 +845,18 @@ func NewDeEsser(config *DeEsserConfig) *DeEsser {
 }
 
 // Process applies de-essing
-func (de *DeEsser) Process(samples []float64) []float64 {
+func (de *DeEsser) Process(samples []float32) []float32 {
 	if !de.config.Enabled {
 		return samples
 	}
 
 	// Detect sibilance
 	detected := de.detector.Process(samples)
-	output := make([]float64, len(samples))
+	output := make([]float32, len(samples))
 
 	for i := range samples {
 		// Update envelope of detected signal
-		level := math.Abs(detected[i])
+		level := float32(math.Abs(float64(detected[i])))
 		if level > de.envelope {
 			de.envelope = de.attackCoeff*de.envelope + (1-de.attackCoeff)*level
 		} else {
@@ -860,7 +864,7 @@ func (de *DeEsser) Process(samples []float64) []float64 {
 		}
 
 		// Calculate reduction
-		reduction := 1.0
+		reduction := float32(1.0)
 		if linearToDb(de.envelope) > de.config.Threshold {
 			reduction = 1.0 - de.config.Reduction
 		}
@@ -875,10 +879,10 @@ func (de *DeEsser) Process(samples []float64) []float64 {
 }
 
 // Helper function to calculate RMS
-func calculateRMS(samples []float64) float64 {
+func calculateRMS(samples []float32) float32 {
 	sum := 0.0
 	for _, s := range samples {
-		sum += s * s
+		sum += float64(s * s)
 	}
-	return math.Sqrt(sum / float64(len(samples)))
+	return float32(math.Sqrt(sum / float64(len(samples))))
 }

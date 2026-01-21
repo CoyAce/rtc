@@ -6,9 +6,9 @@ import (
 
 // Preamp 前置放大器
 type Preamp struct {
-	TargetRMS  float64 // 目标RMS音量 (0.0-1.0)
-	TargetPeak float64 // 目标峰值 (0.0-1.0)
-	MaxGain    float64 // 最大增益
+	TargetRMS  float32 // 目标RMS音量 (0.0-1.0)
+	TargetPeak float32 // 目标峰值 (0.0-1.0)
+	MaxGain    float32 // 最大增益
 }
 
 // NewPreamp 创建前置放大器
@@ -30,28 +30,28 @@ type PCMBuffer struct {
 
 // VolumeInfo 音量信息
 type VolumeInfo struct {
-	RMS    float64 // 均方根音量
-	Peak   float64 // 峰值
-	Max    float64 // 最大样本值
-	Min    float64 // 最小样本值
+	RMS    float32 // 均方根音量
+	Peak   float32 // 峰值
+	Max    float32 // 最大样本值
+	Min    float32 // 最小样本值
 	Silent bool    // 是否静音
 }
 
 // AnalyzePCM 分析PCM数据音量
-func (p *Preamp) AnalyzePCM(data []float64) VolumeInfo {
+func (p *Preamp) AnalyzePCM(data []float32) VolumeInfo {
 	if len(data) == 0 {
 		return VolumeInfo{Silent: true}
 	}
 
 	var (
-		sumSquares float64
-		maxPeak    float64
-		maxVal     = -1.0
-		minVal     = 1.0
+		sumSquares float32
+		maxPeak    float32
+		maxVal     = float32(-1.0)
+		minVal     = float32(1.0)
 		silent     = true
 	)
 	for _, sample := range data {
-		absSample := math.Abs(sample)
+		absSample := float32(math.Abs(float64(sample)))
 		sumSquares += sample * sample
 		if absSample > maxPeak {
 			maxPeak = absSample
@@ -64,7 +64,7 @@ func (p *Preamp) AnalyzePCM(data []float64) VolumeInfo {
 		}
 	}
 
-	rms := math.Sqrt(sumSquares / float64(len(data)))
+	rms := float32(math.Sqrt(float64(sumSquares) / float64(len(data))))
 
 	if rms > 0.0003 {
 		silent = false
@@ -80,7 +80,7 @@ func (p *Preamp) AnalyzePCM(data []float64) VolumeInfo {
 }
 
 // Process 前置放大PCM数据音量
-func (p *Preamp) Process(data []float64) ([]float64, *VolumeInfo) {
+func (p *Preamp) Process(data []float32) ([]float32, *VolumeInfo) {
 	if len(data) == 0 {
 		return data, nil
 	}
@@ -100,7 +100,7 @@ func (p *Preamp) Process(data []float64) ([]float64, *VolumeInfo) {
 	peakGain := dbToLinear(p.TargetPeak) / info.Peak
 
 	// 使用较小的增益
-	gain := math.Min(rmsGain, peakGain)
+	gain := float32(math.Min(float64(rmsGain), float64(peakGain)))
 
 	// 限制最大增益（避免过度放大噪声）
 	if info.RMS < 0.01 { // 非常安静的声音
@@ -114,12 +114,12 @@ func (p *Preamp) Process(data []float64) ([]float64, *VolumeInfo) {
 }
 
 // applyGain 应用增益到PCM数据
-func (p *Preamp) applyGain(data []float64, gain float64) []float64 {
+func (p *Preamp) applyGain(data []float32, gain float32) []float32 {
 	if len(data) == 0 {
 		return data
 	}
 
-	result := make([]float64, len(data))
+	result := make([]float32, len(data))
 	for i, sample := range data {
 		value := sample * gain
 

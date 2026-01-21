@@ -25,7 +25,7 @@ func TestAudioEnhancer_NewAudioEnhancer(t *testing.T) {
 }
 
 func TestAudioEnhancer_ProcessAudio(t *testing.T) {
-	config := &AudioEnhancementConfig{
+	config := &EnhancementConfig{
 		AGC: AGCConfig{
 			Enabled:     true,
 			TargetLevel: -20,
@@ -97,7 +97,7 @@ func TestAudioEnhancer_ProcessBasic(t *testing.T) {
 }
 
 func TestAudioEnhancer_AllFeaturesEnabled(t *testing.T) {
-	config := &AudioEnhancementConfig{
+	config := &EnhancementConfig{
 		AGC: AGCConfig{
 			Enabled:     true,
 			TargetLevel: -20,
@@ -141,7 +141,7 @@ func TestAudioEnhancer_AllFeaturesEnabled(t *testing.T) {
 }
 
 func BenchmarkAudioEnhancer_ProcessAudio(b *testing.B) {
-	config := &AudioEnhancementConfig{
+	config := &EnhancementConfig{
 		AGC:              AGCConfig{Enabled: true},
 		EchoCancellation: EchoCancellationConfig{Enabled: true},
 		Compression:      CompressionConfig{Enabled: true},
