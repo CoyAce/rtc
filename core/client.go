@@ -48,10 +48,10 @@ func (f *FileWriter) Loop() {
 			// remove before append
 			RemoveFile(GetPath(req.UUID, req.Filename))
 		case data := <-f.FileData:
-			req := f.wrq[data.FileId]
-			if req.FileId != data.FileId {
+			if !f.isFile(data.FileId) {
 				continue
 			}
+			req := f.wrq[data.FileId]
 			f.fileData[data.FileId] = append(f.fileData[data.FileId], data)
 			// received ~100kb
 			if len(f.fileData[data.FileId]) >= 70 {
@@ -66,6 +66,10 @@ func (f *FileWriter) Loop() {
 		}
 	}
 
+}
+
+func (f *FileWriter) isFile(fileId uint32) bool {
+	return f.wrq[fileId].FileId == fileId
 }
 
 func appendTo(filePath string, data []Data) {
@@ -107,6 +111,7 @@ type Client struct {
 	Retries        uint8         // the number of times to retry a failed transmission
 	Timeout        time.Duration // the duration to wait for an acknowledgement
 	fileWriter     *FileWriter
+	files          []WriteReq
 	conn           net.PacketConn
 	audioMetaInfo
 }
@@ -465,7 +470,9 @@ func (c *Client) handle(buf []byte, conn net.PacketConn, addr net.Addr) {
 			c.AudioData <- data
 			return
 		}
-		c.handleFileData(conn, addr, data, len(buf))
+		if c.fileWriter.isFile(data.FileId) {
+			c.handleFileData(conn, addr, data, len(buf))
+		}
 	}
 }
 
@@ -479,6 +486,7 @@ func (c *Client) handleFileData(conn net.PacketConn, addr net.Addr, data Data, n
 }
 
 func (c *Client) addFile(wrq WriteReq) {
+	c.files = append(c.files, wrq)
 	c.fileWriter.Wrq <- wrq
 }
 

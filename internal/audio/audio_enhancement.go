@@ -165,12 +165,12 @@ func DefaultEnhancementConfig() *EnhancementConfig {
 		EchoCancellation: EchoCancellationConfig{
 			Enabled:             false,
 			SampleRate:          48000,
-			FilterLength:        128.0, // 适应语音长度
-			AdaptationRate:      0.2,   // 稳定自适应
+			FilterLength:        64.0,  // 适应语音长度
+			AdaptationRate:      0.4,   // 稳定自适应
 			NonlinearProcessing: 0.3,   // 适度非线性处理
 			DoubleTalkThreshold: 0.5,   // 标准双讲检测
 			ComfortNoiseLevel:   -60.0, // 舒适噪声
-			ResidualSuppression: 0.1,   // 残留回声抑制
+			ResidualSuppression: 0.5,   // 残留回声抑制
 		},
 		Compression: CompressionConfig{
 			Enabled:     false,
