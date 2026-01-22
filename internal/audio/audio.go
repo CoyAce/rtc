@@ -191,6 +191,9 @@ func NewStreamConfig(maCtx *malgo.AllocatedContext, channels int) StreamConfig {
 }
 
 func ToFloat32(pcm []byte) []float32 {
+	if len(pcm) == 0 {
+		return []float32{}
+	}
 	size := len(pcm) / 4
 	cap := cap(pcm) / 4
 

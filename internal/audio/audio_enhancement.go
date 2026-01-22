@@ -2,6 +2,7 @@ package audio
 
 import (
 	"math"
+	"math/rand"
 	"sync"
 	"time"
 )
@@ -501,12 +502,21 @@ type EchoCanceller struct {
 func NewEchoCanceller(config *EchoCancellationConfig) *EchoCanceller {
 	filterLen := int(config.FilterLength * float32(config.SampleRate/1000)) // 48 samples per ms at 48kHz
 
-	return &EchoCanceller{
+	ec := &EchoCanceller{
 		config:          config,
 		filterCoeffs:    make([]float32, filterLen),
 		filterBuffer:    make([]float32, filterLen),
 		referenceBuffer: make([]float32, filterLen),
 		errorSignal:     make([]float32, filterLen),
+	}
+	ec.initializeFilterCoefficients()
+	return ec
+}
+
+func (ec *EchoCanceller) initializeFilterCoefficients() {
+	// 添加小的随机值
+	for i := range ec.filterCoeffs {
+		ec.filterCoeffs[i] += (rand.Float32() - 0.5) * 0.01
 	}
 }
 
