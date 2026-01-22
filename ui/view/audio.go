@@ -201,10 +201,12 @@ func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 			processAudio, err := ecEnhancer.ProcessAudio(audio.Int16ToFloat32(ogg.ToInts(cur.Bytes())))
 			if err != nil {
 				log.Printf("enhancer process audio failed, %s", err)
+				continue
 			}
 			n, err := enc.Encode(audio.Float32ToInt16(processAudio), data)
 			if err != nil {
 				log.Printf("audio encode failed, %s", err)
+				continue
 			}
 			if mute {
 				continue
@@ -243,11 +245,15 @@ func ConsumeAudioData(streamConfig audio.StreamConfig) {
 		}
 		buf := make([]int16, ogg.FrameSize)
 		n, err := dec.Decode(packet, buf)
+		if err != nil {
+			log.Printf("decode audio packet failed, %s", err)
+			continue
+		}
 		ecEnhancer.AddFarEnd(buf[:n])
 		select {
 		case players[identity] <- bytes.NewBuffer(ogg.ToBytes(buf[:n])):
 		default:
-			log.Printf("buffer full, packet discarded, %s", err)
+			log.Printf("buffer full, packet discarded")
 		}
 	}
 }

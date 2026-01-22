@@ -222,6 +222,7 @@ type Enhancer struct {
 	preamp         *Preamp
 	highPassFilter *HighPassFilter
 	nr             *NoiseReducer
+	aec            *WebRTCAEC
 
 	// AGC components
 	agc *AutomaticGainControl
@@ -266,6 +267,7 @@ func NewEnhancer(config *EnhancementConfig) *Enhancer {
 		preamp:         NewPreamp(),
 		highPassFilter: NewHighPassFilter(80, config.AGC.SampleRate),
 		nr:             DefaultNoiseReducer(),
+		aec:            DefaultAEC(),
 		delayEstimator: NewDelayEstimator(),
 		agc:            NewAutomaticGainControl(&config.AGC),
 		echo:           NewEchoCanceller(&config.EchoCancellation),
@@ -310,9 +312,10 @@ func (ae *Enhancer) ProcessAudio(samples []float32) ([]float32, error) {
 		// 估计延时
 		delay := ae.delayEstimator.Estimate(output)
 		reference := ae.delayEstimator.AdjustDelay(delay, len(samples))
-
-		output = ae.echo.Process(reference, output)
-		ae.metrics.ERLE = ae.echo.ERLE
+		output = ae.aec.Process(reference, output)
+		ae.metrics.ERLE = ae.aec.metrics.ERLE
+		//output = ae.echo.Process(reference, output)
+		//ae.metrics.ERLE = ae.echo.ERLE
 		ae.metrics.Delay = delay
 	}
 
@@ -541,9 +544,9 @@ func (ec *EchoCanceller) Process(reference, samples []float32) []float32 {
 		ec.detectDoubleTalk(sample, echoEstimate)
 
 		// Update filter coefficients (if not double-talk)
-		if !ec.doubleTalk {
-			ec.updateFilterCoefficients(errorSignal)
-		}
+		//if !ec.doubleTalk {
+		ec.updateFilterCoefficients(errorSignal)
+		//}
 
 		// Apply nonlinear processing
 		processed := ec.applyNonlinearProcessing(errorSignal)
