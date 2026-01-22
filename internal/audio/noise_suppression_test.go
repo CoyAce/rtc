@@ -26,10 +26,7 @@ func TestNoiseSuppressor_ProcessFrame(t *testing.T) {
 	t.Run("process silence", func(t *testing.T) {
 		// Process silence (should update noise profile)
 		silence := make([]float32, 512)
-		processed, err := ns.ProcessFrame(silence)
-		if err != nil {
-			t.Errorf("ProcessFrame() error = %v", err)
-		}
+		processed := ns.ProcessFrame(silence)
 		if processed == nil {
 			t.Errorf("ProcessFrame() returned nil instance")
 		}
@@ -55,10 +52,7 @@ func TestNoiseSuppressor_ProcessFrame(t *testing.T) {
 			samples[i] = float32(tone + noise)
 		}
 
-		processed, err := ns.ProcessFrame(samples)
-		if err != nil {
-			t.Errorf("ProcessFrame() error = %v", err)
-		}
+		processed := ns.ProcessFrame(samples)
 		if processed == nil {
 			t.Errorf("ProcessFrame() returned nil instance")
 		}
@@ -94,10 +88,7 @@ func TestNoiseSuppressor_ConcurrentProcessing(t *testing.T) {
 				samples[j] = float32(0.1 * math.Sin(float64(j+id)))
 			}
 
-			processed, err := ns.ProcessFrame(samples)
-			if err != nil {
-				t.Errorf("ProcessFrame() error = %v", err)
-			}
+			processed := ns.ProcessFrame(samples)
 			if processed == nil {
 				t.Errorf("ProcessFrame() returned nil instance")
 			}
@@ -125,6 +116,6 @@ func BenchmarkNoiseSuppressor_ProcessFrame(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = ns.ProcessFrame(samples)
+		_ = ns.ProcessFrame(samples)
 	}
 }

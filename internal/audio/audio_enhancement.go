@@ -525,21 +525,17 @@ func (ec *EchoCanceller) Process(reference, samples []float32) []float32 {
 	ec.mu.Lock()
 	defer ec.mu.Unlock()
 
-	if !ec.config.Enabled {
+	if !ec.config.Enabled || len(reference) == 0 {
 		return samples
 	}
 
 	output := make([]float32, len(samples))
 
+	// Update reference buffer
 	if len(reference) > 0 {
-		ec.updateReference(reference)
+		ec.updateReferenceBuffer(reference)
 	}
 	for i, sample := range samples {
-		// Update reference buffer (simulated far-end signal)
-		if len(reference) == 0 {
-			ec.updateReferenceBuffer(sample)
-		}
-
 		// Estimate echo using adaptive filter
 		echoEstimate := ec.estimateEcho()
 
@@ -550,9 +546,9 @@ func (ec *EchoCanceller) Process(reference, samples []float32) []float32 {
 		ec.detectDoubleTalk(sample, echoEstimate)
 
 		// Update filter coefficients (if not double-talk)
-		//if !ec.doubleTalk {
-		ec.updateFilterCoefficients(errorSignal)
-		//}
+		if !ec.doubleTalk {
+			ec.updateFilterCoefficients(errorSignal)
+		}
 
 		// Apply nonlinear processing
 		processed := ec.applyNonlinearProcessing(errorSignal)
@@ -580,16 +576,7 @@ func (ec *EchoCanceller) Process(reference, samples []float32) []float32 {
 }
 
 // updateReferenceBuffer updates the reference signal buffer
-func (ec *EchoCanceller) updateReferenceBuffer(sample float32) {
-	if len(ec.referenceBuffer) == 0 {
-		return
-	}
-	// Shift buffer and add new sample
-	copy(ec.referenceBuffer[1:], ec.referenceBuffer[:len(ec.referenceBuffer)-1])
-	ec.referenceBuffer[0] = sample
-}
-
-func (ec *EchoCanceller) updateReference(samples []float32) {
+func (ec *EchoCanceller) updateReferenceBuffer(samples []float32) {
 	if len(ec.referenceBuffer) == 0 {
 		return
 	}

@@ -38,13 +38,6 @@ func (s *Server) Serve(conn net.PacketConn) error {
 
 	s.init()
 
-	var (
-		sign Sign
-		msg  SignedMessage
-		wrq  WriteReq
-		data = Data{}
-	)
-
 	for {
 		buf := make([]byte, DatagramSize)
 		n, addr, err := conn.ReadFrom(buf)
@@ -53,43 +46,53 @@ func (s *Server) Serve(conn net.PacketConn) error {
 		}
 
 		pkt := buf[:n]
-		switch {
-		case sign.Unmarshal(pkt) == nil:
-			s.signLock.Lock()
-			s.remove(sign)
-			s.SignMap[addr.String()] = sign
-			s.signLock.Unlock()
-			s.ack(conn, addr, OpSign, 0)
-			log.Printf("[%s] set sign: [%s]", addr.String(), sign)
-		case msg.Unmarshal(pkt) == nil:
-			go s.handle(msg.Sign, pkt)
-			log.Printf("received msg [%s] from [%s]", string(msg.Payload), addr.String())
-			s.ack(conn, addr, OpSignedMSG, 0)
-		case wrq.Unmarshal(pkt) == nil:
-			go s.handle(s.findSignByUUID(wrq.UUID), pkt)
-			audioId := s.decodeAudioId(wrq.FileId)
-			s.wrqLock.Lock()
-			switch wrq.Code {
-			case OpAudioCall:
-				s.addAudioStream(wrq)
-				fallthrough
-			case OpAcceptAudioCall:
-				s.addAudioReceiver(audioId, wrq)
-			case OpEndAudioCall:
-				s.deleteAudioReceiver(audioId, wrq.UUID)
-				s.cleanupAudioResource(audioId)
-			default:
-				s.addFile(wrq)
-			}
-			s.wrqLock.Unlock()
-			s.ack(conn, addr, wrq.Code, 0)
-		case data.Unmarshal(pkt) == nil:
-			if s.isAudio(data.FileId) {
-				go s.handleStreamData(conn, data, pkt, addr)
-				continue
-			}
-			s.handleFileData(conn, data, pkt, addr, n)
+		go s.relay(conn, pkt, addr, n)
+	}
+}
+
+func (s *Server) relay(conn net.PacketConn, pkt []byte, addr net.Addr, n int) {
+	var (
+		sign Sign
+		msg  SignedMessage
+		wrq  WriteReq
+		data = Data{}
+	)
+	switch {
+	case sign.Unmarshal(pkt) == nil:
+		s.signLock.Lock()
+		s.remove(sign)
+		s.SignMap[addr.String()] = sign
+		s.signLock.Unlock()
+		s.ack(conn, addr, OpSign, 0)
+		log.Printf("[%s] set sign: [%s]", addr.String(), sign)
+	case msg.Unmarshal(pkt) == nil:
+		go s.handle(msg.Sign, pkt)
+		log.Printf("received msg [%s] from [%s]", string(msg.Payload), addr.String())
+		s.ack(conn, addr, OpSignedMSG, 0)
+	case wrq.Unmarshal(pkt) == nil:
+		go s.handle(s.findSignByUUID(wrq.UUID), pkt)
+		audioId := s.decodeAudioId(wrq.FileId)
+		s.wrqLock.Lock()
+		switch wrq.Code {
+		case OpAudioCall:
+			s.addAudioStream(wrq)
+			fallthrough
+		case OpAcceptAudioCall:
+			s.addAudioReceiver(audioId, wrq)
+		case OpEndAudioCall:
+			s.deleteAudioReceiver(audioId, wrq.UUID)
+			s.cleanupAudioResource(audioId)
+		default:
+			s.addFile(wrq)
 		}
+		s.wrqLock.Unlock()
+		s.ack(conn, addr, wrq.Code, 0)
+	case data.Unmarshal(pkt) == nil:
+		if s.isAudio(data.FileId) {
+			go s.handleStreamData(conn, data, pkt, addr)
+			return
+		}
+		s.handleFileData(conn, data, pkt, addr, n)
 	}
 }
 
