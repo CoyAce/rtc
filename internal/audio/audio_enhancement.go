@@ -222,7 +222,6 @@ type Enhancer struct {
 	preamp         *Preamp
 	highPassFilter *HighPassFilter
 	nr             *NoiseReducer
-	aec            *WebRTCAEC
 
 	// AGC components
 	agc *AutomaticGainControl
@@ -267,7 +266,6 @@ func NewEnhancer(config *EnhancementConfig) *Enhancer {
 		preamp:         NewPreamp(),
 		highPassFilter: NewHighPassFilter(80, config.AGC.SampleRate),
 		nr:             DefaultNoiseReducer(),
-		aec:            DefaultAEC(),
 		delayEstimator: NewDelayEstimator(),
 		agc:            NewAutomaticGainControl(&config.AGC),
 		echo:           NewEchoCanceller(&config.EchoCancellation),
@@ -312,10 +310,8 @@ func (ae *Enhancer) ProcessAudio(samples []float32) ([]float32, error) {
 		// 估计延时
 		delay := ae.delayEstimator.Estimate(output)
 		reference := ae.delayEstimator.AdjustDelay(delay, len(samples))
-		output = ae.aec.Process(reference, output)
-		ae.metrics.ERLE = ae.aec.metrics.ERLE
-		//output = ae.echo.Process(reference, output)
-		//ae.metrics.ERLE = ae.echo.ERLE
+		output = ae.echo.Process(reference, output)
+		ae.metrics.ERLE = ae.echo.ERLE
 		ae.metrics.Delay = delay
 	}
 
@@ -526,7 +522,7 @@ func (ec *EchoCanceller) Process(reference, samples []float32) []float32 {
 	output := make([]float32, len(samples))
 
 	if len(reference) > 0 {
-		ec.referenceBuffer = reference
+		ec.updateReference(reference)
 	}
 	for i, sample := range samples {
 		// Update reference buffer (simulated far-end signal)
@@ -581,6 +577,15 @@ func (ec *EchoCanceller) updateReferenceBuffer(sample float32) {
 	// Shift buffer and add new sample
 	copy(ec.referenceBuffer[1:], ec.referenceBuffer[:len(ec.referenceBuffer)-1])
 	ec.referenceBuffer[0] = sample
+}
+
+func (ec *EchoCanceller) updateReference(samples []float32) {
+	if len(ec.referenceBuffer) == 0 {
+		return
+	}
+	// Shift buffer and add new samples
+	copy(ec.referenceBuffer[len(samples):], ec.referenceBuffer)
+	copy(ec.referenceBuffer[0:], samples)
 }
 
 // estimateEcho estimates the echo signal
