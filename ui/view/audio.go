@@ -68,7 +68,7 @@ func NewAudioIconStack(streamConfig audio.StreamConfig) *IconStack {
 	var audioDeclineButton = &IconButton{Theme: fonts.DefaultTheme, Icon: audioCallIcon, Enabled: true, Mode: Decline}
 	audioDeclineButton.OnClick = func(gtx layout.Context) {
 		audioMakeButton.Hidden = false
-		micOffButton.Hidden = true
+		resetMuteButton()
 		audioStackAnimation.Disappear(gtx.Now)
 		time.AfterFunc(audioStackAnimation.Duration, func() {
 			audioAcceptButton.Hidden = false
@@ -98,11 +98,7 @@ func NewAudioIconStack(streamConfig audio.StreamConfig) *IconStack {
 		}()
 	}
 	micOffButton.OnClick = func(gtx layout.Context) {
-		mute = !mute
-		micOffButton.Mode = None
-		if mute {
-			micOffButton.Mode = Decline
-		}
+		toggleMuteButton()
 	}
 	return &IconStack{Theme: fonts.DefaultTheme,
 		VisibilityAnimation: &audioStackAnimation,
@@ -152,15 +148,34 @@ func EndIncomingCall(cancel bool) {
 	audioMode = None
 	audioMakeButton.Hidden = false
 	audioAcceptButton.Hidden = true
-	micOffButton.Hidden = true
+	resetMuteButton()
 	audioStackAnimation.Disappear(time.Now())
 	captureCancel()
 }
 
+func toggleMuteButton() {
+	mute = !mute
+	micOffButton.Mode = None
+	if mute {
+		micOffButton.Mode = Decline
+	}
+}
+
+func resetMuteButton() {
+	micOffButton.Hidden = true
+	micOffButton.Mode = None
+	mute = false
+}
+
+func initMuteButton() {
+	micOffButton.Hidden = false
+	micOffButton.Mode = None
+	mute = false
+}
+
 func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 	audioMode = Accept
-	micOffButton.Hidden = false
-	mute = false
+	initMuteButton()
 	audioChunks := make(chan *bytes.Buffer, 10)
 	captureCtx, captureCancel = context.WithCancel(context.Background())
 	writer := newChunkWriter(captureCtx, audioChunks)
@@ -231,8 +246,8 @@ func ConsumeAudioData(streamConfig audio.StreamConfig) {
 			continue
 		}
 		identity := core.GetLow16(data.FileId)
-		log.Printf("fileId:%d, timestamp: %d, block id %d",
-			core.GetHigh16(data.FileId), identity, data.Block)
+		//log.Printf("fileId:%d, timestamp: %d, block id %d",
+		//	core.GetHigh16(data.FileId), identity, data.Block)
 		if players[identity] == nil {
 			pcmChunks := make(chan *bytes.Buffer, 15000) // 50 * 300(s) = 5(min)
 			players[identity] = pcmChunks
