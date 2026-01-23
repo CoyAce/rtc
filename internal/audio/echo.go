@@ -93,16 +93,12 @@ func (cb *CircularBuffer) Read(size int) []float32 {
 	return result
 }
 
-func (cb *CircularBuffer) ReadLast(delay, size int) []float32 {
+func (cb *CircularBuffer) ReadLastN(size int) []float32 {
 	cb.mu.RLock()
 	defer cb.mu.RUnlock()
-
-	if delay > cb.size {
-		delay = cb.size
-	}
 	result := make([]float32, size)
-	for i := 0; i < delay && i < size; i++ {
-		idx := (cb.head - (delay - i) + cb.capacity) % cb.capacity
+	for i := 0; i < cb.size && i < size; i++ {
+		idx := (cb.head - (size - i) + cb.capacity) % cb.capacity
 		result[i] = cb.data[idx]
 	}
 
@@ -170,11 +166,11 @@ func NewDelayEstimator() *DelayEstimator {
 	}
 }
 
-func (de *DelayEstimator) AdjustDelay(delay int, frameSize int) []float32 {
+func (de *DelayEstimator) AdjustDelay(frameSize int) []float32 {
 	if time.Now().Sub(de.farHistoryUpdateAt) > time.Duration(500)*time.Millisecond {
 		return nil
 	}
-	return de.farHistory.ReadLast(delay, frameSize)
+	return de.farHistory.ReadLastN(frameSize)
 }
 
 func (de *DelayEstimator) Estimate(nearEnd []float32) int {

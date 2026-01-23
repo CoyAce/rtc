@@ -213,7 +213,9 @@ func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 				return
 			}
 			data := make([]byte, ogg.FrameSize)
+			start := time.Now()
 			processAudio, err := ecEnhancer.ProcessAudio(audio.Int16ToFloat32(ogg.ToInts(cur.Bytes())))
+			cost := time.Since(start)
 			if err != nil {
 				log.Printf("enhancer process audio failed, %s", err)
 				continue
@@ -231,7 +233,7 @@ func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 				log.Printf("audio call error: %v", err)
 			}
 			stats := ecEnhancer.GetMetrics()
-			fmt.Printf("ERLE: %.1f Delay: %d \n", stats.ERLE, stats.Delay)
+			fmt.Printf("ERLE: %.1f Delay: %d Cost: %v\n", stats.ERLE, stats.Delay, cost)
 		}
 	}()
 }
