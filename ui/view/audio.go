@@ -34,6 +34,7 @@ var (
 	micOffButton              = &IconButton{Theme: fonts.DefaultTheme, Icon: micOffIcon, Enabled: true, Hidden: true}
 	audioMakeButton           = &IconButton{Theme: fonts.DefaultTheme, Icon: audioCallIcon, Enabled: true}
 	audioAcceptButton         = &IconButton{Theme: fonts.DefaultTheme, Icon: audioCallIcon, Enabled: true, Mode: Accept}
+	bytesOf10ms               = ogg.FrameSize
 	bytesOf20ms               = ogg.FrameSize * 2
 	bytesOf100ms              = bytesOf20ms * 5
 	captureCtx, captureCancel = context.WithCancel(context.Background())
@@ -179,6 +180,7 @@ func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 	audioChunks := make(chan *bytes.Buffer, 10)
 	captureCtx, captureCancel = context.WithCancel(context.Background())
 	writer := newChunkWriter(captureCtx, audioChunks)
+	ecEnhancer.Initialize()
 	go func() {
 		if err := audio.Capture(captureCtx, writer, streamConfig); err != nil {
 			if errors.Is(err, context.Canceled) {
@@ -324,13 +326,13 @@ func newChunkWriter(ctx context.Context, ready chan<- *bytes.Buffer) *audioChunk
 }
 
 func (rbw *audioChunkWriter) Write(p []byte) (n int, err error) {
-	if len(p)+rbw.current.Len() > bytesOf20ms {
+	if len(p)+rbw.current.Len() > bytesOf10ms {
 		reader := bytes.NewReader(p)
 		multiReader := io.MultiReader(rbw.current, reader)
 		for {
 			buf := new(bytes.Buffer)
-			buf.Grow(bytesOf20ms)
-			_, err := io.CopyN(buf, multiReader, int64(bytesOf20ms))
+			buf.Grow(bytesOf10ms)
+			_, err := io.CopyN(buf, multiReader, int64(bytesOf10ms))
 			if err == io.EOF {
 				_, _ = io.Copy(rbw.current, buf)
 				return len(p), nil

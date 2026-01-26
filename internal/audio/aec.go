@@ -3,13 +3,11 @@ package audio
 import (
 	"math"
 	"math/rand"
-	"sync"
 )
 
 // EchoCanceller implements acoustic echo cancellation
 type EchoCanceller struct {
 	config *EchoCancellationConfig
-	mu     sync.Mutex
 
 	// Adaptive filter coefficients
 	filterCoeffs []float32
@@ -55,9 +53,6 @@ func (ec *EchoCanceller) initializeFilterCoefficients() {
 
 // Process removes echo from audio signal
 func (ec *EchoCanceller) Process(reference, samples []float32) []float32 {
-	ec.mu.Lock()
-	defer ec.mu.Unlock()
-
 	if !ec.config.Enabled || len(reference) == 0 {
 		return samples
 	}
@@ -202,7 +197,5 @@ func (ec *EchoCanceller) updateMetrics(input, output float32) {
 
 // GetReduction returns current echo reduction amount
 func (ec *EchoCanceller) GetReduction() float32 {
-	ec.mu.Lock()
-	defer ec.mu.Unlock()
 	return ec.echoReduction
 }

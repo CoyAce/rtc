@@ -8,15 +8,8 @@ import (
 
 // 常量定义
 const (
-	SampleRate       = 48000 // 采样率
-	FrameMs          = 20    // 帧时长（毫秒）
-	FrameSize        = 960   // 帧大小：48000 * 20 / 1000 = 960
-	MaxEchoDelayMs   = 500   // 最大回声延迟（毫秒）
-	MaxEchoDelay     = 24000 // 最大回声延迟样本数：48000 * 500 / 1000
-	FilterLengthMs   = 200   // 滤波器长度（毫秒）
-	FilterLength     = 9600  // 滤波器长度样本数：48000 * 200 / 1000
-	DoubleTalkWindow = 10    // 双讲检测窗口（帧数）
-	ERLECalcWindow   = 50    // ERLE计算窗口（帧数）
+	SampleRate = 48000 // 采样率
+	FrameSize  = 480   // 帧大小：48000 * 10 / 1000 = 480
 )
 
 // Int16ToFloat32 - int16转float32 [-32768, 32767] -> [-1.0, 1.0]
@@ -150,20 +143,6 @@ type DelayEstimator struct {
 	updatePeriod       int
 	frameCount         int
 	minCorrelation     float32
-}
-
-func NewDelayEstimator() *DelayEstimator {
-	return &DelayEstimator{
-		maxDelay:       MaxEchoDelay,
-		historySize:    MaxEchoDelay * 2,
-		farHistory:     NewCircularBuffer(MaxEchoDelay * 2),
-		nearHistory:    NewCircularBuffer(MaxEchoDelay * 2),
-		correlation:    make([]float32, MaxEchoDelay),
-		smoothing:      0.95,
-		currentDelay:   1060, // 初始假设2ms延迟
-		updatePeriod:   5,    // 每5帧更新一次
-		minCorrelation: 0.3,
-	}
 }
 
 func (de *DelayEstimator) AdjustDelay(frameSize int) []float32 {

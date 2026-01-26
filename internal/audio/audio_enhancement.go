@@ -1,9 +1,11 @@
 package audio
 
 import (
+	"log"
 	"math"
 	"sync"
-	"time"
+
+	"github.com/CoyAce/apm"
 )
 
 // EnhancementConfig contains configuration for audio enhancement
@@ -227,7 +229,8 @@ type Enhancer struct {
 	agc *AutomaticGainControl
 
 	// Echo cancellation components
-	echo *EchoCanceller
+	echo      *EchoCanceller
+	processor *apm.Processor
 
 	// Compressor
 	compressor *DynamicRangeCompressor
@@ -240,8 +243,6 @@ type Enhancer struct {
 
 	// Processing metrics
 	metrics EnhancementMetrics
-
-	delayEstimator *DelayEstimator
 }
 
 // EnhancementMetrics tracks enhancement metrics
@@ -260,15 +261,19 @@ func NewEnhancer(config *EnhancementConfig) *Enhancer {
 	if config == nil {
 		config = DefaultEnhancementConfig()
 	}
-
+	apmConfig := apm.Config{CaptureChannels: 1, RenderChannels: 1, EchoCancellation: apm.EchoCancellationConfig{Enabled: true, StreamDelayMs: 50}}
+	processor, err := apm.New(apmConfig)
+	if err != nil {
+		log.Printf("Can't create processor: %v", err)
+	}
 	ae := &Enhancer{
 		config:         config,
 		preamp:         NewPreamp(),
 		highPassFilter: NewHighPassFilter(80, config.AGC.SampleRate),
 		nr:             DefaultNoiseReducer(),
-		delayEstimator: NewDelayEstimator(),
 		agc:            NewAutomaticGainControl(&config.AGC),
 		echo:           NewEchoCanceller(&config.EchoCancellation),
+		processor:      processor,
 		compressor:     NewDynamicRangeCompressor(&config.Compression),
 		equalizer:      NewParametricEqualizer(&config.Equalizer),
 		deesser:        NewDeEsser(&config.DeEsser),
@@ -277,15 +282,20 @@ func NewEnhancer(config *EnhancementConfig) *Enhancer {
 	return ae
 }
 
+func (ae *Enhancer) Initialize() {
+	if ae.processor != nil {
+		ae.processor.Initialize()
+	}
+}
+
 // AddFarEnd - 单独添加远端信号（用于异步处理）
 func (ae *Enhancer) AddFarEnd(farEnd []int16) {
-	ae.mu.Lock()
-	defer ae.mu.Unlock()
-
-	if len(farEnd) == FrameSize {
-		farFloat := Int16ToFloat32(farEnd)
-		ae.delayEstimator.farHistory.Write(farFloat)
-		ae.delayEstimator.farHistoryUpdateAt = time.Now()
+	if len(farEnd) != FrameSize && ae.processor == nil {
+		return
+	}
+	err := ae.processor.ProcessRenderInt16(farEnd)
+	if err != nil {
+		log.Printf("Enhancement processor error: %v", err)
 	}
 }
 
@@ -308,9 +318,11 @@ func (ae *Enhancer) ProcessAudio(samples []float32) ([]float32, error) {
 	// Stage 3: Echo cancellation (should be first)
 	if ae.config.EchoCancellation.Enabled {
 		// 获取参考信号
-		reference := ae.delayEstimator.AdjustDelay(len(samples))
-		output = ae.echo.Process(reference, output)
-		ae.metrics.ERLE = ae.echo.ERLE
+		out, err := ae.processor.ProcessCapture(output)
+		if err == nil {
+			output = out
+		}
+		ae.metrics.ERLE = float32(ae.processor.GetStats().EchoReturnLossEnhancement)
 	}
 
 	// Stage 4: Noise gate (part of AGC)
