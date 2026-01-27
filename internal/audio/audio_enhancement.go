@@ -261,7 +261,7 @@ func NewEnhancer(config *EnhancementConfig) *Enhancer {
 	if config == nil {
 		config = DefaultEnhancementConfig()
 	}
-	apmConfig := apm.Config{CaptureChannels: 1, RenderChannels: 1, EchoCancellation: apm.EchoCancellationConfig{Enabled: true, StreamDelayMs: 50}}
+	apmConfig := apm.Config{CaptureChannels: 1, RenderChannels: 1, EchoCancellation: apm.EchoCancellationConfig{Enabled: true, StreamDelayMs: 20}}
 	processor, err := apm.New(apmConfig)
 	if err != nil {
 		log.Printf("Can't create processor: %v", err)
@@ -317,7 +317,6 @@ func (ae *Enhancer) ProcessAudio(samples []float32) ([]float32, error) {
 
 	// Stage 3: Echo cancellation (should be first)
 	if ae.config.EchoCancellation.Enabled {
-		// 获取参考信号
 		out, err := ae.processor.ProcessCapture(output)
 		if err == nil {
 			output = out
