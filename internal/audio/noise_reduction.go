@@ -5,6 +5,28 @@ import (
 	"sync"
 )
 
+// ProcessingConfig holds configuration for audio processing
+type ProcessingConfig struct {
+	// Voice Activity Detection
+	EnableVAD    bool    // Whether to enable voice activity detection
+	VADThreshold float64 // Energy threshold for voice activity detection (0.0-1.0)
+	VADHoldTime  int     // How long to hold voice detection in frames after dropping below threshold
+
+	// Noise Reduction
+	EnableNoiseReduction bool    // Whether to enable noise reduction
+	NoiseFloor           float32 // Noise floor level (0.0-1.0)
+	NoiseAttenuationDB   float32 // Noise attenuation in dB
+
+	// Multi-channel Support
+	ChannelCount int  // Number of audio channels
+	MixChannels  bool // Whether to mix multiple channels into a single output
+
+	// General Processing
+	SampleRate int // Audio sample rate (8000, 16000, 44100, etc.)
+	FrameSize  int // Frame size in samples
+	BufferSize int // Buffer size for processing
+}
+
 // NoiseReducer implements a simple spectral subtraction noise reduction
 type NoiseReducer struct {
 	// Configuration
@@ -149,40 +171,6 @@ func (nr *NoiseReducer) updateNoiseProfile(samples []float32) {
 	// Update noise floor estimate with exponential moving average
 	// Use slower adaptation for noise floor to avoid adapting to speech
 	nr.noiseFloor = 0.9*nr.noiseFloor + 0.1*float32(math.Sqrt(float64(avgEnergy)))
-}
-
-// bytesToFloat64Samples converts PCM byte data to float64 samples
-func bytesToFloat64Samples(data []byte, samples []float64, bytesPerSample int) {
-	for i := 0; i < len(data)/bytesPerSample && i < len(samples); i++ {
-		sampleIndex := i * bytesPerSample
-
-		// 16-bit PCM little endian to float conversion
-		if bytesPerSample == 2 && sampleIndex+1 < len(data) {
-			sampleVal := int16(data[sampleIndex]) | (int16(data[sampleIndex+1]) << 8)
-			samples[i] = float64(sampleVal) / 32768.0 // Normalize to -1.0 to 1.0
-		}
-	}
-}
-
-// float64SamplesToBytes converts float64 samples to PCM byte data
-func float64SamplesToBytes(samples []float64, data []byte, bytesPerSample int) {
-	for i := 0; i < len(samples) && i*bytesPerSample+bytesPerSample <= len(data); i++ {
-		// Clamp sample to -1.0...1.0 range
-		sample := samples[i]
-		if sample > 1.0 {
-			sample = 1.0
-		} else if sample < -1.0 {
-			sample = -1.0
-		}
-
-		// Convert to 16-bit PCM value
-		sampleVal := int16(sample * 32767.0)
-		sampleIndex := i * bytesPerSample
-
-		// Store as little endian
-		data[sampleIndex] = byte(sampleVal & 0xFF)
-		data[sampleIndex+1] = byte(sampleVal >> 8)
-	}
 }
 
 // Reset implements AudioProcessor interface

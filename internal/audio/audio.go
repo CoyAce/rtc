@@ -8,6 +8,7 @@ import (
 	"strings"
 	"unsafe"
 
+	"github.com/CoyAce/opus/ogg"
 	"github.com/gen2brain/malgo"
 )
 
@@ -218,4 +219,41 @@ func linearToDb(linear float32) float32 {
 		return -100.0
 	}
 	return 20 * float32(math.Log10(float64(linear)))
+}
+
+// Int16ToFloat32 - int16转float32 [-32768, 32767] -> [-1.0, 1.0]
+func Int16ToFloat32(pcm []int16) []float32 {
+	floats := make([]float32, len(pcm))
+	for i, v := range pcm {
+		floats[i] = float32(v) / 32768.0
+	}
+	return floats
+}
+
+func Int16BytesToFloat32(pcm []byte) []float32 {
+	return Int16ToFloat32(ogg.ToInts(pcm))
+}
+
+// Float32ToInt16 - float32转int16 [-1.0, 1.0] -> [-32768, 32767]
+func Float32ToInt16(floats []float32) []int16 {
+	pcm := make([]int16, len(floats))
+	for i, v := range floats {
+		// 限制范围
+		if v > 1.0 {
+			v = 1.0
+		} else if v < -1.0 {
+			v = -1.0
+		}
+		pcm[i] = int16(v * 32767.0)
+	}
+	return pcm
+}
+
+// 计算方法
+func calculateERLE(input, output []float32) float64 {
+	inputEnergy := calculateRMS(input)
+	outputEnergy := calculateRMS(output)
+
+	erleDb := 10 * math.Log10(float64(inputEnergy/outputEnergy))
+	return erleDb
 }

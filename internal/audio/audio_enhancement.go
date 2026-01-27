@@ -8,13 +8,19 @@ import (
 	"github.com/CoyAce/apm"
 )
 
+// 常量定义
+const (
+	SampleRate = 48000 // 采样率
+	FrameSize  = 480   // 帧大小：48000 * 10 / 1000 = 480
+)
+
 // EnhancementConfig contains configuration for audio enhancement
 type EnhancementConfig struct {
 	// AGC (Automatic Gain Control) settings
 	AGC AGCConfig
 
 	// Echo cancellation settings
-	EchoCancellation EchoCancellationConfig
+	ApmConfig apm.Config
 
 	// Dynamic range compression
 	Compression CompressionConfig
@@ -52,31 +58,6 @@ type AGCConfig struct {
 	HoldTime float32
 
 	SampleRate float32
-}
-
-// EchoCancellationConfig contains echo cancellation configuration
-type EchoCancellationConfig struct {
-	Enabled bool
-
-	// Filter length in milliseconds (typical 100-500ms)
-	FilterLength float32
-
-	// Adaptation rate (0.0-1.0, higher = faster adaptation)
-	AdaptationRate float32
-
-	// Nonlinear processing strength (0.0-1.0)
-	NonlinearProcessing float32
-
-	// Double-talk detection threshold
-	DoubleTalkThreshold float32
-
-	// Comfort noise level in dB
-	ComfortNoiseLevel float32
-
-	// Residual echo suppression (0.0-1.0)
-	ResidualSuppression float32
-
-	SampleRate int
 }
 
 // CompressionConfig contains dynamic range compression settings
@@ -142,7 +123,7 @@ type DeEsserConfig struct {
 
 func EchoCancellationEnhancer() *Enhancer {
 	config := DefaultEnhancementConfig()
-	config.EchoCancellation.Enabled = true
+	config.ApmConfig = apm.Config{CaptureChannels: 1, RenderChannels: 1, EchoCancellation: apm.EchoCancellationConfig{Enabled: true, StreamDelayMs: 78}}
 	return NewEnhancer(config)
 }
 
@@ -164,16 +145,6 @@ func DefaultEnhancementConfig() *EnhancementConfig {
 			ReleaseTime:        400.0, // 缓慢释放，避免呼吸声
 			NoiseGateThreshold: -40.0, // 合理噪声门限
 			HoldTime:           50.0,  // 适当保持
-		},
-		EchoCancellation: EchoCancellationConfig{
-			Enabled:             false,
-			SampleRate:          48000,
-			FilterLength:        32.0,  // 适应语音长度
-			AdaptationRate:      0.4,   // 稳定自适应
-			NonlinearProcessing: 0.3,   // 适度非线性处理
-			DoubleTalkThreshold: 0.5,   // 标准双讲检测
-			ComfortNoiseLevel:   -60.0, // 舒适噪声
-			ResidualSuppression: 0.2,   // 残留回声抑制
 		},
 		Compression: CompressionConfig{
 			Enabled:     false,
@@ -229,7 +200,6 @@ type Enhancer struct {
 	agc *AutomaticGainControl
 
 	// Echo cancellation components
-	echo      *EchoCanceller
 	processor *apm.Processor
 
 	// Compressor
@@ -261,22 +231,22 @@ func NewEnhancer(config *EnhancementConfig) *Enhancer {
 	if config == nil {
 		config = DefaultEnhancementConfig()
 	}
-	apmConfig := apm.Config{CaptureChannels: 1, RenderChannels: 1, EchoCancellation: apm.EchoCancellationConfig{Enabled: true, StreamDelayMs: 20}}
-	processor, err := apm.New(apmConfig)
-	if err != nil {
-		log.Printf("Can't create processor: %v", err)
-	}
 	ae := &Enhancer{
 		config:         config,
 		preamp:         NewPreamp(),
 		highPassFilter: NewHighPassFilter(80, config.AGC.SampleRate),
 		nr:             DefaultNoiseReducer(),
 		agc:            NewAutomaticGainControl(&config.AGC),
-		echo:           NewEchoCanceller(&config.EchoCancellation),
-		processor:      processor,
 		compressor:     NewDynamicRangeCompressor(&config.Compression),
 		equalizer:      NewParametricEqualizer(&config.Equalizer),
 		deesser:        NewDeEsser(&config.DeEsser),
+	}
+	if config.ApmConfig.EchoCancellation.Enabled {
+		processor, err := apm.New(config.ApmConfig)
+		if err != nil {
+			log.Printf("Can't create processor: %v", err)
+		}
+		ae.processor = processor
 	}
 
 	return ae
@@ -316,7 +286,7 @@ func (ae *Enhancer) ProcessAudio(samples []float32) ([]float32, error) {
 	ae.metrics.InputLevel = info.RMS
 
 	// Stage 3: Echo cancellation (should be first)
-	if ae.config.EchoCancellation.Enabled {
+	if ae.config.ApmConfig.EchoCancellation.Enabled {
 		out, err := ae.processor.ProcessCapture(output)
 		if err == nil {
 			output = out

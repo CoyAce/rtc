@@ -216,7 +216,7 @@ func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 			}
 			data := make([]byte, ogg.FrameSize)
 			start := time.Now()
-			processAudio, err := ecEnhancer.ProcessAudio(audio.Int16ToFloat32(ogg.ToInts(cur.Bytes())))
+			processAudio, err := ecEnhancer.ProcessAudio(audio.Int16BytesToFloat32(cur.Bytes()))
 			cost := time.Since(start)
 			if err != nil {
 				log.Printf("enhancer process audio failed, %s", err)

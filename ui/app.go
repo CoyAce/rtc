@@ -37,6 +37,8 @@ func Draw(window *app.Window, c *core.Client) error {
 		maCtx.Free()
 	}()
 	streamConfig := audio.NewStreamConfig(maCtx, 1)
+	deviceConfig := malgo.DefaultDeviceConfig(malgo.Capture)
+	log.Printf("periodSizeInMilliseconds:%v,frames:%v", deviceConfig.PeriodSizeInMilliseconds, deviceConfig.PeriodSizeInFrames)
 	voiceRecorder := view.VoiceRecorder{StreamConfig: streamConfig}
 	// ops are the operations from the UI
 	var ops op.Ops
