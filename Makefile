@@ -2,8 +2,7 @@
 NAME=流言
 BIN_DIR=bin
 VERSION=$(shell cat assets/assets.go | grep 'Version =' | sed 's/.*\"\(.*\)\".*/\1/g')
-GO_BUILD=CGO_ENABLED=0 go build --ldflags="-s -w" -v -x -a
-GO_FILES=*.go
+LDFLAGS='-extldflags "-nostdlib++ -Wl,-Bstatic -lc++ -Wl,-Bdynamic"'
 
 #PLATFORM_LIST = \
 #	linux-amd64 \
@@ -44,7 +43,7 @@ windows-arm64:
 
 # go install gioui.org/cmd/gogio@latest
 android:
-	gogio -x -work -target android -arch arm64,amd64 -version $(VERSION).3 -name $(NAME) -appid coyace.rtc -o $(BIN_DIR)/$(NAME)-$(VERSION).apk .
+	gogio -x -work -target android -arch arm64,amd64 -ldflags ${LDFLAGS} -version $(VERSION).3 -name $(NAME) -appid coyace.rtc -o $(BIN_DIR)/$(NAME)-$(VERSION).apk .
 
 gz_releases=$(addsuffix .gz, $(PLATFORM_LIST))
 zip_releases=$(addsuffix .zip, $(WINDOWS_ARCH_LIST))
