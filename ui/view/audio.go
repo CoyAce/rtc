@@ -34,9 +34,6 @@ var (
 	micOffButton              = &IconButton{Theme: fonts.DefaultTheme, Icon: micOffIcon, Enabled: true, Hidden: true}
 	audioMakeButton           = &IconButton{Theme: fonts.DefaultTheme, Icon: audioCallIcon, Enabled: true}
 	audioAcceptButton         = &IconButton{Theme: fonts.DefaultTheme, Icon: audioCallIcon, Enabled: true, Mode: Accept}
-	bytesOf10ms               = ogg.FrameSize
-	bytesOf20ms               = ogg.FrameSize * 2
-	bytesOf100ms              = bytesOf20ms * 5
 	captureCtx, captureCancel = context.WithCancel(context.Background())
 	playbackCancels           []context.CancelFunc
 	players                   = make(map[uint16]chan *bytes.Buffer)
@@ -179,7 +176,7 @@ func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 	initMuteButton()
 	audioChunks := make(chan *bytes.Buffer, 10)
 	captureCtx, captureCancel = context.WithCancel(context.Background())
-	writer := newChunkWriter(captureCtx, audioChunks)
+	writer := audio.NewChunkWriter(captureCtx, audioChunks)
 	ecEnhancer.Initialize()
 	go func() {
 		if err := audio.Capture(captureCtx, writer, streamConfig); err != nil {
@@ -201,7 +198,7 @@ func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 		for {
 			var cur *bytes.Buffer
 			select {
-			// Received from audioChunkWriter
+			// Received from AudioChunkWriter
 			case cur = <-audioChunks:
 			case <-captureCtx.Done():
 				for _, cancel := range playbackCancels {
@@ -280,7 +277,7 @@ func ConsumeAudioData(streamConfig audio.StreamConfig) {
 func newPlayer(pcmChunks <-chan *bytes.Buffer, streamConfig audio.StreamConfig) {
 	playbackCtx, playbackCancel := context.WithCancel(context.Background())
 	playbackCancels = append(playbackCancels, playbackCancel)
-	reader := newChunkReader(playbackCtx, pcmChunks)
+	reader := audio.NewChunkReader(playbackCtx, pcmChunks)
 	if err := audio.Playback(playbackCtx, reader, streamConfig); err != nil && !errors.Is(err, io.EOF) {
 		log.Printf("audio playback: %w", err)
 	}
@@ -306,78 +303,5 @@ func MakeAudioCall(audioButton *IconButton) func(gtx layout.Context) {
 				audioStackAnimation.Disappear(gtx.Now)
 			}
 		}()
-	}
-}
-
-type audioChunkWriter struct {
-	ctx     context.Context
-	ready   chan<- *bytes.Buffer
-	current *bytes.Buffer
-}
-
-func newChunkWriter(ctx context.Context, ready chan<- *bytes.Buffer) *audioChunkWriter {
-	buf := new(bytes.Buffer)
-	buf.Grow(bytesOf100ms) // 100ms
-	return &audioChunkWriter{
-		ctx:     ctx,
-		ready:   ready,
-		current: buf,
-	}
-}
-
-func (rbw *audioChunkWriter) Write(p []byte) (n int, err error) {
-	if len(p)+rbw.current.Len() > bytesOf10ms {
-		reader := bytes.NewReader(p)
-		multiReader := io.MultiReader(rbw.current, reader)
-		for {
-			buf := new(bytes.Buffer)
-			buf.Grow(bytesOf10ms)
-			_, err := io.CopyN(buf, multiReader, int64(bytesOf10ms))
-			if err == io.EOF {
-				_, _ = io.Copy(rbw.current, buf)
-				return len(p), nil
-			}
-			select {
-			case rbw.ready <- buf:
-				break
-			case <-rbw.ctx.Done():
-				return 0, rbw.ctx.Err()
-			}
-		}
-	}
-	return rbw.current.Write(p)
-}
-
-func newChunkReader(ctx context.Context, ready <-chan *bytes.Buffer) *audioChunkReader {
-	buf := new(bytes.Buffer)
-	buf.Grow(bytesOf100ms) // 100ms
-	return &audioChunkReader{
-		ctx:     ctx,
-		ready:   ready,
-		current: buf,
-	}
-}
-
-type audioChunkReader struct {
-	ctx     context.Context
-	ready   <-chan *bytes.Buffer
-	current *bytes.Buffer
-}
-
-func (rbr *audioChunkReader) Read(p []byte) (n int, err error) {
-	if rbr.current.Len() >= len(p) {
-		return rbr.current.Read(p)
-	}
-	n, err = rbr.current.Read(p)
-	rbr.current.Reset()
-	select {
-	case buf, ok := <-rbr.ready:
-		if !ok {
-			return n, io.EOF
-		}
-		_, err = io.Copy(rbr.current, buf)
-		return
-	case <-rbr.ctx.Done():
-		return 0, rbr.ctx.Err()
 	}
 }

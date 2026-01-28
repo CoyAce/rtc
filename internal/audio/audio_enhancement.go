@@ -123,7 +123,7 @@ type DeEsserConfig struct {
 
 func EchoCancellationEnhancer() *Enhancer {
 	config := DefaultEnhancementConfig()
-	config.ApmConfig = apm.Config{CaptureChannels: 1, RenderChannels: 1, EchoCancellation: apm.EchoCancellationConfig{Enabled: true, StreamDelayMs: 38}}
+	config.ApmConfig = apm.Config{CaptureChannels: 1, RenderChannels: 1, EchoCancellation: apm.EchoCancellationConfig{Enabled: true}}
 	return NewEnhancer(config)
 }
 

@@ -1,6 +1,7 @@
 package audio
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -10,6 +11,12 @@ import (
 
 	"github.com/CoyAce/opus/ogg"
 	"github.com/gen2brain/malgo"
+)
+
+var (
+	bytesOf10ms  = ogg.FrameSize
+	bytesOf20ms  = ogg.FrameSize * 2
+	bytesOf100ms = bytesOf20ms * 5
 )
 
 // StreamConfig describes the parameters for an audio stream.
@@ -220,6 +227,25 @@ func ToFloat32(pcm []byte) []float32 {
 	return *(*[]float32)(unsafe.Pointer(&header))
 }
 
+func ToBytes(pcm []float32) []byte {
+	if len(pcm) == 0 {
+		return []byte{}
+	}
+	size := len(pcm) * 4
+	cap := cap(pcm) * 4
+
+	header := struct {
+		data unsafe.Pointer
+		len  int
+		cap  int
+	}{
+		data: unsafe.Pointer(&pcm[0]),
+		len:  size,
+		cap:  cap,
+	}
+	return *(*[]byte)(unsafe.Pointer(&header))
+}
+
 func dbToLinear(db float32) float32 {
 	return float32(math.Pow(10, float64(db)/20.0))
 }
@@ -266,4 +292,77 @@ func calculateERLE(input, output []float32) float64 {
 
 	erleDb := 10 * math.Log10(float64(inputEnergy/outputEnergy))
 	return erleDb
+}
+
+type ChunkWriter struct {
+	ctx     context.Context
+	ready   chan<- *bytes.Buffer
+	current *bytes.Buffer
+}
+
+func NewChunkWriter(ctx context.Context, ready chan<- *bytes.Buffer) *ChunkWriter {
+	buf := new(bytes.Buffer)
+	buf.Grow(bytesOf100ms) // 100ms
+	return &ChunkWriter{
+		ctx:     ctx,
+		ready:   ready,
+		current: buf,
+	}
+}
+
+func (rbw *ChunkWriter) Write(p []byte) (n int, err error) {
+	if len(p)+rbw.current.Len() >= bytesOf10ms {
+		reader := bytes.NewReader(p)
+		multiReader := io.MultiReader(rbw.current, reader)
+		for {
+			buf := new(bytes.Buffer)
+			buf.Grow(bytesOf10ms)
+			_, err := io.CopyN(buf, multiReader, int64(bytesOf10ms))
+			if err == io.EOF {
+				_, _ = io.Copy(rbw.current, buf)
+				return len(p), nil
+			}
+			select {
+			case rbw.ready <- buf:
+				break
+			case <-rbw.ctx.Done():
+				return 0, rbw.ctx.Err()
+			}
+		}
+	}
+	return rbw.current.Write(p)
+}
+
+func NewChunkReader(ctx context.Context, ready <-chan *bytes.Buffer) *ChunkReader {
+	buf := new(bytes.Buffer)
+	buf.Grow(bytesOf100ms) // 100ms
+	return &ChunkReader{
+		ctx:     ctx,
+		ready:   ready,
+		current: buf,
+	}
+}
+
+type ChunkReader struct {
+	ctx     context.Context
+	ready   <-chan *bytes.Buffer
+	current *bytes.Buffer
+}
+
+func (rbr *ChunkReader) Read(p []byte) (n int, err error) {
+	if rbr.current.Len() >= len(p) {
+		return rbr.current.Read(p)
+	}
+	n, err = rbr.current.Read(p)
+	rbr.current.Reset()
+	select {
+	case buf, ok := <-rbr.ready:
+		if !ok {
+			return n, io.EOF
+		}
+		_, err = io.Copy(rbr.current, buf)
+		return
+	case <-rbr.ctx.Done():
+		return 0, rbr.ctx.Err()
+	}
 }
