@@ -230,8 +230,9 @@ func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 			if err != nil {
 				log.Printf("audio call error: %v", err)
 			}
-			stats := enhancer.GetMetrics()
-			fmt.Printf("ERLE: %.1f Delay: %d Cost: %v\n", stats.ERLE, stats.Delay, cost)
+			metrics := enhancer.GetMetrics()
+			fmt.Printf("ERLE: %.1f divergent_filter_fraction: %.1f Delay: %d Cost: %v\n",
+				metrics.Stats.EchoReturnLossEnhancement, metrics.Stats.DivergentFilterFraction, metrics.Stats.DelayMs, cost)
 		}
 	}()
 }

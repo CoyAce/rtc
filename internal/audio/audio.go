@@ -26,7 +26,11 @@ type StreamConfig struct {
 	Channels                 int
 	SampleRate               int
 	Periods                  uint32
+	PeriodSizeInFrames       uint32
 	PeriodSizeInMilliseconds uint32
+	PerformanceProfile       malgo.PerformanceProfile
+	NoFixedSizedCallback     uint32
+	NoClip                   uint32
 	DeviceType               malgo.DeviceType
 	MalgoContext             malgo.Context
 	CaptureDeviceID          *malgo.DeviceID
@@ -51,8 +55,20 @@ func (config StreamConfig) asDeviceConfig(deviceType malgo.DeviceType) malgo.Dev
 	if config.Periods != 0 {
 		deviceConfig.Periods = config.Periods
 	}
+	if config.PeriodSizeInFrames != 0 {
+		deviceConfig.PeriodSizeInFrames = config.PeriodSizeInFrames
+	}
 	if config.PeriodSizeInMilliseconds != 0 {
 		deviceConfig.PeriodSizeInMilliseconds = config.PeriodSizeInMilliseconds
+	}
+	if config.PerformanceProfile != 0 {
+		deviceConfig.PerformanceProfile = config.PerformanceProfile
+	}
+	if config.NoFixedSizedCallback != 0 {
+		deviceConfig.NoFixedSizedCallback = config.NoFixedSizedCallback
+	}
+	if config.NoClip != 0 {
+		deviceConfig.NoClip = config.NoClip
 	}
 	if config.CaptureDeviceID != nil {
 		deviceConfig.Capture.DeviceID = config.CaptureDeviceID.Pointer()
@@ -199,12 +215,10 @@ func Playback(ctx context.Context, r io.Reader, config StreamConfig) error {
 
 func NewStreamConfig(maCtx *malgo.AllocatedContext, channels int) StreamConfig {
 	return StreamConfig{
-		Format:                   malgo.FormatS16,
-		Channels:                 channels,
-		SampleRate:               48000,
-		Periods:                  2,
-		PeriodSizeInMilliseconds: 10,
-		MalgoContext:             maCtx.Context,
+		Format:       malgo.FormatS16,
+		Channels:     channels,
+		SampleRate:   48000,
+		MalgoContext: maCtx.Context,
 	}
 }
 

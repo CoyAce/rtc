@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"os"
 	"rtc/core"
+	"rtc/internal/audio"
 	"rtc/ui"
 	"strconv"
 
@@ -18,15 +19,18 @@ import (
 )
 
 var (
-	address         = flag.String("a", "0.0.0.0:52000", "listen address")
-	config          = flag.String("c", "config.json", "config file")
-	serverMode      = flag.Bool("s", false, "server mode")
-	commandLineMode = flag.Bool("i", false, "server mode")
+	address          = flag.String("a", "0.0.0.0:52000", "listen address")
+	config           = flag.String("c", "config.json", "config file")
+	serverMode       = flag.Bool("s", false, "server mode")
+	commandLineMode  = flag.Bool("i", false, "server mode")
+	testAudioLatency = flag.Bool("t", false, "test audio latency")
 )
 
 func main() {
-	//audio.TestAudioLatency()
 	flag.Parse()
+	if *testAudioLatency {
+		audio.TestAudioLatency()
+	}
 	fmt.Println("address:", *address)
 	if *serverMode {
 		fmt.Println("server mode")

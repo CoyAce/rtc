@@ -236,7 +236,7 @@ func TestAudioLatency() {
 
 	// 创建延迟测量器
 	conf := Config{
-		MaxAttempts:        100,
+		MaxAttempts:        20,
 		MeasurementTimeout: 1 * time.Second,
 		SignalFrequency:    1000,
 		SignalDuration:     200 * time.Millisecond,

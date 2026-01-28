@@ -224,8 +224,7 @@ type EnhancementMetrics struct {
 	CurrentGain     float32
 	CompressionGain float32
 	ProcessedFrames uint64
-	ERLE            float32
-	Delay           int
+	Stats           apm.Stats
 }
 
 // NewEnhancer creates a new audio enhancer
@@ -297,11 +296,11 @@ func (ae *Enhancer) ProcessAudio(samples []float32) ([]float32, error) {
 
 	// Stage 3: Echo cancellation (should be first)
 	if ae.config != nil {
-		out, err := ae.processor.ProcessCapture(output)
-		if err == nil {
-			output = out
+		err := ae.processor.ProcessCapture(output)
+		if err != nil {
+			return samples, err
 		}
-		ae.metrics.ERLE = float32(ae.processor.GetStats().EchoReturnLossEnhancement)
+		ae.metrics.Stats = ae.processor.GetStats()
 	}
 
 	// Stage 4: Noise gate (part of AGC)
