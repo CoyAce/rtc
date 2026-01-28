@@ -75,7 +75,7 @@ func (m *MiniAudioWrapper) initialize() error {
 	m.ctx = maCtx
 	m.isInitialized = true
 	config := NewStreamConfig(maCtx, 1)
-	config.Format = malgo.FormatS32
+	config.Format = malgo.FormatF32
 	m.StreamConfig = config
 	ctx, cancel := context.WithCancel(context.Background())
 	m.playCancel = cancel
@@ -125,7 +125,10 @@ func (m *MiniAudioWrapper) StartCapture(callback func([]float32)) error {
 	m.captureCancel = captureCancel
 	writer := NewChunkWriter(captureCtx, audioChunks)
 	go func() {
-		if err := Capture(captureCtx, writer, m.StreamConfig); err != nil {
+		streamConfig := m.StreamConfig
+		streamConfig.PeriodSizeInFrames = 120
+		streamConfig.Periods = 2
+		if err := Capture(captureCtx, writer, streamConfig); err != nil {
 			close(audioChunks)
 			if errors.Is(err, context.Canceled) {
 				return
@@ -167,23 +170,6 @@ func (m *MiniAudioWrapper) GetSampleRate() int {
 
 func (m *MiniAudioWrapper) GetBufferSize() int {
 	return m.bufferSize
-}
-
-func (m *MiniAudioWrapper) GetOutputLatency() (time.Duration, error) {
-	// macOS Core Audio延迟估算
-	// 典型值: 硬件延迟(1-2ms) + 系统延迟(5-15ms) + 应用延迟(5-20ms)
-
-	baseLatency := 3 * time.Millisecond   // 硬件延迟
-	systemLatency := 8 * time.Millisecond // macOS音频系统
-	appLatency := time.Duration(float64(m.bufferSize)/float64(m.sampleRate)*1000) * time.Millisecond
-
-	return baseLatency + systemLatency + appLatency, nil
-}
-
-func (m *MiniAudioWrapper) GetInputLatency() (time.Duration, error) {
-	// 输入延迟通常比输出延迟稍小
-	outputLatency, _ := m.GetOutputLatency()
-	return outputLatency * 8 / 10, nil // 80%的输出延迟
 }
 
 func (m *MiniAudioWrapper) IsPlaying() bool {

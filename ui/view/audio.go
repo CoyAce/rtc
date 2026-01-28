@@ -178,6 +178,8 @@ func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 	writer := audio.NewChunkWriter(captureCtx, audioChunks)
 	enhancer.Initialize()
 	go func() {
+		streamConfig.PeriodSizeInFrames = 120
+		streamConfig.Periods = 2
 		if err := audio.Capture(captureCtx, writer, streamConfig); err != nil {
 			if errors.Is(err, context.Canceled) {
 				return
