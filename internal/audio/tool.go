@@ -277,7 +277,6 @@ func TestAudioLatency() {
 
 	// 等待退出
 	<-sigChan
-	fmt.Println("\n", formatResult(measurer.GetResult()))
 }
 
 func formatResult(result LatencyResult) string {

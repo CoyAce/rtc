@@ -135,13 +135,14 @@ func (m *LatencyMeasurer) measureRoundTripLatency(ctx context.Context) (time.Dur
 
 	var results []time.Duration
 	// 创建同步通道
-	measurementChan := make(chan time.Duration, 1)
+	measurementChan := make(chan time.Duration)
 
 	err := m.audioProvider.StartCapture(func(data []float32) {
 		// 检查是否包含测试信号
 		if len(data) > 0 && m.detectSignal(data) {
-			if time.Now().After(m.lastPlayback) {
-				measurementChan <- time.Since(m.lastPlayback)
+			select {
+			case measurementChan <- time.Since(m.lastPlayback):
+			default:
 			}
 		}
 	})
@@ -152,7 +153,7 @@ func (m *LatencyMeasurer) measureRoundTripLatency(ctx context.Context) (time.Dur
 
 	for i := 0; i < m.maxAttempts; i++ {
 		// 短暂暂停
-		time.Sleep(2500 * time.Millisecond)
+		time.Sleep(1000 * time.Millisecond)
 		fmt.Printf("测量尝试 %d/%d\n", i+1, m.maxAttempts)
 
 		latency, err := m.singleRoundTripMeasurement(ctx, measurementChan)
