@@ -15,12 +15,14 @@ import (
 // StreamConfig describes the parameters for an audio stream.
 // Default values will pick the defaults of the default device.
 type StreamConfig struct {
-	Format          malgo.FormatType
-	Channels        int
-	SampleRate      int
-	DeviceType      malgo.DeviceType
-	MalgoContext    malgo.Context
-	CaptureDeviceID *malgo.DeviceID
+	Format                   malgo.FormatType
+	Channels                 int
+	SampleRate               int
+	Periods                  uint32
+	PeriodSizeInMilliseconds uint32
+	DeviceType               malgo.DeviceType
+	MalgoContext             malgo.Context
+	CaptureDeviceID          *malgo.DeviceID
 }
 
 func (config StreamConfig) asDeviceConfig(deviceType malgo.DeviceType) malgo.DeviceConfig {
@@ -39,6 +41,12 @@ func (config StreamConfig) asDeviceConfig(deviceType malgo.DeviceType) malgo.Dev
 	if config.DeviceType != 0 {
 		deviceConfig.DeviceType = config.DeviceType
 	}
+	if config.Periods != 0 {
+		deviceConfig.Periods = config.Periods
+	}
+	if config.PeriodSizeInMilliseconds != 0 {
+		deviceConfig.PeriodSizeInMilliseconds = config.PeriodSizeInMilliseconds
+	}
 	if config.CaptureDeviceID != nil {
 		deviceConfig.Capture.DeviceID = config.CaptureDeviceID.Pointer()
 	}
@@ -47,7 +55,7 @@ func (config StreamConfig) asDeviceConfig(deviceType malgo.DeviceType) malgo.Dev
 
 // SetCaptureDeviceByName sets the capture DeviceID by matching device name.
 // Returns true if found and set.
-func (c *StreamConfig) SetCaptureDeviceByName(mctx *malgo.Context, name string) (bool, error) {
+func (config *StreamConfig) SetCaptureDeviceByName(mctx *malgo.Context, name string) (bool, error) {
 	if name == "" {
 		return false, nil
 	}
@@ -57,8 +65,8 @@ func (c *StreamConfig) SetCaptureDeviceByName(mctx *malgo.Context, name string) 
 	}
 	for _, d := range devices {
 		if strings.TrimSpace(d.Name()) == name {
-			id := malgo.DeviceID(d.ID)
-			c.CaptureDeviceID = &id
+			id := d.ID
+			config.CaptureDeviceID = &id
 			return true, nil
 		}
 	}
@@ -184,10 +192,12 @@ func Playback(ctx context.Context, r io.Reader, config StreamConfig) error {
 
 func NewStreamConfig(maCtx *malgo.AllocatedContext, channels int) StreamConfig {
 	return StreamConfig{
-		Format:       malgo.FormatS16,
-		Channels:     channels,
-		SampleRate:   48000,
-		MalgoContext: maCtx.Context,
+		Format:                   malgo.FormatS16,
+		Channels:                 channels,
+		SampleRate:               48000,
+		Periods:                  2,
+		PeriodSizeInMilliseconds: 10,
+		MalgoContext:             maCtx.Context,
 	}
 }
 
