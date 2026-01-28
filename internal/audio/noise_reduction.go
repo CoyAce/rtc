@@ -58,7 +58,7 @@ func DefaultNoiseReducer() *NoiseReducer {
 		VADHoldTime:  20,   // Hold voice detection for 20 frames (400ms at 50fps)
 
 		// Noise Reduction
-		EnableNoiseReduction: true,
+		EnableNoiseReduction: false,
 		NoiseFloor:           0.01, // % of max signal
 		NoiseAttenuationDB:   2.0,  // dB attenuation
 

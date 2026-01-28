@@ -25,6 +25,7 @@ var (
 )
 
 func main() {
+	//audio.TestAudioLatency()
 	flag.Parse()
 	fmt.Println("address:", *address)
 	if *serverMode {

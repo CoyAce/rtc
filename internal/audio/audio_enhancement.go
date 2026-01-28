@@ -16,11 +16,11 @@ const (
 
 // EnhancementConfig contains configuration for audio enhancement
 type EnhancementConfig struct {
+	HighPassFilterEnabled bool
+	PreampEnabled         bool
+	ApmConfig             *apm.Config
 	// AGC (Automatic Gain Control) settings
 	AGC AGCConfig
-
-	// Echo cancellation settings
-	ApmConfig apm.Config
 
 	// Dynamic range compression
 	Compression CompressionConfig
@@ -121,20 +121,22 @@ type DeEsserConfig struct {
 	SampleRate int
 }
 
-func EchoCancellationEnhancer() *Enhancer {
-	config := DefaultEnhancementConfig()
-	config.ApmConfig = apm.Config{CaptureChannels: 1, RenderChannels: 1, EchoCancellation: apm.EchoCancellationConfig{Enabled: true}}
-	return NewEnhancer(config)
-}
-
 func DefaultAudioEnhancer() *Enhancer {
 	config := DefaultEnhancementConfig()
+	config.ApmConfig = &apm.Config{
+		CaptureChannels:  1,
+		RenderChannels:   1,
+		EchoCancellation: apm.EchoCancellationConfig{Enabled: true},
+		NoiseSuppression: apm.NoiseSuppressionConfig{Enabled: true, SuppressionLevel: apm.NsLevelModerate},
+	}
 	return NewEnhancer(config)
 }
 
 // DefaultEnhancementConfig returns default audio enhancement configuration
 func DefaultEnhancementConfig() *EnhancementConfig {
 	return &EnhancementConfig{
+		HighPassFilterEnabled: true,
+		PreampEnabled:         true,
 		AGC: AGCConfig{
 			Enabled:            true,
 			SampleRate:         48000,
@@ -241,8 +243,8 @@ func NewEnhancer(config *EnhancementConfig) *Enhancer {
 		equalizer:      NewParametricEqualizer(&config.Equalizer),
 		deesser:        NewDeEsser(&config.DeEsser),
 	}
-	if config.ApmConfig.EchoCancellation.Enabled {
-		processor, err := apm.New(config.ApmConfig)
+	if config.ApmConfig != nil {
+		processor, err := apm.New(*config.ApmConfig)
 		if err != nil {
 			log.Printf("Can't create processor: %v", err)
 		}
@@ -260,7 +262,8 @@ func (ae *Enhancer) Initialize() {
 
 // AddFarEnd - 单独添加远端信号（用于异步处理）
 func (ae *Enhancer) AddFarEnd(farEnd []int16) {
-	if len(farEnd) != FrameSize && ae.processor == nil {
+	if len(farEnd) != FrameSize || ae.processor == nil {
+		log.Printf("AddFarEnd failed")
 		return
 	}
 	err := ae.processor.ProcessRenderInt16(farEnd)
@@ -274,19 +277,26 @@ func (ae *Enhancer) ProcessAudio(samples []float32) ([]float32, error) {
 	ae.mu.Lock()
 	defer ae.mu.Unlock()
 
+	var output = samples
+
 	ae.metrics.ProcessedFrames++
 	// Stage 1: HighPass Filter
-	ae.highPassFilter.ProcessBatch(samples)
-	// Stage 2: Preamp
-	output, info := ae.preamp.Process(samples)
-	if info == nil || info.Silent {
-		return output, nil
+	if ae.config.HighPassFilterEnabled {
+		ae.highPassFilter.ProcessBatch(output)
 	}
-	// Track input level
-	ae.metrics.InputLevel = info.RMS
+	// Stage 2: Preamp
+	if ae.config.PreampEnabled {
+		var info *VolumeInfo
+		output, info = ae.preamp.Process(output)
+		if info == nil || info.Silent {
+			return output, nil
+		}
+		// Track input level
+		ae.metrics.InputLevel = info.RMS
+	}
 
 	// Stage 3: Echo cancellation (should be first)
-	if ae.config.ApmConfig.EchoCancellation.Enabled {
+	if ae.config != nil {
 		out, err := ae.processor.ProcessCapture(output)
 		if err == nil {
 			output = out

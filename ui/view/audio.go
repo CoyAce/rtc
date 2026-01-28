@@ -37,7 +37,6 @@ var (
 	captureCtx, captureCancel = context.WithCancel(context.Background())
 	playbackCancels           []context.CancelFunc
 	players                   = make(map[uint16]chan *bytes.Buffer)
-	ecEnhancer                = audio.EchoCancellationEnhancer()
 	enhancer                  = audio.DefaultAudioEnhancer()
 )
 
@@ -177,7 +176,7 @@ func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 	audioChunks := make(chan *bytes.Buffer, 10)
 	captureCtx, captureCancel = context.WithCancel(context.Background())
 	writer := audio.NewChunkWriter(captureCtx, audioChunks)
-	ecEnhancer.Initialize()
+	enhancer.Initialize()
 	go func() {
 		if err := audio.Capture(captureCtx, writer, streamConfig); err != nil {
 			if errors.Is(err, context.Canceled) {
@@ -213,7 +212,7 @@ func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 			}
 			data := make([]byte, ogg.FrameSize)
 			start := time.Now()
-			processAudio, err := ecEnhancer.ProcessAudio(audio.Int16BytesToFloat32(cur.Bytes()))
+			processAudio, err := enhancer.ProcessAudio(audio.Int16BytesToFloat32(cur.Bytes()))
 			cost := time.Since(start)
 			if err != nil {
 				log.Printf("enhancer process audio failed, %s", err)
@@ -231,7 +230,7 @@ func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 			if err != nil {
 				log.Printf("audio call error: %v", err)
 			}
-			stats := ecEnhancer.GetMetrics()
+			stats := enhancer.GetMetrics()
 			fmt.Printf("ERLE: %.1f Delay: %d Cost: %v\n", stats.ERLE, stats.Delay, cost)
 		}
 	}()
@@ -265,7 +264,7 @@ func ConsumeAudioData(streamConfig audio.StreamConfig) {
 			log.Printf("decode audio packet failed, %s", err)
 			continue
 		}
-		ecEnhancer.AddFarEnd(buf[:n])
+		enhancer.AddFarEnd(buf[:n])
 		select {
 		case players[identity] <- bytes.NewBuffer(ogg.ToBytes(buf[:n])):
 		default:
