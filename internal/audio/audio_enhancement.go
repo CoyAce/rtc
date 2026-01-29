@@ -19,6 +19,7 @@ const (
 type EnhancementConfig struct {
 	HighPassFilterEnabled bool
 	PreampEnabled         bool
+	StreamAnalogLevel     int
 	ApmConfig             *apm.Config
 	// AGC (Automatic Gain Control) settings
 	AGC AGCConfig
@@ -132,12 +133,15 @@ func DefaultAudioEnhancer() *Enhancer {
 		EchoCancellation:      apm.EchoCancellationConfig{Enabled: true, MobileMode: mobile, StreamDelayMs: 54},
 		NoiseSuppression:      apm.NoiseSuppressionConfig{Enabled: true, SuppressionLevel: apm.NsLevelModerate},
 		GainControl: apm.GainControlConfig{
-			Enabled:           true,
-			Mode:              apm.AgcModeAdaptiveDigital,
-			TargetLevelDbfs:   23,
-			CompressionGainDb: 12,
-			EnableLimiter:     true,
+			Enabled:                      true,
+			InputVolumeControllerEnabled: true,
+			HeadroomDB:                   15,
+			MaxGainDb:                    50,
 		},
+	}
+	config.StreamAnalogLevel = 180
+	if mobile {
+		config.StreamAnalogLevel = 220
 	}
 	return NewEnhancer(config)
 }
@@ -258,6 +262,7 @@ func NewEnhancer(config *EnhancementConfig) *Enhancer {
 			log.Printf("Can't create processor: %v", err)
 		}
 		ae.processor = processor
+		processor.SetStreamAnalogLevel(config.StreamAnalogLevel)
 	}
 
 	return ae
@@ -306,7 +311,7 @@ func (ae *Enhancer) ProcessAudio(samples []float32) ([]float32, error) {
 
 	// Stage 3: Echo cancellation (should be first)
 	if ae.config != nil {
-		_ = ae.processor.SetStreamDelay(ae.config.ApmConfig.EchoCancellation.StreamDelayMs)
+		ae.processor.SetStreamDelay(ae.config.ApmConfig.EchoCancellation.StreamDelayMs)
 		err := ae.processor.ProcessCapture(output)
 		if err != nil {
 			return samples, err
