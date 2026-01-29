@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 	"unsafe"
@@ -120,6 +121,7 @@ type audioMetaInfo struct {
 	audioMap      map[uint16]WriteReq
 	audioReceiver map[uint16][]WriteReq
 	AudioData     chan Data `json:"-"`
+	lock          sync.Mutex
 }
 
 func (a *audioMetaInfo) addAudioStream(wrq WriteReq) {
@@ -143,6 +145,8 @@ func (a *audioMetaInfo) addAudioReceiver(fileId uint16, wrq WriteReq) {
 }
 
 func (a *audioMetaInfo) deleteAudioReceiver(fileId uint16, UUID string) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
 	a.audioReceiver[fileId] = slices.DeleteFunc(a.audioReceiver[fileId], func(w WriteReq) bool {
 		return w.UUID == UUID
 	})
