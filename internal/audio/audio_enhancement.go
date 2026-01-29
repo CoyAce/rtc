@@ -3,6 +3,7 @@ package audio
 import (
 	"log"
 	"math"
+	"runtime"
 	"sync"
 
 	"github.com/CoyAce/apm"
@@ -123,10 +124,11 @@ type DeEsserConfig struct {
 
 func DefaultAudioEnhancer() *Enhancer {
 	config := DefaultEnhancementConfig()
+	mobile := runtime.GOOS == "android" || runtime.GOOS == "ios"
 	config.ApmConfig = &apm.Config{
 		CaptureChannels:  1,
 		RenderChannels:   1,
-		EchoCancellation: apm.EchoCancellationConfig{Enabled: true},
+		EchoCancellation: apm.EchoCancellationConfig{Enabled: true, MobileMode: mobile, StreamDelayMs: 54},
 		NoiseSuppression: apm.NoiseSuppressionConfig{Enabled: true, SuppressionLevel: apm.NsLevelModerate},
 	}
 	return NewEnhancer(config)
@@ -296,6 +298,7 @@ func (ae *Enhancer) ProcessAudio(samples []float32) ([]float32, error) {
 
 	// Stage 3: Echo cancellation (should be first)
 	if ae.config != nil {
+		_ = ae.processor.SetStreamDelay(ae.config.ApmConfig.EchoCancellation.StreamDelayMs)
 		err := ae.processor.ProcessCapture(output)
 		if err != nil {
 			return samples, err

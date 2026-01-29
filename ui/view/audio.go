@@ -205,9 +205,6 @@ func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 				for _, cancel := range playbackCancels {
 					cancel()
 				}
-				for _, player := range players {
-					close(player)
-				}
 				playbackCancels = playbackCancels[:0]
 				players = make(map[uint16]chan *bytes.Buffer)
 				return
