@@ -126,10 +126,18 @@ func DefaultAudioEnhancer() *Enhancer {
 	config := DefaultEnhancementConfig()
 	mobile := runtime.GOOS == "android" || runtime.GOOS == "ios"
 	config.ApmConfig = &apm.Config{
-		CaptureChannels:  1,
-		RenderChannels:   1,
-		EchoCancellation: apm.EchoCancellationConfig{Enabled: true, MobileMode: mobile, StreamDelayMs: 54},
-		NoiseSuppression: apm.NoiseSuppressionConfig{Enabled: true, SuppressionLevel: apm.NsLevelModerate},
+		CaptureChannels:       1,
+		RenderChannels:        1,
+		HighPassFilterEnabled: true,
+		EchoCancellation:      apm.EchoCancellationConfig{Enabled: true, MobileMode: mobile, StreamDelayMs: 54},
+		NoiseSuppression:      apm.NoiseSuppressionConfig{Enabled: true, SuppressionLevel: apm.NsLevelModerate},
+		GainControl: apm.GainControlConfig{
+			Enabled:           true,
+			Mode:              apm.AgcModeAdaptiveDigital,
+			TargetLevelDbfs:   23,
+			CompressionGainDb: 12,
+			EnableLimiter:     true,
+		},
 	}
 	return NewEnhancer(config)
 }
@@ -137,8 +145,8 @@ func DefaultAudioEnhancer() *Enhancer {
 // DefaultEnhancementConfig returns default audio enhancement configuration
 func DefaultEnhancementConfig() *EnhancementConfig {
 	return &EnhancementConfig{
-		HighPassFilterEnabled: true,
-		PreampEnabled:         true,
+		HighPassFilterEnabled: false,
+		PreampEnabled:         false,
 		AGC: AGCConfig{
 			Enabled:            true,
 			SampleRate:         48000,
