@@ -129,9 +129,11 @@ func DefaultAudioEnhancer() *Enhancer {
 	analogLevel := 180
 	preGainFactor := float32(2.0)
 	postGainFactor := float32(1.0)
+	delayMs := 54
 	if mobile {
 		analogLevel = 220
 		preGainFactor = 8.0
+		delayMs += 100
 	}
 	config.ApmConfig = &apm.Config{
 		CaptureChannels:       1,
@@ -149,7 +151,7 @@ func DefaultAudioEnhancer() *Enhancer {
 		EchoCancellation: apm.EchoCancellationConfig{
 			Enabled:       true,
 			MobileMode:    mobile,
-			StreamDelayMs: 54,
+			StreamDelayMs: delayMs,
 		},
 		NoiseSuppression: apm.NoiseSuppressionConfig{
 			Enabled:          true,
@@ -161,6 +163,9 @@ func DefaultAudioEnhancer() *Enhancer {
 			HeadroomDB:                   5,
 			MaxGainDB:                    50,
 		},
+	}
+	if mobile {
+		config.ApmConfig.GainControl.GainDB = 15
 	}
 	config.StreamAnalogLevel = analogLevel
 	return NewEnhancer(config)
