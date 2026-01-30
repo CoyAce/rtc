@@ -73,12 +73,10 @@ func (f *FileWriter) isFile(fileId uint32) bool {
 	return f.wrq[fileId].FileId == fileId
 }
 
-func appendTo(filePath string, data []Data) {
-	// 使用os.O_APPEND, os.O_CREATE, os.O_WRONLY标志
-	// os.O_APPEND: 追加模式，写入的数据会被追加到文件尾部
+func writeTo(filePath string, data []Data) {
 	// os.O_CREATE: 如果文件不存在，则创建文件
 	// os.O_WRONLY: 以只写模式打开文件
-	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Printf("error opening file: %v", err)
 	}
@@ -90,6 +88,10 @@ func appendTo(filePath string, data []Data) {
 		readers = append(readers, d.Payload)
 	}
 	multiReader := io.MultiReader(readers...)
+	_, err = file.Seek(int64((data[0].Block-1)*BlockSize), 0)
+	if err != nil {
+		log.Printf("seeking to block %d failed: %v", data[0].Block, err)
+	}
 	// 使用io.Copy将multiReader的内容写入文件
 	if _, err := io.Copy(file, multiReader); err != nil {
 		log.Printf("error writing to file: %v", err)

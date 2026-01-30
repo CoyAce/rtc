@@ -125,7 +125,7 @@ func write(filePath string, data []Data) []Data {
 
 	dir := filepath.Dir(filePath)
 	Mkdir(dir)
-	appendTo(filePath, data[:i])
+	writeTo(filePath, data[:i])
 	if i < len(data) {
 		// return leftover
 		return data[i:]
