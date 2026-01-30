@@ -126,23 +126,43 @@ type DeEsserConfig struct {
 func DefaultAudioEnhancer() *Enhancer {
 	config := DefaultEnhancementConfig()
 	mobile := runtime.GOOS == "android" || runtime.GOOS == "ios"
+	analogLevel := 180
+	preGainFactor := float32(2.0)
+	postGainFactor := float32(1.0)
+	if mobile {
+		analogLevel = 220
+		preGainFactor = 8.0
+	}
 	config.ApmConfig = &apm.Config{
 		CaptureChannels:       1,
 		RenderChannels:        1,
 		HighPassFilterEnabled: true,
-		EchoCancellation:      apm.EchoCancellationConfig{Enabled: true, MobileMode: mobile, StreamDelayMs: 54},
-		NoiseSuppression:      apm.NoiseSuppressionConfig{Enabled: true, SuppressionLevel: apm.NsLevelModerate},
+		CaptureLevelAdjustment: apm.CaptureLevelAdjustmentConfig{
+			Enabled:        true,
+			PreGainFactor:  preGainFactor,
+			PostGainFactor: postGainFactor,
+			AnalogMicGainEmulation: apm.AnalogMicGainEmulationConfig{
+				Enabled:      true,
+				InitialLevel: analogLevel,
+			},
+		},
+		EchoCancellation: apm.EchoCancellationConfig{
+			Enabled:       true,
+			MobileMode:    mobile,
+			StreamDelayMs: 54,
+		},
+		NoiseSuppression: apm.NoiseSuppressionConfig{
+			Enabled:          true,
+			SuppressionLevel: apm.NsLevelModerate,
+		},
 		GainControl: apm.GainControlConfig{
 			Enabled:                      true,
 			InputVolumeControllerEnabled: true,
-			HeadroomDB:                   15,
-			MaxGainDb:                    50,
+			HeadroomDB:                   5,
+			MaxGainDB:                    50,
 		},
 	}
-	config.StreamAnalogLevel = 180
-	if mobile {
-		config.StreamAnalogLevel = 220
-	}
+	config.StreamAnalogLevel = analogLevel
 	return NewEnhancer(config)
 }
 
@@ -152,7 +172,7 @@ func DefaultEnhancementConfig() *EnhancementConfig {
 		HighPassFilterEnabled: false,
 		PreampEnabled:         false,
 		AGC: AGCConfig{
-			Enabled:            true,
+			Enabled:            false,
 			SampleRate:         48000,
 			TargetLevel:        -23.0, // 标准语音输出电平
 			MaxGain:            12.0,  // 轻度增益补偿
@@ -284,6 +304,19 @@ func (ae *Enhancer) AddFarEnd(farEnd []int16) {
 	if err != nil {
 		log.Printf("Enhancement processor error: %v", err)
 	}
+}
+
+func (ae *Enhancer) ProcessBatch(samples []float32) ([]float32, error) {
+	n := len(samples)
+	ret := make([]float32, 0, n)
+	for processed := 0; processed+FrameSize <= n; processed += FrameSize {
+		out, err := ae.ProcessAudio(samples[processed : processed+FrameSize])
+		if err != nil {
+			return samples, err
+		}
+		ret = append(ret, out...)
+	}
+	return ret, nil
 }
 
 // ProcessAudio applies all enhancement stages to audio
