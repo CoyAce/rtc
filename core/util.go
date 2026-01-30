@@ -112,10 +112,10 @@ func findConsecutive(data []Data) int {
 	return i
 }
 
-func write(filePath string, data []Data) []Data {
+func write(filePath string, data []Data) ([]Data, Range) {
 	// handle number order error, data block may not ordered
 	if len(data) == 0 {
-		return nil
+		return nil, Range{}
 	}
 	data = removeDuplicates(data)
 	sort.Slice(data, func(i, j int) bool {
@@ -128,9 +128,9 @@ func write(filePath string, data []Data) []Data {
 	writeTo(filePath, data[:i])
 	if i < len(data) {
 		// return leftover
-		return data[i:]
+		return data[i:], Range{data[0].Block, data[i-1].Block}
 	}
-	return nil
+	return nil, Range{}
 }
 
 func getFilePath(configName string) string {

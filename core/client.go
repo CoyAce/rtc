@@ -19,6 +19,87 @@ import (
 	"unsafe"
 )
 
+type Range struct {
+	start, end uint32
+}
+
+func (r *Range) contains(v Range) bool {
+	return v.start >= r.start && v.end <= r.end
+}
+
+func (r *Range) before(v Range) bool {
+	return r.end < v.start
+}
+
+func (r *Range) after(v Range) bool {
+	return r.start > v.end
+}
+
+func (r *Range) endWithin(v Range) bool {
+	return r.end < v.end && r.end >= v.start
+}
+
+func (r *Range) startWithin(v Range) bool {
+	return r.start > v.start && r.start <= v.end
+}
+
+type RangeTracker struct {
+	latestBlock uint32
+	ranges      []Range
+}
+
+func (r *RangeTracker) Add(rg Range) {
+	if rg.start < r.nextBlock() {
+		// 考虑补帧
+		r.remove(rg)
+		if rg.end < r.nextBlock() {
+			return
+		}
+	}
+	if rg.start > r.nextBlock() {
+		// 考虑丢帧
+		r.add(Range{r.nextBlock(), rg.start - 1})
+	}
+	r.latestBlock = rg.end
+}
+
+func (r *RangeTracker) GetRanges() []Range {
+	ret := make([]Range, len(r.ranges))
+	copy(ret, r.ranges)
+	return ret
+}
+
+func (r *RangeTracker) remove(rg Range) {
+	ret := make([]Range, 0, len(r.ranges))
+	for _, v := range r.ranges {
+		if rg.before(v) || rg.after(v) {
+			ret = append(ret, v)
+		} else if rg.contains(v) {
+			// no op, v removed
+		} else {
+			if rg.startWithin(v) {
+				ret = append(ret, Range{v.start, rg.start - 1})
+			}
+			if rg.endWithin(v) {
+				ret = append(ret, Range{rg.end + 1, v.end})
+			}
+		}
+	}
+	r.ranges = ret
+}
+
+func (r *RangeTracker) add(rg Range) {
+	r.ranges = append(r.ranges, rg)
+}
+
+func (r *RangeTracker) isCompleted() bool {
+	return len(r.ranges) == 0
+}
+
+func (r *RangeTracker) nextBlock() uint32 {
+	return r.latestBlock + 1
+}
+
 type FileWriter struct {
 	FileId     chan uint32 // finished file id
 	Wrq        chan WriteReq
@@ -26,6 +107,7 @@ type FileWriter struct {
 	OnComplete func(req WriteReq)
 	wrq        map[uint32]WriteReq
 	fileData   map[uint32][]Data
+	rt         map[uint32]RangeTracker
 }
 
 func (f *FileWriter) Loop() {
@@ -35,17 +117,27 @@ func (f *FileWriter) Loop() {
 		case id := <-f.FileId:
 			req := f.wrq[id]
 			filePath := GetPath(req.UUID, req.Filename)
-			write(filePath, f.fileData[id])
-			delete(f.wrq, id)
-			delete(f.fileData, id)
-			if f.OnComplete != nil {
-				// for example, reload avatar
-				f.OnComplete(req)
+			tracker := f.rt[id]
+			d := f.fileData[id]
+			r := Range{}
+			for d != nil {
+				d, r = write(filePath, d)
+				tracker.Add(r)
 			}
-			DefaultClient.FileMessages <- req
+			if tracker.isCompleted() {
+				f.clean(id)
+				if f.OnComplete != nil {
+					// for example, reload avatar
+					f.OnComplete(req)
+				}
+				DefaultClient.FileMessages <- req
+			} else {
+				// nck
+			}
 		// transfer start
 		case req := <-f.Wrq:
 			f.wrq[req.FileId] = req
+			f.rt[req.FileId] = RangeTracker{}
 			// remove before append
 			RemoveFile(GetPath(req.UUID, req.Filename))
 		case data := <-f.FileData:
@@ -56,17 +148,25 @@ func (f *FileWriter) Loop() {
 			f.fileData[data.FileId] = append(f.fileData[data.FileId], data)
 			// received ~100kb
 			if len(f.fileData[data.FileId]) >= 70 {
-				d := write(GetPath(req.UUID, req.Filename), f.fileData[data.FileId])
+				d, r := write(GetPath(req.UUID, req.Filename), f.fileData[data.FileId])
+				tracker := f.rt[data.FileId]
+				tracker.Add(r)
 				if d != nil {
 					// not consecutive, store for later use
 					f.fileData[data.FileId] = d
 				} else {
-					f.fileData[data.FileId] = make([]Data, 0)
+					f.fileData[data.FileId] = f.fileData[data.FileId][:0]
 				}
 			}
 		}
 	}
 
+}
+
+func (f *FileWriter) clean(id uint32) {
+	delete(f.wrq, id)
+	delete(f.fileData, id)
+	delete(f.rt, id)
 }
 
 func (f *FileWriter) isFile(fileId uint32) bool {
@@ -392,8 +492,14 @@ func (c *Client) init() {
 	c.audioReceiver = make(map[uint16][]WriteReq)
 	c.AudioData = make(chan Data, 100)
 
-	c.fileWriter = &FileWriter{Wrq: make(chan WriteReq), FileData: make(chan Data),
-		FileId: make(chan uint32), wrq: make(map[uint32]WriteReq), fileData: make(map[uint32][]Data)}
+	c.fileWriter = &FileWriter{
+		Wrq:      make(chan WriteReq),
+		FileData: make(chan Data),
+		FileId:   make(chan uint32),
+		wrq:      make(map[uint32]WriteReq),
+		fileData: make(map[uint32][]Data),
+		rt:       make(map[uint32]RangeTracker),
+	}
 }
 
 func (c *Client) SendSign() {

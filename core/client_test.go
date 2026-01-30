@@ -6,9 +6,82 @@ import (
 	"io"
 	"log"
 	"os"
+	"reflect"
 	"rtc/assets"
 	"testing"
 )
+
+func TestRange(t *testing.T) {
+	rt := RangeTracker{}
+	rt.Add(Range{1, 20})
+	if !rt.isCompleted() {
+		t.Error("Expected RangeTracker to be completed")
+	}
+}
+
+func TestRangeRemove(t *testing.T) {
+	rt := RangeTracker{}
+	rt.Add(Range{1, 20})
+	rt.Add(Range{21, 21})
+	// miss 22
+	rt.Add(Range{23, 24})
+	// miss 22, [25,49]
+	rt.Add(Range{50, 50})
+	expected := []Range{{22, 22}, {25, 49}}
+	if !reflect.DeepEqual(rt.GetRanges(), expected) {
+		t.Errorf("Expected RangeTracker %v, got %v", expected, rt.GetRanges())
+	}
+	rt.Add(Range{20, 22})
+	expected = []Range{{25, 49}}
+	if !reflect.DeepEqual(rt.GetRanges(), expected) {
+		t.Errorf("Expected RangeTracker %v, got %v", expected, rt.GetRanges())
+	}
+	rt.Add(Range{25, 25})
+	expected = []Range{{26, 49}}
+	if !reflect.DeepEqual(rt.GetRanges(), expected) {
+		t.Errorf("Expected RangeTracker %v, got %v", expected, rt.GetRanges())
+	}
+	rt.Add(Range{45, 50})
+	rt.Add(Range{20, 20})
+	expected = []Range{{26, 44}}
+	if !reflect.DeepEqual(rt.GetRanges(), expected) {
+		t.Errorf("Expected RangeTracker %v, got %v", expected, rt.GetRanges())
+	}
+	rt.Add(Range{25, 30})
+	expected = []Range{{31, 44}}
+	if !reflect.DeepEqual(rt.GetRanges(), expected) {
+		t.Errorf("Expected RangeTracker %v, got %v", expected, rt.GetRanges())
+	}
+	// miss [31,35],[40,44]
+	rt.Add(Range{36, 39})
+	expected = []Range{{31, 35}, {40, 44}}
+	if !reflect.DeepEqual(rt.GetRanges(), expected) {
+		t.Errorf("Expected RangeTracker %v, got %v", expected, rt.GetRanges())
+	}
+	rt.Add(Range{38, 38})
+	rt.Add(Range{31, 35})
+	rt.Add(Range{40, 44})
+	if !rt.isCompleted() {
+		t.Error("Expected RangeTracker to be completed")
+	}
+}
+
+func TestRangeAdd(t *testing.T) {
+	rt := RangeTracker{}
+	rt.Add(Range{1, 20})
+	rt.Add(Range{1, 20})
+	rt.Add(Range{30, 40})
+	rt.Add(Range{40, 50})
+	rt.Add(Range{40, 45})
+	expected := []Range{{21, 29}}
+	if !reflect.DeepEqual(rt.GetRanges(), expected) {
+		t.Errorf("Expected RangeTracker %v, got %v", expected, rt.GetRanges())
+	}
+	rt.Add(rt.ranges[0])
+	if !rt.isCompleted() {
+		t.Error("Expected RangeTracker to be completed")
+	}
+}
 
 func TestMap(t *testing.T) {
 	var files map[uint32][]Data
