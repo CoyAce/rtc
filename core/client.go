@@ -19,91 +19,6 @@ import (
 	"unsafe"
 )
 
-type Range struct {
-	start, end uint32
-}
-
-func (r *Range) contains(v Range) bool {
-	return v.start >= r.start && v.end <= r.end
-}
-
-func (r *Range) before(v Range) bool {
-	return r.end < v.start
-}
-
-func (r *Range) after(v Range) bool {
-	return r.start > v.end
-}
-
-func (r *Range) endWithin(v Range) bool {
-	return r.end < v.end && r.end >= v.start
-}
-
-func (r *Range) startWithin(v Range) bool {
-	return r.start > v.start && r.start <= v.end
-}
-
-func (r *Range) Within(v uint32) bool {
-	return v >= r.start && v <= r.end
-}
-
-type RangeTracker struct {
-	latestBlock uint32
-	ranges      []Range
-}
-
-func (r *RangeTracker) Add(rg Range) {
-	if rg.start < r.nextBlock() {
-		// 考虑补帧
-		r.remove(rg)
-		if rg.end < r.nextBlock() {
-			return
-		}
-	}
-	if rg.start > r.nextBlock() {
-		// 考虑丢帧
-		r.add(Range{r.nextBlock(), rg.start - 1})
-	}
-	r.latestBlock = rg.end
-}
-
-func (r *RangeTracker) GetRanges() []Range {
-	ret := make([]Range, len(r.ranges))
-	copy(ret, r.ranges)
-	return ret
-}
-
-func (r *RangeTracker) remove(rg Range) {
-	ret := make([]Range, 0, len(r.ranges))
-	for _, v := range r.ranges {
-		if rg.before(v) || rg.after(v) {
-			ret = append(ret, v)
-		} else if rg.contains(v) {
-			// no op, v removed
-		} else {
-			if rg.startWithin(v) {
-				ret = append(ret, Range{v.start, rg.start - 1})
-			}
-			if rg.endWithin(v) {
-				ret = append(ret, Range{rg.end + 1, v.end})
-			}
-		}
-	}
-	r.ranges = ret
-}
-
-func (r *RangeTracker) add(rg Range) {
-	r.ranges = append(r.ranges, rg)
-}
-
-func (r *RangeTracker) isCompleted() bool {
-	return len(r.ranges) == 0
-}
-
-func (r *RangeTracker) nextBlock() uint32 {
-	return r.latestBlock + 1
-}
-
 type file struct {
 	req  WriteReq
 	data []Data
@@ -225,72 +140,6 @@ func writeTo(filePath string, data []Data) {
 	}
 }
 
-type CircularBuffer struct {
-	data     []Data
-	size     int
-	capacity int
-	head     int
-	tail     int
-	mu       sync.RWMutex
-}
-
-func NewCircularBuffer(capacity int) *CircularBuffer {
-	return &CircularBuffer{
-		data:     make([]Data, capacity),
-		capacity: capacity,
-	}
-}
-
-func (cb *CircularBuffer) Write(data Data) {
-	cb.mu.Lock()
-	defer cb.mu.Unlock()
-
-	cb.writeNext(data)
-
-	if cb.size < cb.capacity {
-		cb.size++
-	} else {
-		cb.readNext()
-	}
-}
-
-func (cb *CircularBuffer) writeNext(data Data) {
-	cb.data[cb.head] = data
-	cb.head = (cb.head + 1) % cb.capacity
-}
-
-func (cb *CircularBuffer) readNext() {
-	cb.tail = (cb.tail + 1) % cb.capacity
-}
-
-func (cb *CircularBuffer) Read(ranges []Range) []Data {
-	ret := make([]Data, 0, len(ranges)*2)
-	for i := 0; i < cb.size; i++ {
-		idx := (cb.tail + i) % cb.capacity
-		for _, r := range ranges {
-			if r.Within(cb.data[idx].Block) {
-				ret = append(ret, cb.data[idx])
-			}
-		}
-	}
-	return ret
-}
-
-func (cb *CircularBuffer) Size() int {
-	cb.mu.RLock()
-	defer cb.mu.RUnlock()
-	return cb.size
-}
-
-func (cb *CircularBuffer) Clear() {
-	cb.mu.Lock()
-	defer cb.mu.Unlock()
-	cb.head = 0
-	cb.tail = 0
-	cb.size = 0
-	cb.data = cb.data[:0]
-}
-
 type Client struct {
 	UUID       string
 	Nickname   string
@@ -325,7 +174,28 @@ type connManager struct {
 
 type fileManager struct {
 	fileWriter *FileWriter
-	fileCache  map[uint32]CircularBuffer
+	fileCache  map[uint32]*CircularBuffer
+	lock       sync.Mutex
+}
+
+func (f *fileManager) cleanCacheIn5Min(id uint32) *time.Timer {
+	return time.AfterFunc(5*time.Minute, func() {
+		f.lock.Lock()
+		delete(f.fileCache, id)
+		f.lock.Unlock()
+	})
+}
+
+func (f *fileManager) initCache(id uint32) {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+	f.fileCache[id] = NewCircularBuffer(block512kb)
+}
+
+func (f *fileManager) loadCache(id uint32) *CircularBuffer {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+	return f.fileCache[id]
 }
 
 func newFileMetaInfo(nck func(f file), fileMessages chan<- WriteReq) fileManager {
@@ -338,7 +208,7 @@ func newFileMetaInfo(nck func(f file), fileMessages chan<- WriteReq) fileManager
 			files:        make(map[uint32]file),
 			nck:          nck,
 		},
-		fileCache: make(map[uint32]CircularBuffer),
+		fileCache: make(map[uint32]*CircularBuffer),
 	}
 }
 
@@ -519,6 +389,7 @@ func (c *Client) sendFile(reader io.Reader, code OpCode,
 	if err != nil {
 		return err
 	}
+	c.initCache(wrq.FileId)
 
 	data := Data{FileId: wrq.FileId, Payload: reader}
 	err = c.sendData(conn, pktBuf, data)
@@ -528,17 +399,20 @@ func (c *Client) sendFile(reader io.Reader, code OpCode,
 	return nil
 }
 
-func (c *Client) sendData(conn net.Conn, pktBuf []byte, data Data) error {
+func (c *Client) sendData(conn net.Conn, readBuf []byte, data Data) error {
+	cb := c.loadCache(data.FileId)
 	for n := DatagramSize; n == DatagramSize; {
 		pkt, err := data.Marshal()
 		if err != nil {
 			log.Printf("[%s] marshal failed: %v", "icon", err)
 		}
-		n, err = c.sendPacket(conn, pktBuf, pkt, data.Block)
+		cb.Write(Packet{Block: data.Block, Data: pkt})
+		n, err = c.sendPacket(conn, readBuf, pkt, data.Block)
 		if err != nil {
 			return err
 		}
 	}
+	c.cleanCacheIn5Min(data.FileId)
 	return nil
 }
 
@@ -822,3 +696,4 @@ func (c *Client) Store() {
 }
 
 var DefaultClient *Client
+var block512kb = 512 * 1024 / BlockSize
