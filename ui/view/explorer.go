@@ -3,6 +3,7 @@ package view
 import (
 	"bufio"
 	"image"
+	"image/draw"
 	"image/gif"
 	"io"
 	"log"
@@ -92,8 +93,34 @@ func LoadImage(filePath string, reload bool) (*image.Image, error) {
 		log.Printf("failed to decode image: %v", err)
 		return nil, err
 	}
-	imageCache[filePath] = &img
+	if IsGPUFriendly(img) {
+		imageCache[filePath] = &img
+	} else {
+		var dst image.Image
+		dst = ConvertToGPUFriendlyImage(img)
+		imageCache[filePath] = &dst
+	}
 	return &img, nil
+}
+
+func IsGPUFriendly(img image.Image) bool {
+	switch img.(type) {
+	case *image.Uniform:
+		return true
+	case *image.RGBA:
+		return true
+	}
+	return false
+}
+
+func ConvertToGPUFriendlyImage(src image.Image) *image.RGBA {
+	sz := src.Bounds().Size()
+	// Copy the image into a GPU friendly format.
+	dst := image.NewRGBA(image.Rectangle{
+		Max: sz,
+	})
+	draw.Draw(dst, dst.Bounds(), src, src.Bounds().Min, draw.Src)
+	return dst
 }
 
 func LoadGif(filePath string, reload bool) (*Gif, error) {
