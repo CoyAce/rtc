@@ -86,6 +86,9 @@ func (f *FileWriter) init(req WriteReq) {
 
 func (f *FileWriter) tryComplete(id uint32) {
 	fd := f.files[id]
+	if fd == nil {
+		return
+	}
 	req := fd.req
 	filePath := GetPath(req.UUID, req.Filename)
 	f.flush(fd, filePath)
@@ -94,7 +97,14 @@ func (f *FileWriter) tryComplete(id uint32) {
 		f.fileMessages <- req
 	} else {
 		f.nck(*fd)
+		f.tryCompleteIn3Seconds(id)
 	}
+}
+
+func (f *FileWriter) tryCompleteIn3Seconds(id uint32) {
+	time.AfterFunc(3*time.Second, func() {
+		f.tryComplete(id)
+	})
 }
 
 func (f *FileWriter) flush(fd *file, filePath string) {
