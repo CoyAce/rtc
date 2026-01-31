@@ -1,5 +1,5 @@
 # https://gioui.org/doc/install
-NAME=流言
+NAME=◯
 BIN_DIR=bin
 VERSION=$(shell cat assets/assets.go | grep 'Version =' | sed 's/.*\"\(.*\)\".*/\1/g')
 LDFLAGS='-extldflags "-nostdlib++ -Wl,-Bstatic -lc++ -Wl,-Bdynamic"'
