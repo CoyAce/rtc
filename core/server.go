@@ -15,8 +15,8 @@ type Server struct {
 	Retries  uint8         // the number of times to retry a failed transmission
 	Timeout  time.Duration // the duration to wait for an acknowledgement
 	fileMap  map[uint32]WriteReq
-	signLock sync.Mutex
-	wrqLock  sync.Mutex
+	signLock sync.RWMutex
+	wrqLock  sync.RWMutex
 	audioManager
 }
 
@@ -116,9 +116,9 @@ func (s *Server) remove(sign Sign) {
 }
 
 func (s *Server) handleStreamData(conn net.PacketConn, data Data, pkt []byte, sender net.Addr) {
-	s.signLock.Lock()
+	s.signLock.RLock()
 	senderSign := s.SignMap[sender.String()]
-	s.signLock.Unlock()
+	s.signLock.RUnlock()
 	receivers := s.audioReceiver[s.decodeAudioId(data.FileId)]
 	for _, wrq := range receivers {
 		if wrq.UUID != senderSign.UUID {
@@ -131,15 +131,33 @@ func (s *Server) handleStreamData(conn net.PacketConn, data Data, pkt []byte, se
 	}
 }
 
-func (s *Server) handleFileData(conn net.PacketConn, data Data, pkt []byte, addr net.Addr, n int) {
-	go s.handle(s.findSignByFileId(data.FileId), pkt)
-	s.ack(conn, addr, OpData, data.Block)
-	if n < DatagramSize {
+func (s *Server) handleFileData(conn net.PacketConn, data Data, pkt []byte, sender net.Addr, n int) {
+	isLastPacket := n < DatagramSize
+	sign := s.findSignByFileId(data.FileId)
+	if isLastPacket {
+		go s.handle(sign, pkt)
 		time.AfterFunc(5*time.Minute, func() {
 			s.wrqLock.Lock()
 			delete(s.fileMap, data.FileId)
 			s.wrqLock.Unlock()
 		})
+	} else {
+		go s.directRelay(conn, sign, pkt)
+	}
+	s.ack(conn, sender, OpData, data.Block)
+}
+
+func (s *Server) directRelay(conn net.PacketConn, sign Sign, pkt []byte) {
+	s.signLock.RLock()
+	defer s.signLock.RUnlock()
+	for addrStr, v := range s.SignMap {
+		if v.Sign == sign.Sign && v.UUID != sign.UUID {
+			// use goroutine to avoid blocking by slow connection
+			go func() {
+				udpAddr, _ := net.ResolveUDPAddr("udp", addrStr)
+				_, _ = conn.WriteTo(pkt, udpAddr)
+			}()
+		}
 	}
 }
 
@@ -163,8 +181,8 @@ func (s *Server) init() {
 }
 
 func (s *Server) findSignByUUID(uuid string) Sign {
-	s.signLock.Lock()
-	defer s.signLock.Unlock()
+	s.signLock.RLock()
+	defer s.signLock.RUnlock()
 	for _, sign := range s.SignMap {
 		if sign.UUID == uuid {
 			return sign
@@ -174,8 +192,8 @@ func (s *Server) findSignByUUID(uuid string) Sign {
 }
 
 func (s *Server) findAddrByUUID(uuid string) string {
-	s.signLock.Lock()
-	defer s.signLock.Unlock()
+	s.signLock.RLock()
+	defer s.signLock.RUnlock()
 	for addr, v := range s.SignMap {
 		if v.UUID == uuid {
 			return addr
@@ -185,9 +203,9 @@ func (s *Server) findAddrByUUID(uuid string) string {
 }
 
 func (s *Server) findSignByFileId(fileId uint32) Sign {
-	s.wrqLock.Lock()
+	s.wrqLock.RLock()
 	wrq := s.fileMap[fileId]
-	s.wrqLock.Unlock()
+	s.wrqLock.RUnlock()
 	return s.findSignByUUID(wrq.UUID)
 }
 
@@ -202,8 +220,8 @@ func (s *Server) ack(conn net.PacketConn, clientAddr net.Addr, code OpCode, bloc
 }
 
 func (s *Server) handle(sign Sign, bytes []byte) {
-	s.signLock.Lock()
-	defer s.signLock.Unlock()
+	s.signLock.RLock()
+	defer s.signLock.RUnlock()
 	for addr, v := range s.SignMap {
 		if v.Sign == sign.Sign && v.UUID != sign.UUID {
 			// use goroutine to avoid blocking by slow connection

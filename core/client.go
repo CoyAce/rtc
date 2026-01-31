@@ -97,12 +97,12 @@ func (f *FileWriter) tryComplete(id uint32) {
 		f.fileMessages <- req
 	} else {
 		f.nck(*fd)
-		f.tryCompleteIn3Seconds(id)
+		f.tryCompleteIn1Second(id)
 	}
 }
 
-func (f *FileWriter) tryCompleteIn3Seconds(id uint32) {
-	time.AfterFunc(3*time.Second, func() {
+func (f *FileWriter) tryCompleteIn1Second(id uint32) {
+	time.AfterFunc(1*time.Second, func() {
 		f.tryComplete(id)
 	})
 }
@@ -414,7 +414,12 @@ func (c *Client) sendData(conn net.Conn, readBuf []byte, data Data) error {
 			log.Printf("[%s] marshal failed: %v", "icon", err)
 		}
 		cb.Write(Packet{Block: data.Block, Data: pkt})
-		n, err = c.sendPacket(conn, readBuf, pkt, data.Block)
+		isLastPacket := len(pkt) == DatagramSize
+		if isLastPacket {
+			n, err = c.sendPacket(conn, readBuf, pkt, data.Block)
+		} else {
+			n, err = c.conn.WriteTo(pkt, c.SAddr)
+		}
 		if err != nil {
 			return err
 		}
@@ -597,9 +602,9 @@ func (c *Client) handle(buf []byte, conn net.PacketConn, addr net.Addr) {
 }
 
 func (c *Client) handleFileData(conn net.PacketConn, addr net.Addr, data Data, n int) {
-	c.ack(conn, addr, OpData, data.Block)
 	c.fileWriter.FileData <- data
 	if n < DatagramSize {
+		c.ack(conn, addr, OpData, data.Block)
 		c.fileWriter.FileId <- data.FileId
 		log.Printf("file id: [%d] received", data.FileId)
 	}
