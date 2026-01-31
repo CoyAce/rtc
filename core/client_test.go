@@ -83,6 +83,18 @@ func TestRangeAdd(t *testing.T) {
 	}
 }
 
+func TestCircularBuffer(t *testing.T) {
+	cb := NewCircularBuffer(5)
+	for i := 0; i < 5; i++ {
+		cb.Write(Data{Block: uint32(i + 1)})
+	}
+	ret := cb.Read([]Range{{1, 2}, {4, 4}})
+	expected := []Data{{Block: uint32(1)}, {Block: uint32(2)}, {Block: uint32(4)}}
+	if !reflect.DeepEqual(ret, expected) {
+		t.Errorf("Expected %v, got %v", expected, ret)
+	}
+}
+
 func TestMap(t *testing.T) {
 	var files map[uint32][]Data
 	files = make(map[uint32][]Data)

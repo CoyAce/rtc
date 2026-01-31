@@ -43,6 +43,10 @@ func (r *Range) startWithin(v Range) bool {
 	return r.start > v.start && r.start <= v.end
 }
 
+func (r *Range) Within(v uint32) bool {
+	return v >= r.start && v <= r.end
+}
+
 type RangeTracker struct {
 	latestBlock uint32
 	ranges      []Range
@@ -221,55 +225,159 @@ func writeTo(filePath string, data []Data) {
 	}
 }
 
-type Client struct {
-	UUID           string
-	ConfigName     string `json:"-"`
-	Nickname       string
-	SignedMessages chan SignedMessage `json:"-"`
-	FileMessages   chan WriteReq      `json:"-"`
-	Status         chan struct{}      `json:"-"`
-	Connected      bool               `json:"-"`
-	MessageCounter uint32
-	SyncFunc       func() `json:"-"`
-	Sign           string
-	ServerAddr     string
-	SAddr          net.Addr      `json:"-"`
-	Retries        uint8         // the number of times to retry a failed transmission
-	Timeout        time.Duration // the duration to wait for an acknowledgement
-	fileWriter     *FileWriter
-	files          []WriteReq
-	conn           net.PacketConn
-	audioMetaInfo
+type CircularBuffer struct {
+	data     []Data
+	size     int
+	capacity int
+	head     int
+	tail     int
+	mu       sync.RWMutex
 }
 
-type audioMetaInfo struct {
+func NewCircularBuffer(capacity int) *CircularBuffer {
+	return &CircularBuffer{
+		data:     make([]Data, capacity),
+		capacity: capacity,
+	}
+}
+
+func (cb *CircularBuffer) Write(data Data) {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+
+	cb.writeNext(data)
+
+	if cb.size < cb.capacity {
+		cb.size++
+	} else {
+		cb.readNext()
+	}
+}
+
+func (cb *CircularBuffer) writeNext(data Data) {
+	cb.data[cb.head] = data
+	cb.head = (cb.head + 1) % cb.capacity
+}
+
+func (cb *CircularBuffer) readNext() {
+	cb.tail = (cb.tail + 1) % cb.capacity
+}
+
+func (cb *CircularBuffer) Read(ranges []Range) []Data {
+	ret := make([]Data, 0, len(ranges)*2)
+	for i := 0; i < cb.size; i++ {
+		idx := (cb.tail + i) % cb.capacity
+		for _, r := range ranges {
+			if r.Within(cb.data[idx].Block) {
+				ret = append(ret, cb.data[idx])
+			}
+		}
+	}
+	return ret
+}
+
+func (cb *CircularBuffer) Size() int {
+	cb.mu.RLock()
+	defer cb.mu.RUnlock()
+	return cb.size
+}
+
+func (cb *CircularBuffer) Clear() {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	cb.head = 0
+	cb.tail = 0
+	cb.size = 0
+	cb.data = cb.data[:0]
+}
+
+type Client struct {
+	UUID       string
+	Nickname   string
+	Sign       string
+	Status     chan struct{} `json:"-"` // initialization status
+	SyncFunc   func()        `json:"-"` // e.t. sync icon
+	ServerAddr string
+	persistence
+	messages
+	connManager
+	fileManager
+	audioManager
+}
+
+type persistence struct {
+	ConfigName string `json:"-"`
+}
+
+type messages struct {
+	SignedMessages chan SignedMessage `json:"-"`
+	FileMessages   chan WriteReq      `json:"-"`
+	MessageCounter uint32
+	Retries        uint8         // the number of times to retry a failed transmission
+	Timeout        time.Duration // the duration to wait for an acknowledgement
+}
+
+type connManager struct {
+	SAddr     net.Addr `json:"-"`
+	Connected bool     `json:"-"`
+	conn      net.PacketConn
+}
+
+type fileManager struct {
+	fileWriter *FileWriter
+	fileCache  map[uint32]CircularBuffer
+}
+
+func newFileMetaInfo(nck func(f file), fileMessages chan<- WriteReq) fileManager {
+	return fileManager{
+		fileWriter: &FileWriter{
+			Wrq:          make(chan WriteReq),
+			FileData:     make(chan Data),
+			FileId:       make(chan uint32),
+			fileMessages: fileMessages,
+			files:        make(map[uint32]file),
+			nck:          nck,
+		},
+		fileCache: make(map[uint32]CircularBuffer),
+	}
+}
+
+type audioManager struct {
 	audioMap      map[uint16]WriteReq
 	audioReceiver map[uint16][]WriteReq
 	AudioData     chan Data `json:"-"`
 	lock          sync.Mutex
 }
 
-func (a *audioMetaInfo) addAudioStream(wrq WriteReq) {
+func newAudioMetaInfo() audioManager {
+	return audioManager{
+		audioMap:      make(map[uint16]WriteReq),
+		audioReceiver: make(map[uint16][]WriteReq),
+		AudioData:     make(chan Data, 100),
+	}
+}
+
+func (a *audioManager) addAudioStream(wrq WriteReq) {
 	a.audioMap[GetHigh16(wrq.FileId)] = wrq
 }
 
-func (a *audioMetaInfo) isAudio(fileId uint32) bool {
+func (a *audioManager) isAudio(fileId uint32) bool {
 	audioId := a.decodeAudioId(fileId)
 	return a.decodeAudioId(a.audioMap[audioId].FileId) == audioId
 }
 
-func (a *audioMetaInfo) decodeAudioId(fileId uint32) uint16 {
+func (a *audioManager) decodeAudioId(fileId uint32) uint16 {
 	return GetHigh16(fileId)
 }
 
-func (a *audioMetaInfo) addAudioReceiver(fileId uint16, wrq WriteReq) {
+func (a *audioManager) addAudioReceiver(fileId uint16, wrq WriteReq) {
 	a.audioReceiver[fileId] = slices.DeleteFunc(a.audioReceiver[fileId], func(w WriteReq) bool {
 		return w.UUID == wrq.UUID
 	})
 	a.audioReceiver[fileId] = append(a.audioReceiver[fileId], wrq)
 }
 
-func (a *audioMetaInfo) deleteAudioReceiver(fileId uint16, UUID string) {
+func (a *audioManager) deleteAudioReceiver(fileId uint16, UUID string) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	a.audioReceiver[fileId] = slices.DeleteFunc(a.audioReceiver[fileId], func(w WriteReq) bool {
@@ -277,7 +385,7 @@ func (a *audioMetaInfo) deleteAudioReceiver(fileId uint16, UUID string) {
 	})
 }
 
-func (a *audioMetaInfo) cleanupAudioResource(fileId uint16) bool {
+func (a *audioManager) cleanupAudioResource(fileId uint16) bool {
 	if len(a.audioReceiver[fileId]) == 0 {
 		delete(a.audioReceiver, fileId)
 		delete(a.audioMap, fileId)
@@ -507,20 +615,10 @@ func (c *Client) init() {
 
 	c.SignedMessages = make(chan SignedMessage, 100)
 	c.FileMessages = make(chan WriteReq, 100)
-	c.audioMap = make(map[uint16]WriteReq)
-	c.audioReceiver = make(map[uint16][]WriteReq)
-	c.AudioData = make(chan Data, 100)
+	c.audioManager = newAudioMetaInfo()
+	c.fileManager = newFileMetaInfo(func(f file) {
 
-	c.fileWriter = &FileWriter{
-		Wrq:          make(chan WriteReq),
-		FileData:     make(chan Data),
-		FileId:       make(chan uint32),
-		fileMessages: c.FileMessages,
-		files:        make(map[uint32]file),
-		nck: func(f file) {
-
-		},
-	}
+	}, c.FileMessages)
 }
 
 func (c *Client) SendSign() {
@@ -619,7 +717,6 @@ func (c *Client) handleFileData(conn net.PacketConn, addr net.Addr, data Data, n
 }
 
 func (c *Client) addFile(wrq WriteReq) {
-	c.files = append(c.files, wrq)
 	c.fileWriter.Wrq <- wrq
 }
 

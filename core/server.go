@@ -17,7 +17,7 @@ type Server struct {
 	fileMap  map[uint32]WriteReq
 	signLock sync.Mutex
 	wrqLock  sync.Mutex
-	audioMetaInfo
+	audioManager
 }
 
 func (s *Server) ListenAndServe(addr string) error {
