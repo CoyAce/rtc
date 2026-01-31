@@ -25,12 +25,12 @@ type file struct {
 }
 
 type FileWriter struct {
-	FileId       chan uint32     // finished file id
-	Wrq          chan WriteReq   // file request
-	FileData     chan Data       // file data
-	fileMessages chan<- WriteReq // notify file complete, receiver could refresh icon or update status
-	files        map[uint32]file // internal file info
-	nck          func(f file)    // request lost packet
+	FileId       chan uint32      // finished file id
+	Wrq          chan WriteReq    // file request
+	FileData     chan Data        // file data
+	fileMessages chan<- WriteReq  // notify file complete, receiver could refresh icon or update status
+	files        map[uint32]*file // internal file info
+	nck          func(f file)     // request lost packet
 }
 
 func (f *FileWriter) Loop() {
@@ -56,9 +56,9 @@ func (f *FileWriter) tryWrite(data Data) {
 	fd.data = append(fd.data, data)
 	if f.received100kb(fd) {
 		f.flush(fd, GetPath(req.UUID, req.Filename))
-		f.tryNck(fd)
+		f.tryNck(*fd)
 	}
-	if f.receivedNckRequestedPackets(data, fd) {
+	if f.receivedNckRequestedPackets(data, *fd) {
 		f.flush(fd, GetPath(req.UUID, req.Filename))
 	}
 }
@@ -74,12 +74,12 @@ func (f *FileWriter) receivedNckRequestedPackets(data Data, fd file) bool {
 	return data.Block < fd.rt.nextBlock()
 }
 
-func (f *FileWriter) received100kb(fd file) bool {
+func (f *FileWriter) received100kb(fd *file) bool {
 	return len(fd.data) >= 100*1024/BlockSize
 }
 
 func (f *FileWriter) init(req WriteReq) {
-	f.files[req.FileId] = file{req: req, rt: &RangeTracker{}}
+	f.files[req.FileId] = &file{req: req, rt: &RangeTracker{}}
 	// remove before append
 	RemoveFile(GetPath(req.UUID, req.Filename))
 }
@@ -93,17 +93,18 @@ func (f *FileWriter) tryComplete(id uint32) {
 		f.clean(id)
 		f.fileMessages <- req
 	} else {
-		f.nck(fd)
+		f.nck(*fd)
 	}
 }
 
-func (f *FileWriter) flush(fd file, filePath string) {
+func (f *FileWriter) flush(fd *file, filePath string) {
 	d := fd.data
 	r := Range{}
 	for d != nil {
 		d, r = write(filePath, d)
 		fd.rt.Add(r)
 	}
+	fd.data = fd.data[:0]
 }
 
 func (f *FileWriter) clean(id uint32) {
@@ -111,7 +112,8 @@ func (f *FileWriter) clean(id uint32) {
 }
 
 func (f *FileWriter) isFile(fileId uint32) bool {
-	return f.files[fileId].req.FileId == fileId
+	fd := f.files[fileId]
+	return fd != nil && fd.req.FileId == fileId
 }
 
 func writeTo(filePath string, data []Data) {
@@ -200,7 +202,7 @@ func newFileMetaInfo(nck func(f file), fileMessages chan<- WriteReq) fileManager
 			FileData:     make(chan Data),
 			FileId:       make(chan uint32),
 			fileMessages: fileMessages,
-			files:        make(map[uint32]file),
+			files:        make(map[uint32]*file),
 			nck:          nck,
 		},
 		fileCache: make(map[uint32]*CircularBuffer),
@@ -613,6 +615,7 @@ func (c *Client) nck(f file) {
 	if err != nil {
 		log.Printf("[%s] write failed: %v", c.ServerAddr, err)
 	}
+	log.Printf("request missing packets %v", nck)
 }
 
 func (c *Client) SetNickName(nickname string) {

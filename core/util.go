@@ -132,7 +132,7 @@ func write(filePath string, data []Data) ([]Data, Range) {
 		// return leftover
 		return data[i:], Range{data[0].Block, data[i-1].Block}
 	}
-	return nil, Range{}
+	return nil, Range{data[0].Block, data[len(data)-1].Block}
 }
 
 func getFilePath(configName string) string {

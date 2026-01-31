@@ -93,10 +93,12 @@ func Draw(window *app.Window, c *core.Client) error {
 					message = &view.Message{State: view.Sent, Theme: fonts.DefaultTheme,
 						UUID: core.DefaultClient.FullID(), Type: view.Image, Filename: m.Filename,
 						Sender: m.UUID, CreatedAt: time.Now()}
+					_, _ = view.LoadImage(message.OptimizedFilePath(), true)
 				case core.OpSendGif:
 					message = &view.Message{State: view.Sent, Theme: fonts.DefaultTheme,
 						UUID: core.DefaultClient.FullID(), Type: view.GIF, Filename: m.Filename,
 						Sender: m.UUID, CreatedAt: time.Now()}
+					_, _ = view.LoadGif(message.OptimizedFilePath(), true)
 				case core.OpSendVoice:
 					message = &view.Message{State: view.Sent, Theme: fonts.DefaultTheme,
 						UUID: core.DefaultClient.FullID(), Type: view.Voice, Filename: m.Filename,
