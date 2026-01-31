@@ -100,77 +100,100 @@ func (r *RangeTracker) nextBlock() uint32 {
 	return r.latestBlock + 1
 }
 
+type file struct {
+	req  WriteReq
+	data []Data
+	rt   *RangeTracker
+}
+
 type FileWriter struct {
-	FileId     chan uint32 // finished file id
-	Wrq        chan WriteReq
-	FileData   chan Data
-	OnComplete func(req WriteReq)
-	wrq        map[uint32]WriteReq
-	fileData   map[uint32][]Data
-	rt         map[uint32]RangeTracker
+	FileId       chan uint32     // finished file id
+	Wrq          chan WriteReq   // file request
+	FileData     chan Data       // file data
+	fileMessages chan<- WriteReq // notify file complete, receiver could refresh icon or update status
+	files        map[uint32]file // internal file info
+	nck          func(f file)    // request lost packet
 }
 
 func (f *FileWriter) Loop() {
 	for {
 		select {
-		// last block received, file transfer finished
+		// last block received, complete file transfer
 		case id := <-f.FileId:
-			req := f.wrq[id]
-			filePath := GetPath(req.UUID, req.Filename)
-			tracker := f.rt[id]
-			d := f.fileData[id]
-			r := Range{}
-			for d != nil {
-				d, r = write(filePath, d)
-				tracker.Add(r)
-			}
-			if tracker.isCompleted() {
-				f.clean(id)
-				if f.OnComplete != nil {
-					// for example, reload avatar
-					f.OnComplete(req)
-				}
-				DefaultClient.FileMessages <- req
-			} else {
-				// nck
-			}
-		// transfer start
+			f.tryComplete(id)
 		case req := <-f.Wrq:
-			f.wrq[req.FileId] = req
-			f.rt[req.FileId] = RangeTracker{}
-			// remove before append
-			RemoveFile(GetPath(req.UUID, req.Filename))
+			f.init(req)
 		case data := <-f.FileData:
 			if !f.isFile(data.FileId) {
 				continue
 			}
-			req := f.wrq[data.FileId]
-			f.fileData[data.FileId] = append(f.fileData[data.FileId], data)
-			// received ~100kb
-			if len(f.fileData[data.FileId]) >= 70 {
-				d, r := write(GetPath(req.UUID, req.Filename), f.fileData[data.FileId])
-				tracker := f.rt[data.FileId]
-				tracker.Add(r)
-				if d != nil {
-					// not consecutive, store for later use
-					f.fileData[data.FileId] = d
-				} else {
-					f.fileData[data.FileId] = f.fileData[data.FileId][:0]
-				}
-			}
+			f.tryWrite(data)
 		}
 	}
+}
 
+func (f *FileWriter) tryWrite(data Data) {
+	fd := f.files[data.FileId]
+	req := fd.req
+	fd.data = append(fd.data, data)
+	if f.received100kb(fd) {
+		f.flush(fd, GetPath(req.UUID, req.Filename))
+		f.tryNck(fd)
+	}
+	if f.receivedNckRequestedPackets(data, fd) {
+		f.flush(fd, GetPath(req.UUID, req.Filename))
+	}
+}
+
+func (f *FileWriter) tryNck(fd file) {
+	if fd.rt.isCompleted() {
+		return
+	}
+	f.nck(fd)
+}
+
+func (f *FileWriter) receivedNckRequestedPackets(data Data, fd file) bool {
+	return data.Block < fd.rt.nextBlock()
+}
+
+func (f *FileWriter) received100kb(fd file) bool {
+	return len(fd.data) >= 100*1024/BlockSize
+}
+
+func (f *FileWriter) init(req WriteReq) {
+	f.files[req.FileId] = file{req: req, rt: &RangeTracker{}}
+	// remove before append
+	RemoveFile(GetPath(req.UUID, req.Filename))
+}
+
+func (f *FileWriter) tryComplete(id uint32) {
+	fd := f.files[id]
+	req := fd.req
+	filePath := GetPath(req.UUID, req.Filename)
+	f.flush(fd, filePath)
+	if fd.rt.isCompleted() {
+		f.clean(id)
+		f.fileMessages <- req
+	} else {
+		f.nck(fd)
+	}
+}
+
+func (f *FileWriter) flush(fd file, filePath string) {
+	d := fd.data
+	r := Range{}
+	for d != nil {
+		d, r = write(filePath, d)
+		fd.rt.Add(r)
+	}
 }
 
 func (f *FileWriter) clean(id uint32) {
-	delete(f.wrq, id)
-	delete(f.fileData, id)
-	delete(f.rt, id)
+	delete(f.files, id)
 }
 
 func (f *FileWriter) isFile(fileId uint32) bool {
-	return f.wrq[fileId].FileId == fileId
+	return f.files[fileId].req.FileId == fileId
 }
 
 func writeTo(filePath string, data []Data) {
@@ -267,10 +290,6 @@ func (c *Client) Ready() {
 	if c.Status != nil {
 		<-c.Status
 	}
-}
-
-func (c *Client) HandleFileWith(callback func(req WriteReq)) {
-	c.fileWriter.OnComplete = callback
 }
 
 func (c *Client) SyncIcon(img image.Image) error {
@@ -493,12 +512,14 @@ func (c *Client) init() {
 	c.AudioData = make(chan Data, 100)
 
 	c.fileWriter = &FileWriter{
-		Wrq:      make(chan WriteReq),
-		FileData: make(chan Data),
-		FileId:   make(chan uint32),
-		wrq:      make(map[uint32]WriteReq),
-		fileData: make(map[uint32][]Data),
-		rt:       make(map[uint32]RangeTracker),
+		Wrq:          make(chan WriteReq),
+		FileData:     make(chan Data),
+		FileId:       make(chan uint32),
+		fileMessages: c.FileMessages,
+		files:        make(map[uint32]file),
+		nck: func(f file) {
+
+		},
 	}
 }
 
