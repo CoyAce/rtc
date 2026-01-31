@@ -83,13 +83,30 @@ func TestRangeAdd(t *testing.T) {
 	}
 }
 
+func TestNckMarshalAndUnmarshal(t *testing.T) {
+	ranges := []Range{{1, 1}, {3, 5}, {8, 8}}
+	nck := Nck{FileId: 1, ranges: ranges}
+	pkt, err := nck.Marshal()
+	if err != nil {
+		t.Error(err)
+	}
+	var ret Nck
+	err = ret.Unmarshal(pkt)
+	if err != nil {
+		t.Error(err)
+	}
+	if !reflect.DeepEqual(nck, ret) {
+		t.Errorf("Expected %v, got %v", nck, ret)
+	}
+}
+
 func TestCircularBuffer(t *testing.T) {
 	cb := NewCircularBuffer(5)
 	for i := 0; i < 5; i++ {
-		cb.Write(Data{Block: uint32(i + 1)})
+		cb.Write(Packet{Block: uint32(i + 1)})
 	}
 	ret := cb.Read([]Range{{1, 2}, {4, 4}})
-	expected := []Data{{Block: uint32(1)}, {Block: uint32(2)}, {Block: uint32(4)}}
+	expected := []Packet{{Block: uint32(1)}, {Block: uint32(2)}, {Block: uint32(4)}}
 	if !reflect.DeepEqual(ret, expected) {
 		t.Errorf("Expected %v, got %v", expected, ret)
 	}

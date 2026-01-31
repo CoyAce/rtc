@@ -2,7 +2,6 @@ package core
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"image"
 	"image/gif"
@@ -147,15 +146,11 @@ type Client struct {
 	Status     chan struct{} `json:"-"` // initialization status
 	SyncFunc   func()        `json:"-"` // e.t. sync icon
 	ServerAddr string
-	persistence
+	ConfigName string `json:"-"`
 	messages
 	connManager
 	fileManager
 	audioManager
-}
-
-type persistence struct {
-	ConfigName string `json:"-"`
 }
 
 type messages struct {
@@ -490,9 +485,7 @@ func (c *Client) init() {
 	c.SignedMessages = make(chan SignedMessage, 100)
 	c.FileMessages = make(chan WriteReq, 100)
 	c.audioManager = newAudioMetaInfo()
-	c.fileManager = newFileMetaInfo(func(f file) {
-
-	}, c.FileMessages)
+	c.fileManager = newFileMetaInfo(c.nck, c.FileMessages)
 }
 
 func (c *Client) SendSign() {
@@ -533,6 +526,7 @@ func (c *Client) serve(conn net.PacketConn) {
 func (c *Client) handle(buf []byte, conn net.PacketConn, addr net.Addr) {
 	var (
 		ack  Ack
+		nck  Nck
 		msg  SignedMessage
 		data Data
 		wrq  WriteReq
@@ -578,6 +572,15 @@ func (c *Client) handle(buf []byte, conn net.PacketConn, addr net.Addr) {
 		if c.fileWriter.isFile(data.FileId) {
 			c.handleFileData(conn, addr, data, len(buf))
 		}
+	case nck.Unmarshal(buf) == nil:
+		cb := c.loadCache(nck.FileId)
+		if cb == nil {
+			return
+		}
+		packets := cb.Read(nck.ranges)
+		for _, pkt := range packets {
+			_, _ = c.conn.WriteTo(pkt.Data, c.SAddr)
+		}
 	}
 }
 
@@ -594,13 +597,21 @@ func (c *Client) addFile(wrq WriteReq) {
 	c.fileWriter.Wrq <- wrq
 }
 
-func (c *Client) ack(conn net.PacketConn, clientAddr net.Addr, code OpCode, block uint32) {
+func (c *Client) ack(conn net.PacketConn, addr net.Addr, code OpCode, block uint32) {
 	ack := Ack{SrcOp: code, Block: block}
 	pkt, err := ack.Marshal()
-	_, err = conn.WriteTo(pkt, clientAddr)
+	_, err = conn.WriteTo(pkt, addr)
 	if err != nil {
-		log.Printf("[%s] write failed: %v", clientAddr, err)
-		return
+		log.Printf("[%s] write failed: %v", addr, err)
+	}
+}
+
+func (c *Client) nck(f file) {
+	nck := Nck{FileId: f.req.FileId, ranges: f.rt.GetRanges()}
+	pkt, _ := nck.Marshal()
+	_, err := c.conn.WriteTo(pkt, c.SAddr)
+	if err != nil {
+		log.Printf("[%s] write failed: %v", c.ServerAddr, err)
 	}
 }
 
@@ -655,44 +666,6 @@ RETRY:
 		}
 	}
 	return 0, errors.New("exhausted retries")
-}
-
-func Load(configName string) *Client {
-	filePath := getFilePath(configName)
-	_, err := os.Stat(filePath)
-	if os.IsNotExist(err) {
-		return nil
-	}
-	file, err := os.Open(filePath)
-	if err != nil {
-		log.Printf("[%s] open file failed: %v", filePath, err)
-		return nil
-	}
-	defer file.Close()
-	var c Client
-	decoder := json.NewDecoder(file)
-	err = decoder.Decode(&c)
-	if err != nil {
-		log.Printf("[%s] decode failed: %v", filePath, err)
-		return nil
-	}
-	return &c
-}
-
-func (c *Client) Store() {
-	filePath := getFilePath(c.ConfigName)
-	Mkdir(GetDataDir())
-	file, err := os.Create(filePath)
-	if err != nil {
-		log.Printf("[%s] create file failed: %v", filePath, err)
-	}
-	defer file.Close()
-
-	encoder := json.NewEncoder(file)
-	err = encoder.Encode(&c)
-	if err != nil {
-		log.Printf("[%s] encode file failed: %v", filePath, err)
-	}
 }
 
 var DefaultClient *Client

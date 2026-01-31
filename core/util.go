@@ -2,6 +2,7 @@ package core
 
 import (
 	"bytes"
+	"encoding/json"
 	"image"
 	"image/gif"
 	"image/jpeg"
@@ -237,34 +238,6 @@ func CombineUint32(high, low uint16) uint32 {
 	return uint32(high)<<16 | uint32(low)
 }
 
-type Range struct {
-	start, end uint32
-}
-
-func (r *Range) contains(v Range) bool {
-	return v.start >= r.start && v.end <= r.end
-}
-
-func (r *Range) before(v Range) bool {
-	return r.end < v.start
-}
-
-func (r *Range) after(v Range) bool {
-	return r.start > v.end
-}
-
-func (r *Range) endWithin(v Range) bool {
-	return r.end < v.end && r.end >= v.start
-}
-
-func (r *Range) startWithin(v Range) bool {
-	return r.start > v.start && r.start <= v.end
-}
-
-func (r *Range) Within(v uint32) bool {
-	return v >= r.start && v <= r.end
-}
-
 type RangeTracker struct {
 	latestBlock uint32
 	ranges      []Range
@@ -391,4 +364,42 @@ func (cb *CircularBuffer) Clear() {
 	cb.tail = 0
 	cb.size = 0
 	cb.data = cb.data[:0]
+}
+
+func Load(configName string) *Client {
+	filePath := getFilePath(configName)
+	_, err := os.Stat(filePath)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	file, err := os.Open(filePath)
+	if err != nil {
+		log.Printf("[%s] open file failed: %v", filePath, err)
+		return nil
+	}
+	defer file.Close()
+	var c Client
+	decoder := json.NewDecoder(file)
+	err = decoder.Decode(&c)
+	if err != nil {
+		log.Printf("[%s] decode failed: %v", filePath, err)
+		return nil
+	}
+	return &c
+}
+
+func (c *Client) Store() {
+	filePath := getFilePath(c.ConfigName)
+	Mkdir(GetDataDir())
+	file, err := os.Create(filePath)
+	if err != nil {
+		log.Printf("[%s] create file failed: %v", filePath, err)
+	}
+	defer file.Close()
+
+	encoder := json.NewEncoder(file)
+	err = encoder.Encode(&c)
+	if err != nil {
+		log.Printf("[%s] encode file failed: %v", filePath, err)
+	}
 }

@@ -56,6 +56,7 @@ func (s *Server) relay(conn net.PacketConn, pkt []byte, addr net.Addr, n int) {
 		msg  SignedMessage
 		wrq  WriteReq
 		data = Data{}
+		nck  = Nck{}
 	)
 	switch {
 	case sign.Unmarshal(pkt) == nil:
@@ -93,6 +94,18 @@ func (s *Server) relay(conn net.PacketConn, pkt []byte, addr net.Addr, n int) {
 			return
 		}
 		s.handleFileData(conn, data, pkt, addr, n)
+	case nck.Unmarshal(pkt) == nil:
+		go s.handleNck(conn, pkt, nck)
+	}
+}
+
+func (s *Server) handleNck(conn net.PacketConn, pkt []byte, nck Nck) {
+	sign := s.findSignByFileId(nck.FileId)
+	target := s.findAddrByUUID(sign.UUID)
+	targetAddr, _ := net.ResolveUDPAddr("udp", target)
+	_, err := conn.WriteTo(pkt, targetAddr)
+	if err != nil {
+		log.Printf("send ack to [%s] failed: %v", target, err)
 	}
 }
 
@@ -122,9 +135,11 @@ func (s *Server) handleFileData(conn net.PacketConn, data Data, pkt []byte, addr
 	go s.handle(s.findSignByFileId(data.FileId), pkt)
 	s.ack(conn, addr, OpData, data.Block)
 	if n < DatagramSize {
-		s.wrqLock.Lock()
-		delete(s.fileMap, data.FileId)
-		s.wrqLock.Unlock()
+		time.AfterFunc(5*time.Minute, func() {
+			s.wrqLock.Lock()
+			delete(s.fileMap, data.FileId)
+			s.wrqLock.Unlock()
+		})
 	}
 }
 

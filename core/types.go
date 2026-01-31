@@ -21,6 +21,7 @@ const (
 	OpSign
 	OpSignedMSG
 	OpAck
+	OpNck
 	OpErr
 	OpSyncIcon
 	OpSendImage
@@ -328,7 +329,7 @@ func (a *Ack) Unmarshal(p []byte) error {
 
 	err := binary.Read(r, binary.BigEndian, &code) // read operation code
 	if err != nil {
-		return err
+		return errors.New("invalid DATA")
 	}
 
 	if code != OpAck {
@@ -336,6 +337,9 @@ func (a *Ack) Unmarshal(p []byte) error {
 	}
 
 	err = binary.Read(r, binary.BigEndian, &a.SrcOp) // read source operation code
+	if err != nil {
+		return errors.New("invalid DATA")
+	}
 
 	return binary.Read(r, binary.BigEndian, &a.Block) // read block number
 }
@@ -346,3 +350,122 @@ const (
 	ErrUnknown ErrCode = iota
 	ErrIllegalOp
 )
+
+type Nck struct {
+	FileId uint32
+	ranges []Range
+}
+
+func (n *Nck) Marshal() ([]byte, error) {
+	// operation code + fileId  + ranges count + len(ranges) * 4
+	size := 2 + 4 + 1 + len(n.ranges)*4
+	b := new(bytes.Buffer)
+	b.Grow(size)
+
+	err := binary.Write(b, binary.BigEndian, uint16(OpNck)) // write operation code
+	if err != nil {
+		return nil, err
+	}
+
+	err = binary.Write(b, binary.BigEndian, n.FileId) // write file id
+	if err != nil {
+		return nil, err
+	}
+
+	err = binary.Write(b, binary.BigEndian, byte(len(n.ranges))) // write ranges count
+	if err != nil {
+		return nil, err
+	}
+
+	for _, r := range n.ranges {
+		b.Write(r.Marshal())
+	}
+
+	return b.Bytes(), nil
+}
+
+func (n *Nck) Unmarshal(p []byte) error {
+	var (
+		code OpCode
+		l    byte
+		r    = bytes.NewBuffer(p)
+		rg   = Range{}
+	)
+
+	err := binary.Read(r, binary.BigEndian, &code) // read operation code
+	if err != nil {
+		return err
+	}
+
+	if code != OpNck {
+		return errors.New("invalid DATA")
+	}
+
+	err = binary.Read(r, binary.BigEndian, &n.FileId) // read file id
+	if err != nil {
+		return errors.New("invalid DATA")
+	}
+
+	err = binary.Read(r, binary.BigEndian, &l) // read ranges count
+	if err != nil {
+		return errors.New("invalid DATA")
+	}
+
+	n.ranges = make([]Range, 0, l)
+	for i := 0; i < int(l); i++ {
+		err = rg.Unmarshal(r)
+		if err != nil {
+			return errors.New("invalid DATA")
+		}
+		n.ranges = append(n.ranges, rg)
+	}
+	return nil
+}
+
+type Range struct {
+	start, end uint32
+}
+
+func (r *Range) Marshal() []byte {
+	b := new(bytes.Buffer)
+	b.Grow(8)
+	_ = binary.Write(b, binary.BigEndian, r.start) // write range start
+	_ = binary.Write(b, binary.BigEndian, r.end)   // write range end
+	return b.Bytes()
+}
+
+func (r *Range) Unmarshal(rd io.Reader) error {
+	err := binary.Read(rd, binary.BigEndian, &r.start)
+	if err != nil {
+		return err
+	}
+	err = binary.Read(rd, binary.BigEndian, &r.end)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *Range) contains(v Range) bool {
+	return v.start >= r.start && v.end <= r.end
+}
+
+func (r *Range) before(v Range) bool {
+	return r.end < v.start
+}
+
+func (r *Range) after(v Range) bool {
+	return r.start > v.end
+}
+
+func (r *Range) endWithin(v Range) bool {
+	return r.end < v.end && r.end >= v.start
+}
+
+func (r *Range) startWithin(v Range) bool {
+	return r.start > v.start && r.start <= v.end
+}
+
+func (r *Range) Within(v uint32) bool {
+	return v >= r.start && v <= r.end
+}
