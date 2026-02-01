@@ -4,12 +4,12 @@ import (
 	"log"
 	"path/filepath"
 	"rtc/assets/fonts"
-	"rtc/core"
 	"runtime"
 	"strings"
 	"time"
 
 	"gioui.org/layout"
+	"github.com/CoyAce/whily"
 )
 
 func ChooseAndSendPhoto(gtx layout.Context) {
@@ -37,8 +37,8 @@ func ChooseAndSendPhoto(gtx layout.Context) {
 			}()
 		}
 		message := &Message{State: Stateless, Theme: fonts.DefaultTheme,
-			UUID: core.DefaultClient.FullID(), Type: Image, ExternalFilePath: absolutePath,
-			Sender: core.DefaultClient.FullID(), CreatedAt: time.Now()}
+			UUID: whily.DefaultClient.FullID(), Type: Image, ExternalFilePath: absolutePath,
+			Sender: whily.DefaultClient.FullID(), CreatedAt: time.Now()}
 		isGif := filepath.Ext(filename) == ".gif"
 		if isGif {
 			GifCache[absolutePath] = &Gif{GIF: gifImg}
@@ -46,10 +46,10 @@ func ChooseAndSendPhoto(gtx layout.Context) {
 		}
 		MessageBox <- message
 		if isGif {
-			err = core.DefaultClient.SendGif(gifImg, filename)
+			err = whily.DefaultClient.SendGif(gifImg, filename)
 		} else {
 			imageCache[absolutePath] = &img
-			err = core.DefaultClient.SendImage(img, filename)
+			err = whily.DefaultClient.SendImage(img, filename)
 		}
 		if err != nil {
 			log.Printf("send image failed, %v", err)

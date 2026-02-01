@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 	"rtc/assets/fonts"
-	"rtc/core"
 	"time"
 
 	modal "rtc/ui/layout"
@@ -20,6 +19,7 @@ import (
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"gioui.org/x/component"
+	"github.com/CoyAce/whily"
 )
 
 type SettingsForm struct {
@@ -36,7 +36,7 @@ type SettingsForm struct {
 func NewSettingsForm(onSuccess func(gtx layout.Context)) *SettingsForm {
 	s := &SettingsForm{
 		Theme:            fonts.NewTheme(),
-		avatar:           Avatar{UUID: core.DefaultClient.FullID(), Size: 64, Editable: true, Theme: fonts.DefaultTheme, OnChange: SyncSelectedIcon},
+		avatar:           Avatar{UUID: whily.DefaultClient.FullID(), Size: 64, Editable: true, Theme: fonts.DefaultTheme, OnChange: SyncSelectedIcon},
 		onSuccess:        onSuccess,
 		nicknameEditor:   &component.TextField{Editor: widget.Editor{}},
 		signEditor:       &component.TextField{Editor: widget.Editor{}},
@@ -45,19 +45,19 @@ func NewSettingsForm(onSuccess func(gtx layout.Context)) *SettingsForm {
 	}
 	s.Theme.TextSize = 0.75 * s.Theme.TextSize
 	s.submitButton.OnClick = func(gtx layout.Context) {
-		oldUUID := core.DefaultClient.FullID()
-		nicknameChanged := s.nicknameEditor.Text() != core.DefaultClient.Nickname
+		oldUUID := whily.DefaultClient.FullID()
+		nicknameChanged := s.nicknameEditor.Text() != whily.DefaultClient.Nickname
 		if nicknameChanged {
-			core.DefaultClient.SetNickName(s.nicknameEditor.Text())
-			newUUID := core.DefaultClient.FullID()
+			whily.DefaultClient.SetNickName(s.nicknameEditor.Text())
+			newUUID := whily.DefaultClient.FullID()
 			renameOldPathToNewPath(oldUUID, newUUID)
 			// update cache
 			copyOldCacheEntryToNewCache(oldUUID, newUUID)
 		}
-		core.DefaultClient.SetSign(s.signEditor.Text())
-		core.DefaultClient.SetServerAddr(s.serverAddrEditor.Text())
+		whily.DefaultClient.SetSign(s.signEditor.Text())
+		whily.DefaultClient.SetServerAddr(s.serverAddrEditor.Text())
 		// SendSign first, bind uuid to sign
-		core.DefaultClient.SendSign()
+		whily.DefaultClient.SendSign()
 		if nicknameChanged && s.avatar.AvatarType != Default {
 			// then sync icon
 			if s.avatar.AvatarType == IMG {
@@ -66,7 +66,7 @@ func NewSettingsForm(onSuccess func(gtx layout.Context)) *SettingsForm {
 				SyncSelectedIcon(nil, s.avatar.GIF)
 			}
 		}
-		core.DefaultClient.Store()
+		whily.DefaultClient.Store()
 		s.onSuccess(gtx)
 	}
 	s.modalContent = modal.NewModalContent(fonts.DefaultTheme, func() {
@@ -95,13 +95,13 @@ func renameOldPathToNewPath(oldUUID string, newUUID string) {
 func (s *SettingsForm) Layout(gtx layout.Context) layout.Dimensions {
 	s.processClick(gtx)
 	if len(s.nicknameEditor.Text()) == 0 && !gtx.Focused(&s.nicknameEditor.Editor) {
-		s.nicknameEditor.SetText(core.DefaultClient.Nickname)
+		s.nicknameEditor.SetText(whily.DefaultClient.Nickname)
 	}
 	if len(s.signEditor.Text()) == 0 && !gtx.Focused(&s.signEditor.Editor) {
-		s.signEditor.SetText(core.DefaultClient.Sign)
+		s.signEditor.SetText(whily.DefaultClient.Sign)
 	}
 	if len(s.serverAddrEditor.Text()) == 0 && !gtx.Focused(&s.serverAddrEditor.Editor) {
-		s.serverAddrEditor.SetText(core.DefaultClient.ServerAddr)
+		s.serverAddrEditor.SetText(whily.DefaultClient.ServerAddr)
 	}
 	gtx.Constraints.Min.X = gtx.Constraints.Max.X
 	dimensions := layout.Flex{Spacing: layout.SpaceSides}.Layout(gtx,

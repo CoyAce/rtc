@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"rtc/assets/fonts"
-	"rtc/core"
 	"rtc/internal/audio"
 	"rtc/ui/native"
 	"time"
@@ -21,6 +20,7 @@ import (
 	"gioui.org/unit"
 	"github.com/CoyAce/opus"
 	"github.com/CoyAce/opus/ogg"
+	"github.com/CoyAce/whily"
 	"github.com/gen2brain/malgo"
 )
 
@@ -112,15 +112,15 @@ func (v *VoiceRecorder) encodeAndSendAsync() {
 		message := Message{
 			State: Stateless,
 			Theme: fonts.DefaultTheme,
-			UUID:  core.DefaultClient.FullID(),
+			UUID:  whily.DefaultClient.FullID(),
 			Type:  Voice, Filename: filepath.Base(filePath),
-			Sender:       core.DefaultClient.FullID(),
+			Sender:       whily.DefaultClient.FullID(),
 			CreatedAt:    time.Now(),
 			MediaControl: MediaControl{StreamConfig: v.StreamConfig, Duration: duration},
 		}
 		message.Format = malgo.FormatS16
 		MessageBox <- &message
-		err = core.DefaultClient.SendVoice(filepath.Base(filePath), duration)
+		err = whily.DefaultClient.SendVoice(filepath.Base(filePath), duration)
 		if err != nil {
 			log.Printf("Send voice %s failed, %s", filePath, err)
 		} else {

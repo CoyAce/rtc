@@ -9,7 +9,6 @@ import (
 	"log"
 	"math"
 	"rtc/assets/fonts"
-	"rtc/core"
 	"rtc/internal/audio"
 	"time"
 	"unsafe"
@@ -18,6 +17,7 @@ import (
 	"gioui.org/x/component"
 	"github.com/CoyAce/opus"
 	"github.com/CoyAce/opus/ogg"
+	"github.com/CoyAce/whily"
 )
 
 var audioStackAnimation = component.VisibilityAnimation{
@@ -51,13 +51,13 @@ func (b *BlockId) next() uint32 {
 }
 
 func encodeAudioId() uint32 {
-	return core.CombineUint32(audioId, timestamp)
+	return whily.CombineUint32(audioId, timestamp)
 }
 
 func generateAudioId() uint32 {
-	audioId = uint16(core.Hash(unsafe.Pointer(&struct{}{})))
+	audioId = uint16(whily.Hash(unsafe.Pointer(&struct{}{})))
 	timestamp = uint16(time.Now().Unix())
-	return core.CombineUint32(audioId, timestamp)
+	return whily.CombineUint32(audioId, timestamp)
 }
 
 func NewAudioIconStack(streamConfig audio.StreamConfig) *IconStack {
@@ -84,11 +84,11 @@ func NewAudioIconStack(streamConfig audio.StreamConfig) *IconStack {
 				audioMode = None
 			default:
 			}
-			err := core.DefaultClient.SendText(text + "了语音通话")
+			err := whily.DefaultClient.SendText(text + "了语音通话")
 			if err != nil {
 				log.Printf("audio call failed: %v", err)
 			}
-			err = core.DefaultClient.EndAudioCall(encodeAudioId())
+			err = whily.DefaultClient.EndAudioCall(encodeAudioId())
 			if err != nil {
 				log.Printf("audio call error: %v", err)
 			}
@@ -114,11 +114,11 @@ func acceptAudioCall(streamConfig audio.StreamConfig) func(gtx layout.Context) {
 		timestamp = uint16(time.Now().Unix())
 		encodedAudioId := encodeAudioId()
 		go func() {
-			err := core.DefaultClient.SendText("接受了语音通话")
+			err := whily.DefaultClient.SendText("接受了语音通话")
 			if err != nil {
 				log.Printf("audio call error: %v", err)
 			}
-			err = core.DefaultClient.AcceptAudioCall(encodedAudioId)
+			err = whily.DefaultClient.AcceptAudioCall(encodedAudioId)
 			if err != nil {
 				log.Printf("audio call error: %v", err)
 			}
@@ -127,11 +127,11 @@ func acceptAudioCall(streamConfig audio.StreamConfig) func(gtx layout.Context) {
 	}
 }
 
-func ShowIncomingCall(wrq core.WriteReq) {
+func ShowIncomingCall(wrq whily.WriteReq) {
 	if audioMode == Accept {
 		return
 	}
-	audioId = core.GetHigh16(wrq.FileId)
+	audioId = whily.GetHigh16(wrq.FileId)
 	audioMode = Decline
 	audioAcceptButton.Hidden = false
 	audioMakeButton.Hidden = true
@@ -225,7 +225,7 @@ func PostAudioCallAccept(streamConfig audio.StreamConfig) {
 			if mute {
 				continue
 			}
-			err = core.DefaultClient.SendAudioPacket(fileId, blockId.next(), data[:n])
+			err = whily.DefaultClient.SendAudioPacket(fileId, blockId.next(), data[:n])
 			if err != nil {
 				log.Printf("audio call error: %v", err)
 			}
@@ -241,13 +241,13 @@ func ConsumeAudioData(streamConfig audio.StreamConfig) {
 	if err != nil {
 		log.Printf("create audio decoder failed, %s", err)
 	}
-	for data := range core.DefaultClient.AudioData {
+	for data := range whily.DefaultClient.AudioData {
 		if captureCtx.Err() != nil {
 			continue
 		}
-		identity := core.GetLow16(data.FileId)
+		identity := whily.GetLow16(data.FileId)
 		//log.Printf("fileId:%d, timestamp: %d, block id %d",
-		//	core.GetHigh16(data.FileId), identity, data.Block)
+		//	whily.GetHigh16(data.FileId), identity, data.Block)
 		if players[identity] == nil {
 			pcmChunks := make(chan *bytes.Buffer, 15000) // 50 * 300(s) = 5(min)
 			players[identity] = pcmChunks
@@ -291,12 +291,12 @@ func MakeAudioCall(audioButton *IconButton) func(gtx layout.Context) {
 			audioStackAnimation.Appear(gtx.Now)
 		})
 		go func() {
-			err := core.DefaultClient.SendText("发起了语音通话")
+			err := whily.DefaultClient.SendText("发起了语音通话")
 			if err != nil {
 				log.Printf("audio call error: %v", err)
 			}
 
-			err = core.DefaultClient.MakeAudioCall(generateAudioId())
+			err = whily.DefaultClient.MakeAudioCall(generateAudioId())
 			if err != nil {
 				log.Printf("audio call err: %v", err)
 				audioStackAnimation.Disappear(gtx.Now)

@@ -5,7 +5,6 @@ import (
 	"log"
 	"path/filepath"
 	"rtc/assets/fonts"
-	"rtc/core"
 	"rtc/internal/audio"
 	ui "rtc/ui/layout"
 	"rtc/ui/layout/component"
@@ -19,12 +18,13 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/x/explorer"
+	"github.com/CoyAce/whily"
 	"github.com/gen2brain/malgo"
 )
 
-func Draw(window *app.Window, c *core.Client) error {
+func Draw(window *app.Window, c *whily.Client) error {
 	// save client to global pointer
-	core.DefaultClient = c
+	whily.DefaultClient = c
 	// audio
 	maCtx, err := malgo.InitContext(nil, malgo.ContextConfig{}, func(message string) {
 		log.Print("internal/audio: ", message)
@@ -49,20 +49,20 @@ func Draw(window *app.Window, c *core.Client) error {
 	go view.ConsumeAudioData(streamConfig)
 	// listen for events in the messages channel
 	go func() {
-		handleOp := func(m core.WriteReq) {
+		handleOp := func(m whily.WriteReq) {
 			switch m.Code {
-			case core.OpSyncIcon:
+			case whily.OpSyncIcon:
 				avatar := view.AvatarCache.LoadOrElseNew(m.UUID)
 				if filepath.Ext(m.Filename) == ".gif" {
 					avatar.Reload(view.GIF_IMG)
 				} else {
 					avatar.Reload(view.IMG)
 				}
-			case core.OpAudioCall:
+			case whily.OpAudioCall:
 				view.ShowIncomingCall(m)
-			case core.OpAcceptAudioCall:
+			case whily.OpAcceptAudioCall:
 				go view.PostAudioCallAccept(streamConfig)
-			case core.OpEndAudioCall:
+			case whily.OpEndAudioCall:
 				view.EndIncomingCall(m.FileId == 0)
 			default:
 			}
@@ -82,26 +82,26 @@ func Draw(window *app.Window, c *core.Client) error {
 					State:       view.Sent,
 					TextControl: view.NewTextControl(text),
 					Theme:       fonts.DefaultTheme,
-					UUID:        core.DefaultClient.FullID(), Type: view.Text,
+					UUID:        whily.DefaultClient.FullID(), Type: view.Text,
 					Text:      text,
 					Sender:    m.Sign.UUID,
 					CreatedAt: time.Now(),
 				}
 			case m := <-c.FileMessages:
 				switch m.Code {
-				case core.OpSendImage:
+				case whily.OpSendImage:
 					message = &view.Message{State: view.Sent, Theme: fonts.DefaultTheme,
-						UUID: core.DefaultClient.FullID(), Type: view.Image, Filename: m.Filename,
+						UUID: whily.DefaultClient.FullID(), Type: view.Image, Filename: m.Filename,
 						Sender: m.UUID, CreatedAt: time.Now()}
 					_, _ = view.LoadImage(message.OptimizedFilePath(), true)
-				case core.OpSendGif:
+				case whily.OpSendGif:
 					message = &view.Message{State: view.Sent, Theme: fonts.DefaultTheme,
-						UUID: core.DefaultClient.FullID(), Type: view.GIF, Filename: m.Filename,
+						UUID: whily.DefaultClient.FullID(), Type: view.GIF, Filename: m.Filename,
 						Sender: m.UUID, CreatedAt: time.Now()}
 					_, _ = view.LoadGif(message.OptimizedFilePath(), true)
-				case core.OpSendVoice:
+				case whily.OpSendVoice:
 					message = &view.Message{State: view.Sent, Theme: fonts.DefaultTheme,
-						UUID: core.DefaultClient.FullID(), Type: view.Voice, Filename: m.Filename,
+						UUID: whily.DefaultClient.FullID(), Type: view.Voice, Filename: m.Filename,
 						Sender: m.UUID, CreatedAt: time.Now(),
 						MediaControl: view.MediaControl{StreamConfig: streamConfig, Duration: m.Duration}}
 				default:
@@ -116,7 +116,7 @@ func Draw(window *app.Window, c *core.Client) error {
 		}
 	}()
 	// handle sync operation
-	core.DefaultClient.SyncFunc = view.SyncCachedIcon
+	whily.DefaultClient.SyncFunc = view.SyncCachedIcon
 	inputField := component.TextField{Editor: ui.Editor{Submit: true}}
 	messageEditor := view.MessageEditor{InputField: &inputField, Theme: fonts.DefaultTheme}
 	iconStack := view.NewIconStack()
@@ -138,7 +138,7 @@ func Draw(window *app.Window, c *core.Client) error {
 			return e.Err
 		case app.ConfigEvent:
 			if e.Config.Focused == false {
-				core.DefaultClient.Store()
+				whily.DefaultClient.Store()
 				messageKeeper.Append()
 			}
 		// this is sent when the application should re-render.
@@ -154,12 +154,12 @@ func Draw(window *app.Window, c *core.Client) error {
 					message := view.Message{State: view.Stateless,
 						TextControl: view.NewTextControl(msg),
 						Theme:       fonts.DefaultTheme,
-						UUID:        core.DefaultClient.FullID(), Type: view.Text,
+						UUID:        whily.DefaultClient.FullID(), Type: view.Text,
 						Text:      msg,
-						Sender:    core.DefaultClient.FullID(),
+						Sender:    whily.DefaultClient.FullID(),
 						CreatedAt: time.Now()}
 					view.MessageBox <- &message
-					if core.DefaultClient.Connected && core.DefaultClient.SendText(msg) == nil {
+					if whily.DefaultClient.Connected && whily.DefaultClient.SendText(msg) == nil {
 						message.State = view.Sent
 					} else {
 						message.State = view.Failed

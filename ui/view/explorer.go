@@ -10,10 +10,11 @@ import (
 	"os"
 	"path/filepath"
 	"rtc/assets"
-	"rtc/core"
 	"rtc/ui/native"
 	"runtime"
 	"strings"
+
+	"github.com/CoyAce/whily"
 
 	"gioui.org/app"
 	"gioui.org/io/event"
@@ -174,7 +175,7 @@ func GetPath(uuid string, filename string) string {
 }
 
 func GetDataPath(filename string) string {
-	return GetPath(core.DefaultClient.FullID(), filename)
+	return GetPath(whily.DefaultClient.FullID(), filename)
 }
 
 func GetFilePath(filename string) string {
@@ -190,13 +191,13 @@ func SaveImg(img image.Image, filename string, rewrite bool) {
 	if err == nil && !rewrite {
 		return
 	}
-	core.Mkdir(filepath.Dir(filePath))
+	whily.Mkdir(filepath.Dir(filePath))
 	file, err := os.Create(filePath)
 	defer file.Close()
 	if err != nil {
 		log.Printf("create file failed, %v", err)
 	}
-	err = core.EncodeImg(file, filePath, img)
+	err = whily.EncodeImg(file, filePath, img)
 	if err != nil {
 		log.Printf("encode file failed, %v", err)
 	} else {
@@ -210,11 +211,11 @@ func SaveGif(gifImg *gif.GIF, filename string, rewrite bool) {
 	if err == nil && !rewrite {
 		return
 	}
-	core.Mkdir(filepath.Dir(filePath))
+	whily.Mkdir(filepath.Dir(filePath))
 	file, err := os.Create(filePath)
 	defer file.Close()
 	if err != nil {
 		log.Printf("create file failed, %v", err)
 	}
-	core.EncodeGif(file, filename, gifImg)
+	whily.EncodeGif(file, filename, gifImg)
 }

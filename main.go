@@ -7,11 +7,12 @@ import (
 	"log"
 	"math/rand"
 	"os"
-	"rtc/core"
 	"rtc/internal/audio"
 	"rtc/ui"
 	"rtc/ui/view"
 	"strconv"
+
+	"github.com/CoyAce/whily"
 
 	"gioui.org/app"
 	_ "gioui.org/app/permission/microphone"
@@ -22,7 +23,6 @@ import (
 var (
 	address          = flag.String("a", "0.0.0.0:52000", "listen address")
 	config           = flag.String("c", "config.json", "config file")
-	serverMode       = flag.Bool("s", false, "server mode")
 	commandLineMode  = flag.Bool("i", false, "server mode")
 	testAudioLatency = flag.Bool("t", false, "test audio latency")
 )
@@ -33,12 +33,6 @@ func main() {
 		audio.TestAudioLatency()
 	}
 	fmt.Println("address:", *address)
-	if *serverMode {
-		fmt.Println("server mode")
-		s := core.Server{}
-		log.Fatal(s.ListenAndServe(*address))
-		return
-	}
 
 	// set uuid
 	uuid := "#" + strconv.Itoa(rand.Intn(90000)+10000)
@@ -51,7 +45,7 @@ func main() {
 		fmt.Scanln(&sign)
 
 		// setup client
-		c := core.Client{ConfigName: *config, DataDir: view.GetDataDir(), ServerAddr: *address, Status: make(chan struct{}), UUID: uuid, Sign: sign}
+		c := whily.Client{ConfigName: *config, DataDir: view.GetDataDir(), ServerAddr: *address, Status: make(chan struct{}), UUID: uuid, Sign: sign}
 		go func() {
 			c.ListenAndServe("0.0.0.0:")
 		}()
@@ -68,11 +62,12 @@ func main() {
 	}
 
 	// setup client
-	c := core.Load(view.GetFilePath(*config))
+	c := whily.Load(view.GetFilePath(*config))
 	if c == nil {
-		c = &core.Client{ConfigName: *config, DataDir: view.GetDataDir(), ServerAddr: *address, Status: make(chan struct{}), UUID: uuid, Sign: "default"}
+		c = &whily.Client{ConfigName: *config, DataDir: view.GetDataDir(), ServerAddr: *address, Status: make(chan struct{}), UUID: uuid, Sign: "default"}
 	} else {
 		c.Status = make(chan struct{})
+		c.DataDir = view.GetDataDir()
 		c.ConfigName = *config
 	}
 	c.Store()
