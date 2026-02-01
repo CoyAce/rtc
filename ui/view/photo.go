@@ -41,14 +41,14 @@ func ChooseAndSendPhoto(gtx layout.Context) {
 			Sender: whily.DefaultClient.FullID(), CreatedAt: time.Now()}
 		isGif := filepath.Ext(filename) == ".gif"
 		if isGif {
-			GifCache[absolutePath] = &Gif{GIF: gifImg}
+			*GCache.Load(absolutePath) = Gif{GIF: gifImg}
 			message.Type = GIF
 		}
 		MessageBox <- message
 		if isGif {
 			err = whily.DefaultClient.SendGif(gifImg, filename)
 		} else {
-			*ImgCache.Load(absolutePath) = img
+			*ICache.Load(absolutePath) = img
 			err = whily.DefaultClient.SendImage(img, filename)
 		}
 		if err != nil {

@@ -79,7 +79,9 @@ func (g *Gif) extractFrame() *image.RGBA {
 		g.prevFrame = canvas
 	case gif.DisposalPrevious:
 		// 恢复到前一帧的状态
+		// 与DisposalNone的区别是不更新prevFrame
 		draw.Draw(canvas, g.prevFrame.Bounds(), g.prevFrame, image.Point{}, draw.Over)
+		draw.Draw(canvas, frame.Bounds(), frame, frame.Bounds().Min, draw.Over)
 	}
 	return canvas
 }

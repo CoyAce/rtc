@@ -81,11 +81,11 @@ func decodeImage(file io.ReadCloser) (image.Image, error) {
 }
 
 func LoadImage(filePath string, reload bool) (*image.Image, error) {
-	img := ImgCache.Load(filePath)
+	img := ICache.Load(filePath)
 	if img != nil && !reload {
 		return img, nil
 	}
-	return ImgCache.Reload(filePath), nil
+	return ICache.Reload(filePath), nil
 }
 
 func IsGPUFriendly(img image.Image) bool {
@@ -109,27 +109,113 @@ func ConvertToGPUFriendlyImage(src image.Image) *image.RGBA {
 }
 
 func LoadGif(filePath string, reload bool) (*Gif, error) {
-	if GifCache[filePath] != nil && !reload {
-		return GifCache[filePath], nil
+	GIF := GCache.Load(filePath)
+	if GIF != nil && !reload {
+		return GIF, nil
 	}
-	file, err := os.Open(filePath)
+	return GCache.Reload(filePath), nil
+}
+
+type GifEntry struct {
+	path string
+	gif  *Gif
+	hit  int
+}
+
+type GifCache struct {
+	data          []GifEntry
+	capacity      int
+	ratio         int
+	youngCapacity int
+	youngHead     int
+}
+
+func (g *GifCache) Load(path string) *Gif {
+	for i, entry := range g.data {
+		if entry.path == path {
+			g.data[i].hit++
+			if g.data[i].hit >= 15 {
+				g.promote(i)
+			}
+			return entry.gif
+		}
+	}
+	return g.add(path)
+}
+
+func (g *GifCache) Reload(path string) *Gif {
+	for i, entry := range g.data {
+		if entry.path == path {
+			gifImg, err := g.load(path)
+			if err != nil {
+				return g.data[i].gif
+			}
+			g.data[i].gif = gifImg
+			return gifImg
+		}
+	}
+	return g.Load(path)
+}
+
+func (g *GifCache) promote(i int) {
+	idx := rand.Intn(g.capacity-g.youngCapacity) + g.youngCapacity
+	temp := g.data[idx]
+	temp.hit = 0
+	g.data[idx] = g.data[i]
+	g.data[i] = temp
+}
+
+func (g *GifCache) addYoung(e GifEntry) *Gif {
+	g.data[g.youngHead] = e
+	g.youngHead = (g.youngHead + 1) % g.youngCapacity
+	return e.gif
+}
+
+func (g *GifCache) addDefault(path string) *Gif {
+	gifImg := &EmptyGif
+	e := GifEntry{path: path, gif: gifImg}
+	g.addYoung(e)
+	return gifImg
+}
+
+func (g *GifCache) add(path string) *Gif {
+	gifImg, err := g.load(path)
 	if err != nil {
-		GifCache[filePath] = &EmptyGif
-		log.Printf("open %v error: %v", filePath, err)
+		return g.addDefault(path)
+	}
+	e := GifEntry{path: path, gif: gifImg}
+	return g.addYoung(e)
+}
+
+func (g *GifCache) load(path string) (*Gif, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		log.Printf("open %v error: %v", path, err)
 		return nil, err
 	}
 	defer file.Close()
 
-	GIF, err := gif.DecodeAll(file)
+	gifImg, err := gif.DecodeAll(file)
 	if err != nil {
-		GifCache[filePath] = &EmptyGif
 		log.Printf("failed to decode gif: %v", err)
 		return nil, err
 	}
-
-	ret := &Gif{GIF: GIF}
-	GifCache[filePath] = ret
+	ret := &Gif{GIF: gifImg}
 	return ret, nil
+}
+
+func (g *GifCache) Reset() {
+	g.data = make([]GifEntry, g.capacity)
+	g.youngHead = 0
+}
+
+func NewGifCache(capacity int, ratio int) *GifCache {
+	return &GifCache{
+		capacity:      capacity,
+		data:          make([]GifEntry, capacity),
+		ratio:         ratio,
+		youngCapacity: int(float32(capacity) * float32(ratio) / float32(ratio+1)),
+	}
 }
 
 type ImageEntry struct {
@@ -236,8 +322,8 @@ func NewImageCache(capacity int, ratio int) *ImageCache {
 	}
 }
 
-var ImgCache = NewImageCache(6, 2)
-var GifCache = map[string]*Gif{}
+var ICache = NewImageCache(6, 2)
+var GCache = NewGifCache(6, 2)
 var EmptyGif Gif
 
 func GetDataDir() string {
