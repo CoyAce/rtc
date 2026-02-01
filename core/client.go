@@ -25,9 +25,10 @@ type file struct {
 }
 
 type FileWriter struct {
-	FileId       chan uint32      // finished file id
-	Wrq          chan WriteReq    // file request
-	FileData     chan Data        // file data
+	FileId       chan uint32   // finished file id
+	Wrq          chan WriteReq // file request
+	FileData     chan Data     // file data
+	dataDir      string
 	fileMessages chan<- WriteReq  // notify file complete, receiver could refresh icon or update status
 	files        map[uint32]*file // internal file info
 	nck          func(f file)     // request lost packet
@@ -55,11 +56,11 @@ func (f *FileWriter) tryWrite(data Data) {
 	req := fd.req
 	fd.data = append(fd.data, data)
 	if f.received100kb(fd) {
-		f.flush(fd, GetPath(req.UUID, req.Filename))
+		f.flush(fd, f.getPath(req.UUID, req.Filename))
 		f.tryNck(*fd)
 	}
 	if f.receivedNckRequestedPackets(data, *fd) {
-		f.flush(fd, GetPath(req.UUID, req.Filename))
+		f.flush(fd, f.getPath(req.UUID, req.Filename))
 	}
 }
 
@@ -81,7 +82,18 @@ func (f *FileWriter) received100kb(fd *file) bool {
 func (f *FileWriter) init(req WriteReq) {
 	f.files[req.FileId] = &file{req: req, rt: &RangeTracker{}}
 	// remove before append
-	RemoveFile(GetPath(req.UUID, req.Filename))
+	RemoveFile(f.getPath(req.UUID, req.Filename))
+}
+
+func (f *FileWriter) getDir(uuid string) string {
+	if uuid == "" {
+		return f.dataDir + "/default"
+	}
+	return f.dataDir + "/" + strings.Replace(uuid, "#", "_", -1)
+}
+
+func (f *FileWriter) getPath(uuid string, filename string) string {
+	return f.getDir(uuid) + "/" + filename
 }
 
 func (f *FileWriter) tryComplete(id uint32) {
@@ -90,7 +102,7 @@ func (f *FileWriter) tryComplete(id uint32) {
 		return
 	}
 	req := fd.req
-	filePath := GetPath(req.UUID, req.Filename)
+	filePath := f.getPath(req.UUID, req.Filename)
 	f.flush(fd, filePath)
 	if fd.rt.isCompleted() {
 		f.clean(id)
@@ -158,6 +170,7 @@ type Client struct {
 	Status     chan struct{} `json:"-"` // initialization status
 	SyncFunc   func()        `json:"-"` // e.t. sync icon
 	ServerAddr string
+	DataDir    string
 	ConfigName string `json:"-"`
 	messages
 	connManager
@@ -180,9 +193,9 @@ type connManager struct {
 }
 
 type fileManager struct {
-	fileWriter *FileWriter
-	fileCache  map[uint32]*CircularBuffer
-	lock       sync.Mutex
+	*FileWriter
+	fileCache map[uint32]*CircularBuffer
+	lock      sync.Mutex
 }
 
 func (f *fileManager) cleanCacheIn5Min(id uint32) *time.Timer {
@@ -205,12 +218,13 @@ func (f *fileManager) loadCache(id uint32) *CircularBuffer {
 	return f.fileCache[id]
 }
 
-func newFileMetaInfo(nck func(f file), fileMessages chan<- WriteReq) fileManager {
+func newFileMetaInfo(dataDir string, nck func(f file), fileMessages chan<- WriteReq) fileManager {
 	return fileManager{
-		fileWriter: &FileWriter{
+		FileWriter: &FileWriter{
 			Wrq:          make(chan WriteReq),
 			FileData:     make(chan Data),
 			FileId:       make(chan uint32),
+			dataDir:      dataDir,
 			fileMessages: fileMessages,
 			files:        make(map[uint32]*file),
 			nck:          nck,
@@ -316,7 +330,7 @@ func (c *Client) sendGif(GIF *gif.GIF, code OpCode, filename string) error {
 }
 
 func (c *Client) SendVoice(filename string, duration uint64) error {
-	r, err := os.Open(GetDataPath(filename))
+	r, err := os.Open(c.getPath(c.FullID(), filename))
 	if err != nil {
 		return err
 	}
@@ -462,7 +476,7 @@ func (c *Client) ListenAndServe(addr string) {
 	// init
 	c.init()
 
-	go c.fileWriter.Loop()
+	go c.Loop()
 
 	if c.Status != nil {
 		close(c.Status)
@@ -497,12 +511,11 @@ func (c *Client) init() {
 		c.Timeout = 6 * time.Second
 	}
 
-	Mkdir(GetDir(c.FullID()))
-
 	c.SignedMessages = make(chan SignedMessage, 100)
 	c.FileMessages = make(chan WriteReq, 100)
 	c.audioManager = newAudioMetaInfo()
-	c.fileManager = newFileMetaInfo(c.nck, c.FileMessages)
+	c.fileManager = newFileMetaInfo(c.DataDir, c.nck, c.FileMessages)
+	Mkdir(c.getDir(c.FullID()))
 }
 
 func (c *Client) SendSign() {
@@ -586,7 +599,7 @@ func (c *Client) handle(buf []byte, conn net.PacketConn, addr net.Addr) {
 			c.AudioData <- data
 			return
 		}
-		if c.fileWriter.isFile(data.FileId) {
+		if c.isFile(data.FileId) {
 			c.handleFileData(conn, addr, data, len(buf))
 		}
 	case nck.Unmarshal(buf) == nil:
@@ -602,16 +615,16 @@ func (c *Client) handle(buf []byte, conn net.PacketConn, addr net.Addr) {
 }
 
 func (c *Client) handleFileData(conn net.PacketConn, addr net.Addr, data Data, n int) {
-	c.fileWriter.FileData <- data
+	c.FileData <- data
 	if n < DatagramSize {
 		c.ack(conn, addr, OpData, data.Block)
-		c.fileWriter.FileId <- data.FileId
+		c.FileId <- data.FileId
 		log.Printf("file id: [%d] received", data.FileId)
 	}
 }
 
 func (c *Client) addFile(wrq WriteReq) {
-	c.fileWriter.Wrq <- wrq
+	c.Wrq <- wrq
 }
 
 func (c *Client) ack(conn net.PacketConn, addr net.Addr, code OpCode, block uint32) {

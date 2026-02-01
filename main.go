@@ -10,6 +10,7 @@ import (
 	"rtc/core"
 	"rtc/internal/audio"
 	"rtc/ui"
+	"rtc/ui/view"
 	"strconv"
 
 	"gioui.org/app"
@@ -50,7 +51,7 @@ func main() {
 		fmt.Scanln(&sign)
 
 		// setup client
-		c := core.Client{ConfigName: *config, ServerAddr: *address, Status: make(chan struct{}), UUID: uuid, Sign: sign}
+		c := core.Client{ConfigName: *config, DataDir: view.GetDataDir(), ServerAddr: *address, Status: make(chan struct{}), UUID: uuid, Sign: sign}
 		go func() {
 			c.ListenAndServe("0.0.0.0:")
 		}()
@@ -67,9 +68,9 @@ func main() {
 	}
 
 	// setup client
-	c := core.Load(*config)
+	c := core.Load(view.GetFilePath(*config))
 	if c == nil {
-		c = &core.Client{ConfigName: *config, ServerAddr: *address, Status: make(chan struct{}), UUID: uuid, Sign: "default"}
+		c = &core.Client{ConfigName: *config, DataDir: view.GetDataDir(), ServerAddr: *address, Status: make(chan struct{}), UUID: uuid, Sign: "default"}
 	} else {
 		c.Status = make(chan struct{})
 		c.ConfigName = *config

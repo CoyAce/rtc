@@ -6,7 +6,6 @@ import (
 	"log"
 	"os"
 	"rtc/assets/fonts"
-	"rtc/core"
 	"rtc/internal/audio"
 	app "rtc/ui/layout"
 	"sync"
@@ -91,7 +90,7 @@ func (k *MessageKeeper) Loop() {
 }
 
 func (k *MessageKeeper) Append() {
-	filePath := core.GetDataPath("message.log")
+	filePath := GetDataPath("message.log")
 	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Printf("Couldn't open file: %v", err)
@@ -118,7 +117,7 @@ func (k *MessageKeeper) writeJson(file *os.File, msg *Message) {
 }
 
 func (k *MessageKeeper) Messages() []*Message {
-	filePath := core.GetDataPath("message.log")
+	filePath := GetDataPath("message.log")
 	f, err := os.Open(filePath)
 	if err != nil {
 		log.Printf("Couldn't open file: %v", err)

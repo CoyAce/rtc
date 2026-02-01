@@ -84,8 +84,8 @@ func copyOldCacheEntryToNewCache(oldUUID string, newUUID string) {
 }
 
 func renameOldPathToNewPath(oldUUID string, newUUID string) {
-	oldPath := core.GetDir(oldUUID)
-	newPath := core.GetDir(newUUID)
+	oldPath := GetDir(oldUUID)
+	newPath := GetDir(newUUID)
 	err := os.Rename(oldPath, newPath)
 	if err != nil {
 		log.Printf("Failed to rename: %v", err)

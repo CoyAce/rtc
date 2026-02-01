@@ -10,9 +10,12 @@ import (
 	"os"
 	"path/filepath"
 	"rtc/assets"
+	"rtc/core"
 	"rtc/ui/native"
 	"runtime"
+	"strings"
 
+	"gioui.org/app"
 	"gioui.org/io/event"
 	"golang.org/x/image/webp"
 )
@@ -150,3 +153,68 @@ func LoadGif(filePath string, reload bool) (*Gif, error) {
 var imageCache = map[string]*image.Image{}
 var GifCache = map[string]*Gif{}
 var EmptyGif Gif
+
+func GetDataDir() string {
+	dir, _ := app.DataDir()
+	if runtime.GOOS == "android" {
+		return dir
+	}
+	return dir + "/coyace.rtc/"
+}
+
+func GetDir(uuid string) string {
+	if uuid == "" {
+		return GetDataDir() + "/default"
+	}
+	return GetDataDir() + "/" + strings.Replace(uuid, "#", "_", -1)
+}
+
+func GetPath(uuid string, filename string) string {
+	return GetDir(uuid) + "/" + filename
+}
+
+func GetDataPath(filename string) string {
+	return GetPath(core.DefaultClient.FullID(), filename)
+}
+
+func GetFilePath(filename string) string {
+	return GetDataDir() + filename
+}
+
+func SaveImg(img image.Image, filename string, rewrite bool) {
+	if filepath.Ext(filename) == ".webp" {
+		filename = strings.TrimSuffix(filepath.Base(filename), ".webp") + ".png"
+	}
+	filePath := GetDataPath(filename)
+	_, err := os.Stat(filePath)
+	if err == nil && !rewrite {
+		return
+	}
+	core.Mkdir(filepath.Dir(filePath))
+	file, err := os.Create(filePath)
+	defer file.Close()
+	if err != nil {
+		log.Printf("create file failed, %v", err)
+	}
+	err = core.EncodeImg(file, filePath, img)
+	if err != nil {
+		log.Printf("encode file failed, %v", err)
+	} else {
+		log.Printf("%s saved to %s", filename, filePath)
+	}
+}
+
+func SaveGif(gifImg *gif.GIF, filename string, rewrite bool) {
+	filePath := GetDataPath(filename)
+	_, err := os.Stat(filePath)
+	if err == nil && !rewrite {
+		return
+	}
+	core.Mkdir(filepath.Dir(filePath))
+	file, err := os.Create(filePath)
+	defer file.Close()
+	if err != nil {
+		log.Printf("create file failed, %v", err)
+	}
+	core.EncodeGif(file, filename, gifImg)
+}

@@ -13,7 +13,6 @@ import (
 	"os"
 	"path/filepath"
 	"rtc/assets"
-	"rtc/core"
 	"rtc/internal/audio"
 	app "rtc/ui/layout"
 	mt "rtc/ui/layout/material"
@@ -454,9 +453,9 @@ func (m *Message) TextSelected() bool {
 
 func (m *Message) FilePath() string {
 	if !m.isMe() {
-		return core.GetPath(m.Sender, m.Filename)
+		return GetPath(m.Sender, m.Filename)
 	}
-	return core.GetPath(m.UUID, m.Filename)
+	return GetPath(m.UUID, m.Filename)
 }
 
 func (m *Message) OptimizedFilePath() string {

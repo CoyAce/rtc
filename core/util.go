@@ -11,29 +11,11 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
 	"sync"
 	"unsafe"
-
-	"gioui.org/app"
 )
-
-func GetDir(uuid string) string {
-	if uuid == "" {
-		return GetDataDir() + "/default"
-	}
-	return GetDataDir() + "/" + strings.Replace(uuid, "#", "_", -1)
-}
-
-func GetPath(uuid string, filename string) string {
-	return GetDir(uuid) + "/" + filename
-}
-
-func GetDataPath(filename string) string {
-	return GetPath(DefaultClient.FullID(), filename)
-}
 
 func RemoveFile(filePath string) {
 	// 使用os.Stat检查文件是否存在
@@ -133,57 +115,6 @@ func write(filePath string, data []Data) ([]Data, Range) {
 		return data[i:], Range{data[0].Block, data[i-1].Block}
 	}
 	return nil, Range{data[0].Block, data[len(data)-1].Block}
-}
-
-func getFilePath(configName string) string {
-	filePath := GetDataDir() + configName
-	return filePath
-}
-
-func GetDataDir() string {
-	dir, _ := app.DataDir()
-	if runtime.GOOS == "android" {
-		return dir
-	}
-	return dir + "/coyace.rtc/"
-}
-
-func SaveImg(img image.Image, filename string, rewrite bool) {
-	if filepath.Ext(filename) == ".webp" {
-		filename = strings.TrimSuffix(filepath.Base(filename), ".webp") + ".png"
-	}
-	filePath := GetDataPath(filename)
-	_, err := os.Stat(filePath)
-	if err == nil && !rewrite {
-		return
-	}
-	Mkdir(filepath.Dir(filePath))
-	file, err := os.Create(filePath)
-	defer file.Close()
-	if err != nil {
-		log.Printf("create file failed, %v", err)
-	}
-	err = EncodeImg(file, filePath, img)
-	if err != nil {
-		log.Printf("encode file failed, %v", err)
-	} else {
-		log.Printf("%s saved to %s", filename, filePath)
-	}
-}
-
-func SaveGif(gifImg *gif.GIF, filename string, rewrite bool) {
-	filePath := GetDataPath(filename)
-	_, err := os.Stat(filePath)
-	if err == nil && !rewrite {
-		return
-	}
-	Mkdir(filepath.Dir(filePath))
-	file, err := os.Create(filePath)
-	defer file.Close()
-	if err != nil {
-		log.Printf("create file failed, %v", err)
-	}
-	EncodeGif(file, filename, gifImg)
 }
 
 func EncodeGif(w io.Writer, filename string, gifImg *gif.GIF) {
@@ -366,8 +297,7 @@ func (cb *CircularBuffer) Clear() {
 	cb.data = cb.data[:0]
 }
 
-func Load(configName string) *Client {
-	filePath := getFilePath(configName)
+func Load(filePath string) *Client {
 	_, err := os.Stat(filePath)
 	if os.IsNotExist(err) {
 		return nil
@@ -389,8 +319,9 @@ func Load(configName string) *Client {
 }
 
 func (c *Client) Store() {
-	filePath := getFilePath(c.ConfigName)
-	Mkdir(GetDataDir())
+	dir := c.getDir(c.FullID())
+	Mkdir(dir)
+	filePath := dir + c.ConfigName
 	file, err := os.Create(filePath)
 	if err != nil {
 		log.Printf("[%s] create file failed: %v", filePath, err)
