@@ -3,7 +3,6 @@ package view
 import (
 	"image"
 	"image/gif"
-	"log"
 	"rtc/assets"
 
 	"gioui.org/layout"
@@ -136,10 +135,7 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 func (v *Avatar) Reload(avatarType AvatarType) {
 	if avatarType == GIF_IMG || avatarType == Default {
 		gifPath := GetPath(v.UUID, "icon.gif")
-		gifImg, err := LoadGif(gifPath, true)
-		if err != nil {
-			log.Println("failed to load GIF:", err)
-		}
+		gifImg := LoadGif(gifPath, true)
 		if gifImg != nil && gifImg != &EmptyGif {
 			v.Gif = gifImg
 			v.AvatarType = GIF_IMG
@@ -149,14 +145,11 @@ func (v *Avatar) Reload(avatarType AvatarType) {
 	}
 
 	imgPath := GetPath(v.UUID, "icon.png")
-	img, err := LoadImage(imgPath, true)
-	if err != nil {
-		log.Printf("failed to decode icon: %v", err)
-	}
+	img := LoadImage(imgPath, true)
 	if v.Image == nil {
 		v.Image = assets.AppIconImage
 	}
-	if img != nil {
+	if img != nil && *img != nil {
 		v.Image = *img
 		v.AvatarType = IMG
 		whily.RemoveFile(GetPath(v.UUID, "icon.gif"))

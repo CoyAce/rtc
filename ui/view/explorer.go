@@ -80,12 +80,12 @@ func decodeImage(file io.ReadCloser) (image.Image, error) {
 	return img, err
 }
 
-func LoadImage(filePath string, reload bool) (*image.Image, error) {
+func LoadImage(filePath string, reload bool) *image.Image {
 	img := ICache.Load(filePath)
 	if img != nil && !reload {
-		return img, nil
+		return img
 	}
-	return ICache.Reload(filePath), nil
+	return ICache.Reload(filePath)
 }
 
 func IsGPUFriendly(img image.Image) bool {
@@ -108,12 +108,12 @@ func ConvertToGPUFriendlyImage(src image.Image) *image.RGBA {
 	return dst
 }
 
-func LoadGif(filePath string, reload bool) (*Gif, error) {
+func LoadGif(filePath string, reload bool) *Gif {
 	GIF := GCache.Load(filePath)
 	if GIF != nil && !reload {
-		return GIF, nil
+		return GIF
 	}
-	return GCache.Reload(filePath), nil
+	return GCache.Reload(filePath)
 }
 
 type GifEntry struct {
@@ -290,22 +290,28 @@ func (c *ImageCache) add(path string) *image.Image {
 }
 
 func (c *ImageCache) load(path string) (*image.Image, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		log.Printf("open %v error: %v", path, err)
-		return nil, err
-	}
-	defer file.Close()
+	ptr := new(image.Image)
+	go func() {
+		file, err := os.Open(path)
+		if err != nil {
+			log.Printf("open %v error: %v", path, err)
+			ptr = nil
+			return
+		}
+		defer file.Close()
 
-	img, err := decodeImage(file)
-	if err != nil {
-		log.Printf("failed to decode image: %v", err)
-		return nil, err
-	}
-	if !IsGPUFriendly(img) {
-		img = ConvertToGPUFriendlyImage(img)
-	}
-	return &img, nil
+		img, err := decodeImage(file)
+		if err != nil {
+			log.Printf("failed to decode image: %v", err)
+			ptr = nil
+			return
+		}
+		if !IsGPUFriendly(img) {
+			img = ConvertToGPUFriendlyImage(img)
+		}
+		*ptr = img
+	}()
+	return ptr, nil
 }
 
 func (c *ImageCache) Reset() {

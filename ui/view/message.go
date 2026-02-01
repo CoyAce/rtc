@@ -12,7 +12,6 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"rtc/assets"
 	"rtc/internal/audio"
 	app "rtc/ui/layout"
 	mt "rtc/ui/layout/material"
@@ -255,14 +254,12 @@ func (m *FileControl) processFileSave(gtx layout.Context, filePath string) {
 	}()
 }
 
-func (m *FileControl) loadGif(filepath string) (*Gif, error) {
-	gif, err := LoadGif(filepath, false)
-	return gif, err
+func (m *FileControl) loadGif(filepath string) *Gif {
+	return LoadGif(filepath, false)
 }
 
-func (m *FileControl) loadImage(filepath string) (*image.Image, error) {
-	img, err := LoadImage(filepath, false)
-	return img, err
+func (m *FileControl) loadImage(filepath string) *image.Image {
+	return LoadImage(filepath, false)
 }
 
 type MediaControl struct {
@@ -504,17 +501,20 @@ func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
 		if m.fileNotExist() {
 			return layout.Dimensions{}
 		}
-		img, err := m.loadImage(m.OptimizedFilePath())
-		if err != nil || img == nil || img == &assets.AppIconImage {
+		img := m.loadImage(m.OptimizedFilePath())
+		if img == nil {
 			return m.drawBrokenImage(gtx)
+		}
+		if *img == nil {
+			return m.drawLoadingImage(gtx)
 		}
 		return m.drawImage(gtx, *img)
 	case GIF:
 		if m.fileNotExist() {
 			return layout.Dimensions{}
 		}
-		gifImg, err := m.loadGif(m.OptimizedFilePath())
-		if err != nil || gifImg == nil || gifImg == &EmptyGif {
+		gifImg := m.loadGif(m.OptimizedFilePath())
+		if gifImg == nil || gifImg == &EmptyGif {
 			return m.drawBrokenImage(gtx)
 		}
 		return m.drawGif(gtx, gifImg)
@@ -566,6 +566,16 @@ func (m *Message) drawBrokenImage(gtx layout.Context) layout.Dimensions {
 	gtx.Constraints.Min.X = int(v)
 	macro := op.Record(gtx.Ops)
 	d := imageBrokenIcon.Layout(gtx, m.Theme.ContrastFg)
+	call := macro.Stop()
+	m.drawBorder(gtx, d, call)
+	return d
+}
+
+func (m *Message) drawLoadingImage(gtx layout.Context) layout.Dimensions {
+	v := float32(gtx.Constraints.Max.X) * 0.382
+	gtx.Constraints.Min.X = int(v)
+	macro := op.Record(gtx.Ops)
+	d := syncIcon.Layout(gtx, m.Theme.ContrastFg)
 	call := macro.Stop()
 	m.drawBorder(gtx, d, call)
 	return d

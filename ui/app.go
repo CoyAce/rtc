@@ -93,12 +93,12 @@ func Draw(window *app.Window, c *whily.Client) error {
 					message = &view.Message{State: view.Sent, Theme: fonts.DefaultTheme,
 						UUID: whily.DefaultClient.FullID(), Type: view.Image, Filename: m.Filename,
 						Sender: m.UUID, CreatedAt: time.Now()}
-					_, _ = view.LoadImage(message.OptimizedFilePath(), true)
+					view.LoadImage(message.OptimizedFilePath(), true)
 				case whily.OpSendGif:
 					message = &view.Message{State: view.Sent, Theme: fonts.DefaultTheme,
 						UUID: whily.DefaultClient.FullID(), Type: view.GIF, Filename: m.Filename,
 						Sender: m.UUID, CreatedAt: time.Now()}
-					_, _ = view.LoadGif(message.OptimizedFilePath(), true)
+					view.LoadGif(message.OptimizedFilePath(), true)
 				case whily.OpSendVoice:
 					message = &view.Message{State: view.Sent, Theme: fonts.DefaultTheme,
 						UUID: whily.DefaultClient.FullID(), Type: view.Voice, Filename: m.Filename,
