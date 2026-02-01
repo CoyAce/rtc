@@ -14,7 +14,7 @@ require (
 	git.wow.st/gmp/jni v0.0.0-20210610011705-34026c7e22d0
 	github.com/CoyAce/apm v0.1.3
 	github.com/CoyAce/opus v0.1.8
-	github.com/CoyAce/whily v0.1.2
+	github.com/CoyAce/whily v0.1.3
 	github.com/gen2brain/malgo v0.11.24
 	github.com/go-text/typesetting v0.3.0
 	golang.org/x/exp/shiny v0.0.0-20251209150349-8475f28825e9

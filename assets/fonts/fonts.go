@@ -32,26 +32,24 @@ var robotoRegular []byte
 //go:embed Roboto-Regular-Italic.ttf
 var robotoRegularItalic []byte
 
-// 由于gio不支持svg字体，所以嵌入png字体 todo gio支持svg字体
-var emoji, _ = opentype.ParseCollection(notoColorEmoji)
-var bold, _ = opentype.ParseCollection(robotoBold)
-var boldItalic, _ = opentype.ParseCollection(robotoBoldItalic)
-var regular, _ = opentype.ParseCollection(robotoRegular)
-var regularItalic, _ = opentype.ParseCollection(robotoRegularItalic)
+var collection = mergeAndClean()
 
-// todo gio支持可变字体，就不需要嵌入粗体了
-var scBold, _ = opentype.ParseCollection(notosanscjk.TTF)
-
-var builtinFonts = [][]font.FontFace{
-	gofont.Collection(),
-	boldItalic,
-	regularItalic,
-	bold,
-	regular,
-	emoji,
+func builtinFonts() [][]font.FontFace {
+	// 由于gio不支持svg字体，所以嵌入png字体 todo gio支持svg字体
+	var emoji, _ = opentype.ParseCollection(notoColorEmoji)
+	var bold, _ = opentype.ParseCollection(robotoBold)
+	var boldItalic, _ = opentype.ParseCollection(robotoBoldItalic)
+	var regular, _ = opentype.ParseCollection(robotoRegular)
+	var regularItalic, _ = opentype.ParseCollection(robotoRegularItalic)
+	return [][]font.FontFace{
+		gofont.Collection(),
+		boldItalic,
+		regularItalic,
+		bold,
+		regular,
+		emoji,
+	}
 }
-
-var collection = merge()
 
 func NewTheme() *material.Theme {
 	th := material.NewTheme()
@@ -87,18 +85,27 @@ func WithFamilyAndStyle(f text.FontFace, face string, style font.Style) text.Fon
 	return f
 }
 
+func mergeAndClean() []text.FontFace {
+	defer runtime.GC()
+	defer clean()
+	return merge()
+}
+
 func merge() []text.FontFace {
 	ret := make([]text.FontFace, 0)
-	for _, f := range builtinFonts {
+	weights := []font.Weight{font.Normal, font.Bold}
+	for _, f := range builtinFonts() {
 		ret = append(ret, f...)
 	}
 	for _, fontPath := range ApplePingFang() {
-		ret = tryAdd(ret, fontPath)
+		ret = tryAdd(ret, fontPath, weights)
 	}
 	for _, fontPath := range SystemFonts {
-		ret = tryAdd(ret, fontPath)
+		ret = tryAdd(ret, fontPath, weights)
 	}
 	if runtime.GOOS == "android" {
+		// todo gio支持可变字体，就不需要嵌入粗体了
+		var scBold, _ = opentype.ParseCollection(notosanscjk.TTF)
 		ret = append(ret, []text.FontFace{
 			WithFamilyAndStyle(scBold[0], "Noto Sans CJK SC", font.Italic),
 			WithFamilyAndStyle(scBold[0], "Noto Sans CJK SC", font.Regular),
@@ -107,13 +114,35 @@ func merge() []text.FontFace {
 	return ret
 }
 
-func tryAdd(ret []text.FontFace, fontPath string) []text.FontFace {
+func clean() {
+	notoColorEmoji = nil
+	robotoBold = nil
+	robotoBoldItalic = nil
+	robotoRegular = nil
+	robotoRegularItalic = nil
+	notosanscjk.TTF = nil
+}
+
+func tryAdd(ret []text.FontFace, fontPath string, weights []font.Weight) []text.FontFace {
 	TTF := tryLoad(fontPath)
 	if TTF != nil {
 		var parsedFonts, _ = opentype.ParseCollection(TTF)
-		ret = append(ret, parsedFonts...)
-		for _, f := range parsedFonts {
+		filteredFonts := filter(parsedFonts, weights)
+		ret = append(ret, filteredFonts...)
+		for _, f := range filteredFonts {
 			ret = append(ret, WithFamilyAndStyle(f, string(f.Font.Typeface), font.Italic))
+		}
+	}
+	return ret
+}
+
+func filter(fonts []text.FontFace, weights []font.Weight) []text.FontFace {
+	ret := make([]text.FontFace, 0, len(weights))
+	for _, w := range weights {
+		for _, f := range fonts {
+			if f.Font.Weight == w {
+				ret = append(ret, f)
+			}
 		}
 	}
 	return ret
