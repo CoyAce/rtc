@@ -16,8 +16,8 @@ import (
 type Gif struct {
 	*gif.GIF
 	index     int
+	prevFrame image.Image
 	nextFrame time.Time
-	frames    []image.Image
 }
 
 func (g *Gif) Layout(gtx layout.Context) layout.Dimensions {
@@ -45,15 +45,8 @@ func (g *Gif) Layout(gtx layout.Context) layout.Dimensions {
 	}
 	defer op.Affine(f32.AffineId().Scale(f32.Point{}, scale)).Push(gtx.Ops).Pop()
 
-	currentFrameCached := len(g.frames) > g.index
-	if currentFrameCached {
-		paint.NewImageOp(g.frames[g.index]).Add(gtx.Ops)
-	} else {
-		canvas := g.extractFrame()
-		g.frames = append(g.frames, canvas)
-
-		paint.NewImageOp(canvas).Add(gtx.Ops)
-	}
+	canvas := g.extractFrame()
+	paint.NewImageOp(canvas).Add(gtx.Ops)
 	paint.PaintOp{}.Add(gtx.Ops)
 
 	nextFrame := gtx.Now.Add(delay)
@@ -64,32 +57,29 @@ func (g *Gif) Layout(gtx layout.Context) layout.Dimensions {
 
 func (g *Gif) extractFrame() *image.RGBA {
 	canvas := image.NewRGBA(image.Rect(0, 0, g.Config.Width, g.Config.Height))
-	prev := g.index - 1
-LOOP:
-	if prev >= 0 {
-		prevFrame := g.frames[prev]
-		switch g.Disposal[prev] {
-		default:
-			fallthrough
-		case gif.DisposalNone:
-			// 不做特殊处理，直接叠加
-			draw.Draw(canvas, prevFrame.Bounds(), prevFrame, image.Point{}, draw.Over)
-		case gif.DisposalBackground:
-			// 清除帧覆盖的区域，并用背景色填充
-			draw.Draw(canvas, prevFrame.Bounds(), prevFrame, image.Point{}, draw.Over)
-			var bgColor color.Color = color.Transparent
-			if palette, ok := g.Config.ColorModel.(color.Palette); ok {
-				bgColor = palette[g.BackgroundIndex]
-			}
-			draw.Draw(canvas, g.Image[prev].Bounds(), &image.Uniform{C: bgColor}, g.Image[prev].Bounds().Min, draw.Src)
-		case gif.DisposalPrevious:
-			// 恢复到前一帧的状态
-			prev--
-			goto LOOP
-		}
-	}
-	// current frame
 	frame := g.Image[g.index]
-	draw.Draw(canvas, frame.Bounds(), frame, frame.Bounds().Min, draw.Over)
+	switch g.Disposal[g.index] {
+	default:
+		fallthrough
+	case gif.DisposalNone:
+		// 不做特殊处理，直接叠加
+		if g.index != 0 {
+			draw.Draw(canvas, g.prevFrame.Bounds(), g.prevFrame, image.Point{}, draw.Over)
+		}
+		draw.Draw(canvas, frame.Bounds(), frame, frame.Bounds().Min, draw.Over)
+		g.prevFrame = canvas
+	case gif.DisposalBackground:
+		// 清除帧覆盖的区域，并用背景色填充
+		draw.Draw(canvas, g.prevFrame.Bounds(), g.prevFrame, image.Point{}, draw.Over)
+		var bgColor color.Color = color.Transparent
+		if palette, ok := g.Config.ColorModel.(color.Palette); ok {
+			bgColor = palette[g.BackgroundIndex]
+		}
+		draw.Draw(canvas, frame.Bounds(), &image.Uniform{C: bgColor}, frame.Bounds().Min, draw.Src)
+		g.prevFrame = canvas
+	case gif.DisposalPrevious:
+		// 恢复到前一帧的状态
+		draw.Draw(canvas, g.prevFrame.Bounds(), g.prevFrame, image.Point{}, draw.Over)
+	}
 	return canvas
 }

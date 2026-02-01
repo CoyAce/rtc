@@ -139,14 +139,14 @@ func LoadGif(filePath string, reload bool) (*Gif, error) {
 	}
 	defer file.Close()
 
-	gif, err := gif.DecodeAll(file)
+	GIF, err := gif.DecodeAll(file)
 	if err != nil {
 		GifCache[filePath] = &EmptyGif
 		log.Printf("failed to decode gif: %v", err)
 		return nil, err
 	}
 
-	ret := &Gif{GIF: gif}
+	ret := &Gif{GIF: GIF}
 	GifCache[filePath] = ret
 	return ret, nil
 }
