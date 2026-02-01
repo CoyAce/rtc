@@ -30,9 +30,11 @@ func ChooseAndSendPhoto(gtx layout.Context) {
 			go func() {
 				if gifImg != nil {
 					SaveGif(gifImg, filename, false)
+					LoadGif(absolutePath, true)
 				}
 				if img != nil {
 					SaveImg(img, filename, false)
+					LoadImage(absolutePath, true)
 				}
 			}()
 		}
