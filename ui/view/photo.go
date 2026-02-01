@@ -48,7 +48,7 @@ func ChooseAndSendPhoto(gtx layout.Context) {
 		if isGif {
 			err = whily.DefaultClient.SendGif(gifImg, filename)
 		} else {
-			imageCache[absolutePath] = &img
+			*ImgCache.Load(absolutePath) = img
 			err = whily.DefaultClient.SendImage(img, filename)
 		}
 		if err != nil {

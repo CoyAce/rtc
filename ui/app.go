@@ -140,6 +140,7 @@ func Draw(window *app.Window, c *whily.Client) error {
 			if e.Config.Focused == false {
 				whily.DefaultClient.Store()
 				messageKeeper.Append()
+				view.ImgCache.Reset()
 			}
 		// this is sent when the application should re-render.
 		case app.FrameEvent:

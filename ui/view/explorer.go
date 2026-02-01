@@ -7,6 +7,7 @@ import (
 	"image/gif"
 	"io"
 	"log"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"rtc/assets"
@@ -80,31 +81,11 @@ func decodeImage(file io.ReadCloser) (image.Image, error) {
 }
 
 func LoadImage(filePath string, reload bool) (*image.Image, error) {
-	if imageCache[filePath] != nil && !reload {
-		return imageCache[filePath], nil
+	img := ImgCache.Load(filePath)
+	if img != nil && !reload {
+		return img, nil
 	}
-	file, err := os.Open(filePath)
-	if err != nil {
-		imageCache[filePath] = &assets.AppIconImage
-		log.Printf("open %v error: %v", filePath, err)
-		return nil, err
-	}
-	defer file.Close()
-
-	img, err := decodeImage(file)
-	if err != nil {
-		imageCache[filePath] = &assets.AppIconImage
-		log.Printf("failed to decode image: %v", err)
-		return nil, err
-	}
-	if IsGPUFriendly(img) {
-		imageCache[filePath] = &img
-	} else {
-		var dst image.Image
-		dst = ConvertToGPUFriendlyImage(img)
-		imageCache[filePath] = &dst
-	}
-	return &img, nil
+	return ImgCache.Reload(filePath), nil
 }
 
 func IsGPUFriendly(img image.Image) bool {
@@ -151,7 +132,111 @@ func LoadGif(filePath string, reload bool) (*Gif, error) {
 	return ret, nil
 }
 
-var imageCache = map[string]*image.Image{}
+type ImageEntry struct {
+	path string
+	img  *image.Image
+	hit  int
+}
+
+type ImageCache struct {
+	data          []ImageEntry
+	capacity      int
+	ratio         int
+	youngCapacity int
+	youngHead     int
+}
+
+func (c *ImageCache) Load(path string) *image.Image {
+	for i, entry := range c.data {
+		if entry.path == path {
+			c.data[i].hit++
+			if c.data[i].hit >= 15 {
+				c.promote(i)
+			}
+			return entry.img
+		}
+	}
+	return c.add(path)
+}
+
+func (c *ImageCache) Reload(path string) *image.Image {
+	for i, entry := range c.data {
+		if entry.path == path {
+			img, err := c.load(path)
+			if err != nil {
+				return c.data[i].img
+			}
+			c.data[i].img = img
+			return img
+		}
+	}
+	return c.Load(path)
+}
+
+func (c *ImageCache) promote(i int) {
+	idx := rand.Intn(c.capacity-c.youngCapacity) + c.youngCapacity
+	temp := c.data[idx]
+	temp.hit = 0
+	c.data[idx] = c.data[i]
+	c.data[i] = temp
+}
+
+func (c *ImageCache) addYoung(e ImageEntry) *image.Image {
+	c.data[c.youngHead] = e
+	c.youngHead = (c.youngHead + 1) % c.youngCapacity
+	return e.img
+}
+
+func (c *ImageCache) addDefault(path string) *image.Image {
+	img := &assets.AppIconImage
+	e := ImageEntry{path: path, img: img}
+	c.addYoung(e)
+	return img
+}
+
+func (c *ImageCache) add(path string) *image.Image {
+	img, err := c.load(path)
+	if err != nil {
+		return c.addDefault(path)
+	}
+	e := ImageEntry{path: path, img: img}
+	return c.addYoung(e)
+}
+
+func (c *ImageCache) load(path string) (*image.Image, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		log.Printf("open %v error: %v", path, err)
+		return nil, err
+	}
+	defer file.Close()
+
+	img, err := decodeImage(file)
+	if err != nil {
+		log.Printf("failed to decode image: %v", err)
+		return nil, err
+	}
+	if !IsGPUFriendly(img) {
+		img = ConvertToGPUFriendlyImage(img)
+	}
+	return &img, nil
+}
+
+func (c *ImageCache) Reset() {
+	c.data = make([]ImageEntry, c.capacity)
+	c.youngHead = 0
+}
+
+func NewImageCache(capacity int, ratio int) *ImageCache {
+	return &ImageCache{
+		capacity:      capacity,
+		data:          make([]ImageEntry, capacity),
+		ratio:         ratio,
+		youngCapacity: int(float32(capacity) * float32(ratio) / float32(ratio+1)),
+	}
+}
+
+var ImgCache = NewImageCache(6, 2)
 var GifCache = map[string]*Gif{}
 var EmptyGif Gif
 
