@@ -10,7 +10,6 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
-	"rtc/assets"
 	"rtc/ui/native"
 	"runtime"
 	"strings"
@@ -88,6 +87,14 @@ func LoadImage(filePath string, reload bool) *image.Image {
 	return ICache.Reload(filePath)
 }
 
+func LoadAvatar(filePath string, reload bool) *image.Image {
+	img := ACache.Load(filePath)
+	if img != nil && !reload {
+		return img
+	}
+	return ACache.Reload(filePath)
+}
+
 func IsGPUFriendly(img image.Image) bool {
 	switch img.(type) {
 	case *image.Uniform:
@@ -109,9 +116,9 @@ func ConvertToGPUFriendlyImage(src image.Image) *image.RGBA {
 }
 
 func LoadGif(filePath string, reload bool) *Gif {
-	GIF := GCache.Load(filePath)
-	if GIF != nil && !reload {
-		return GIF
+	gifImg := GCache.Load(filePath)
+	if gifImg != nil && !reload {
+		return gifImg
 	}
 	return GCache.Reload(filePath)
 }
@@ -252,10 +259,7 @@ func (c *ImageCache) Load(path string) *image.Image {
 func (c *ImageCache) Reload(path string) *image.Image {
 	for i, entry := range c.data {
 		if entry.path == path {
-			img, err := c.load(path)
-			if err != nil {
-				return c.data[i].img
-			}
+			img := c.load(path)
 			c.data[i].img = img
 			return img
 		}
@@ -277,23 +281,13 @@ func (c *ImageCache) addYoung(e ImageEntry) *image.Image {
 	return e.img
 }
 
-func (c *ImageCache) addDefault(path string) *image.Image {
-	img := &assets.AppIconImage
-	e := ImageEntry{path: path, img: img}
-	c.addYoung(e)
-	return img
-}
-
 func (c *ImageCache) add(path string) *image.Image {
-	img, err := c.load(path)
-	if err != nil {
-		return c.addDefault(path)
-	}
+	img := c.load(path)
 	e := ImageEntry{path: path, img: img}
 	return c.addYoung(e)
 }
 
-func (c *ImageCache) load(path string) (*image.Image, error) {
+func (c *ImageCache) load(path string) *image.Image {
 	ptr := new(image.Image)
 	go func() {
 		file, err := os.Open(path)
@@ -315,7 +309,7 @@ func (c *ImageCache) load(path string) (*image.Image, error) {
 		}
 		*ptr = img
 	}()
-	return ptr, nil
+	return ptr
 }
 
 func (c *ImageCache) Reset() {
@@ -332,8 +326,9 @@ func NewImageCache(capacity int, ratio int) *ImageCache {
 	}
 }
 
-var ICache = NewImageCache(7, 2)
-var GCache = NewGifCache(7, 2)
+var ACache = NewImageCache(10, 2)
+var ICache = NewImageCache(8, 2)
+var GCache = NewGifCache(8, 2)
 var EmptyGif Gif
 
 func GetDataDir() string {

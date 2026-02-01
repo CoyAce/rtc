@@ -16,14 +16,21 @@ var OnSettingsSubmit = func(gtx layout.Context) {
 }
 var SyncCachedIcon = func() {
 	avatar := AvatarCache.LoadOrElseNew(whily.DefaultClient.FullID())
-	if avatar.AvatarType == Default && avatar.Gif == nil {
-		log.Printf("avatar not found in cache")
-		return
-	}
-	if avatar.AvatarType == IMG {
-		SyncSelectedIcon(avatar.Image, nil)
-	} else {
-		SyncSelectedIcon(nil, avatar.GIF)
+	switch avatar.AvatarType {
+	case Default:
+		if avatar.Gif != nil {
+			SyncSelectedIcon(nil, avatar.GIF)
+		}
+		fallthrough
+	case IMG:
+		if avatar.Image == nil || *avatar.Image == nil {
+			return
+		}
+		SyncSelectedIcon(*avatar.Image, nil)
+	case GIF_IMG:
+		if avatar.Gif != nil {
+			SyncSelectedIcon(nil, avatar.GIF)
+		}
 	}
 }
 

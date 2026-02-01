@@ -31,7 +31,7 @@ type Avatar struct {
 	EditButton IconButton
 	OnChange   func(img image.Image, gif *gif.GIF)
 	point      image.Point
-	Image      image.Image
+	Image      *image.Image
 	*Gif
 	AvatarType
 	widget.Clickable
@@ -58,10 +58,10 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 				if img.Bounds().Dx() > 512 || img.Bounds().Dy() > 512 {
 					img = resizeImage(img, 512, 512)
 				}
-				v.Image = img
+				v.Image = &img
 				v.AvatarType = IMG
 				avatar := AvatarCache.LoadOrElseNew(whily.DefaultClient.FullID())
-				avatar.Image = img
+				avatar.Image = &img
 				avatar.AvatarType = IMG
 			}
 			if gifImg != nil {
@@ -93,7 +93,10 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 			return v.Clickable.Layout(gtx, func(gtx layout.Context) (d layout.Dimensions) {
 				macro := op.Record(gtx.Ops)
 				if v.AvatarType == IMG || v.AvatarType == Default {
-					imgOps := paint.NewImageOp(v.Image)
+					imgOps := paint.NewImageOp(assets.AppIconImage)
+					if *v.Image != nil {
+						imgOps = paint.NewImageOp(*v.Image)
+					}
 					imgWidget := widget.Image{Src: imgOps, Fit: widget.Fill, Position: layout.Center, Scale: 0}
 					d = imgWidget.Layout(gtx)
 				} else {
@@ -145,12 +148,12 @@ func (v *Avatar) Reload(avatarType AvatarType) {
 	}
 
 	imgPath := GetPath(v.UUID, "icon.png")
-	img := LoadImage(imgPath, true)
+	img := LoadAvatar(imgPath, true)
 	if v.Image == nil {
-		v.Image = assets.AppIconImage
+		v.Image = &assets.AppIconImage
 	}
-	if img != nil && *img != nil {
-		v.Image = *img
+	if img != nil {
+		v.Image = img
 		v.AvatarType = IMG
 		whily.RemoveFile(GetPath(v.UUID, "icon.gif"))
 	}
