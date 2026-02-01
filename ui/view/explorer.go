@@ -133,9 +133,11 @@ type GifCache struct {
 func (g *GifCache) Load(path string) *Gif {
 	for i, entry := range g.data {
 		if entry.path == path {
-			g.data[i].hit++
-			if g.data[i].hit >= 15 {
-				g.promote(i)
+			if i < g.youngCapacity {
+				g.data[i].hit++
+				if g.data[i].hit >= 15 {
+					g.promote(i)
+				}
 			}
 			return entry.gif
 		}
@@ -235,9 +237,11 @@ type ImageCache struct {
 func (c *ImageCache) Load(path string) *image.Image {
 	for i, entry := range c.data {
 		if entry.path == path {
-			c.data[i].hit++
-			if c.data[i].hit >= 15 {
-				c.promote(i)
+			if i < c.youngCapacity {
+				c.data[i].hit++
+				if c.data[i].hit >= 15 {
+					c.promote(i)
+				}
 			}
 			return entry.img
 		}
@@ -328,8 +332,8 @@ func NewImageCache(capacity int, ratio int) *ImageCache {
 	}
 }
 
-var ICache = NewImageCache(6, 2)
-var GCache = NewGifCache(6, 2)
+var ICache = NewImageCache(7, 2)
+var GCache = NewGifCache(7, 2)
 var EmptyGif Gif
 
 func GetDataDir() string {
