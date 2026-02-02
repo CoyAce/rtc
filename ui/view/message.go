@@ -506,7 +506,7 @@ func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
 			return m.drawBrokenImage(gtx)
 		}
 		if *img == nil {
-			return m.drawLoadingImage(gtx)
+			return m.drawBlankBox(gtx)
 		}
 		return m.drawImage(gtx, *img)
 	case GIF:
@@ -525,6 +525,11 @@ func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
 		return m.drawVoice(gtx)
 	}
 	return layout.Dimensions{}
+}
+
+func (m *Message) drawBlankBox(gtx layout.Context) layout.Dimensions {
+	v := int(float32(gtx.Constraints.Max.X) * 0.382)
+	return layout.Dimensions{Size: image.Pt(v, v)}
 }
 
 func (m *Message) fileNotExist() bool {
@@ -566,16 +571,6 @@ func (m *Message) drawBrokenImage(gtx layout.Context) layout.Dimensions {
 	gtx.Constraints.Min.X = int(v)
 	macro := op.Record(gtx.Ops)
 	d := imageBrokenIcon.Layout(gtx, m.Theme.ContrastFg)
-	call := macro.Stop()
-	m.drawBorder(gtx, d, call)
-	return d
-}
-
-func (m *Message) drawLoadingImage(gtx layout.Context) layout.Dimensions {
-	v := float32(gtx.Constraints.Max.X) * 0.382
-	gtx.Constraints.Min.X = int(v)
-	macro := op.Record(gtx.Ops)
-	d := syncIcon.Layout(gtx, m.Theme.ContrastFg)
 	call := macro.Stop()
 	m.drawBorder(gtx, d, call)
 	return d
