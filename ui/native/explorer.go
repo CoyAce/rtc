@@ -114,6 +114,19 @@ func (e *Explorer) ChooseFile(extensions ...string) (io.ReadCloser, error) {
 	return e.importFile(extensions...)
 }
 
+func (e *Explorer) ReadFile(uri string) (r io.ReadCloser, err error) {
+	if e == nil {
+		return nil, ErrNotAvailable
+	}
+
+	if runtime.GOOS != "js" {
+		e.mutex.Lock()
+		defer e.mutex.Unlock()
+	}
+
+	return e.readFile(uri)
+}
+
 // ChooseFiles shows the files selector, allowing the user to select multiple files.
 // Optionally, it's possible to define which file extensions is supported to
 // be selected (such as `.jpg`, `.png`).
