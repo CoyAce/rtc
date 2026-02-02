@@ -13,6 +13,7 @@ import (
 	"rtc/ui/native"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/CoyAce/whily"
 
@@ -126,6 +127,7 @@ func LoadGif(filePath string, reload bool) *Gif {
 type GifEntry struct {
 	path string
 	gif  *Gif
+	ttl  time.Time
 	hit  int
 }
 
@@ -144,6 +146,8 @@ func (g *GifCache) Load(path string) *Gif {
 				g.data[i].hit++
 				if g.data[i].hit >= 15 {
 					g.promote(i)
+				} else {
+					g.setTTL(i)
 				}
 			}
 			return entry.gif
@@ -160,6 +164,7 @@ func (g *GifCache) Reload(path string) *Gif {
 				return g.data[i].gif
 			}
 			g.data[i].gif = gifImg
+			g.setTTL(i)
 			return gifImg
 		}
 	}
@@ -176,6 +181,7 @@ func (g *GifCache) promote(i int) {
 
 func (g *GifCache) addYoung(e GifEntry) *Gif {
 	g.data[g.youngHead] = e
+	g.setTTL(g.youngHead)
 	g.youngHead = (g.youngHead + 1) % g.youngCapacity
 	return e.gif
 }
@@ -213,6 +219,16 @@ func (g *GifCache) load(path string) (*Gif, error) {
 	return ret, nil
 }
 
+func (g *GifCache) setTTL(idx int) {
+	ttl := 10 * time.Second
+	g.data[idx].ttl = time.Now().Add(ttl)
+	time.AfterFunc(ttl, func() {
+		if g.data[idx].gif != nil && time.Now().After(g.data[idx].ttl) {
+			g.data[idx] = GifEntry{}
+		}
+	})
+}
+
 func (g *GifCache) Reset() {
 	g.data = make([]GifEntry, g.capacity)
 	g.youngHead = 0
@@ -230,6 +246,7 @@ func NewGifCache(capacity int, ratio int) *GifCache {
 type ImageEntry struct {
 	path string
 	img  *image.Image
+	ttl  time.Time
 	hit  int
 }
 
@@ -248,6 +265,8 @@ func (c *ImageCache) Load(path string) *image.Image {
 				c.data[i].hit++
 				if c.data[i].hit >= 15 {
 					c.promote(i)
+				} else {
+					c.setTTL(i)
 				}
 			}
 			return entry.img
@@ -261,6 +280,7 @@ func (c *ImageCache) Reload(path string) *image.Image {
 		if entry.path == path {
 			img := c.load(path)
 			c.data[i].img = img
+			c.setTTL(i)
 			return img
 		}
 	}
@@ -277,8 +297,19 @@ func (c *ImageCache) promote(i int) {
 
 func (c *ImageCache) addYoung(e ImageEntry) *image.Image {
 	c.data[c.youngHead] = e
+	c.setTTL(c.youngHead)
 	c.youngHead = (c.youngHead + 1) % c.youngCapacity
 	return e.img
+}
+
+func (c *ImageCache) setTTL(idx int) {
+	ttl := 10 * time.Second
+	c.data[idx].ttl = time.Now().Add(ttl)
+	time.AfterFunc(ttl, func() {
+		if c.data[idx].img != nil && time.Now().After(c.data[idx].ttl) {
+			c.data[idx] = ImageEntry{}
+		}
+	})
 }
 
 func (c *ImageCache) add(path string) *image.Image {
