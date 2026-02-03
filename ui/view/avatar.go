@@ -3,6 +3,8 @@ package view
 import (
 	"image"
 	"image/gif"
+	"log"
+	"path/filepath"
 	"rtc/assets"
 
 	"gioui.org/layout"
@@ -48,13 +50,36 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 	}
 	if v.Editable && v.Clicked(gtx) {
 		go func() {
-			img, gifImg, _, err := ChooseImageAndDecode()
+			fd, err := ChooseImage()
 			if err != nil {
+				log.Printf("Choose image failed: %v", err)
 				return
 			}
-
-			// update settings and avatar cache
-			if img != nil {
+			defer fd.File.Close()
+			if filepath.Ext(fd.Name) == ".gif" {
+				gifImg, err := decodeGif(fd.File)
+				if err != nil {
+					log.Printf("Decode gif failed: %v", err)
+					return
+				}
+				gifPath := GetPath(v.UUID, "icon.gif")
+				v.Gif = LoadGif(gifPath, false)
+				v.GIF = gifImg
+				v.AvatarType = GIF_IMG
+				avatar := AvatarCache.LoadOrElseNew(whily.DefaultClient.FullID())
+				avatar.Gif = v.Gif
+				avatar.AvatarType = GIF_IMG
+				SaveGif(gifImg, "icon.gif", true)
+				whily.RemoveFile(GetPath(v.UUID, "icon.png"))
+				// sync to server
+				if v.OnChange != nil {
+					v.OnChange(nil, gifImg)
+				}
+			} else {
+				img, err := decodeImage(fd.File)
+				if err != nil {
+					log.Printf("Decode image failed: %v", err)
+				}
 				if img.Bounds().Dx() > 512 || img.Bounds().Dy() > 512 {
 					img = resizeImage(img, 512, 512)
 				}
@@ -63,27 +88,12 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 				avatar := AvatarCache.LoadOrElseNew(whily.DefaultClient.FullID())
 				avatar.Image = &img
 				avatar.AvatarType = IMG
-			}
-			if gifImg != nil {
-				v.Gif = &Gif{GIF: gifImg}
-				v.AvatarType = GIF_IMG
-				avatar := AvatarCache.LoadOrElseNew(whily.DefaultClient.FullID())
-				avatar.Gif = v.Gif
-				avatar.AvatarType = GIF_IMG
-			}
-
-			// save to file
-			if gifImg != nil {
-				SaveGif(gifImg, "icon.gif", true)
-				whily.RemoveFile(GetPath(v.UUID, "icon.png"))
-			} else {
 				SaveImg(img, "icon.png", true)
 				whily.RemoveFile(GetPath(v.UUID, "icon.gif"))
-			}
-
-			// sync to server
-			if v.OnChange != nil {
-				v.OnChange(img, gifImg)
+				// sync to server
+				if v.OnChange != nil {
+					v.OnChange(img, nil)
+				}
 			}
 		}()
 	}
@@ -139,7 +149,7 @@ func (v *Avatar) Reload(avatarType AvatarType) {
 	if avatarType == GIF_IMG || avatarType == Default {
 		gifPath := GetPath(v.UUID, "icon.gif")
 		gifImg := LoadGif(gifPath, true)
-		if gifImg != nil && gifImg != &EmptyGif {
+		if gifImg.GIF != nil {
 			v.Gif = gifImg
 			v.AvatarType = GIF_IMG
 			whily.RemoveFile(GetPath(v.UUID, "icon.png"))
@@ -149,14 +159,12 @@ func (v *Avatar) Reload(avatarType AvatarType) {
 
 	imgPath := GetPath(v.UUID, "icon.png")
 	img := LoadAvatar(imgPath, true)
-	if v.Image == nil {
-		v.Image = &assets.AppIconImage
+	if *img == nil {
+		*img = assets.AppIconImage
 	}
-	if img != nil {
-		v.Image = img
-		v.AvatarType = IMG
-		whily.RemoveFile(GetPath(v.UUID, "icon.gif"))
-	}
+	v.Image = img
+	v.AvatarType = IMG
+	whily.RemoveFile(GetPath(v.UUID, "icon.gif"))
 }
 
 func resizeImage(src image.Image, newWidth, newHeight int) image.Image {

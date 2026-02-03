@@ -514,7 +514,7 @@ func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
 			return layout.Dimensions{}
 		}
 		gifImg := m.loadGif(m.OptimizedFilePath())
-		if gifImg == nil || gifImg == &EmptyGif {
+		if gifImg.GIF == nil {
 			return m.drawBrokenImage(gtx)
 		}
 		return m.drawGif(gtx, gifImg)

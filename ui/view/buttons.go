@@ -3,6 +3,7 @@ package view
 import (
 	"image"
 	"image/color"
+	"log"
 	"rtc/assets/fonts"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"gioui.org/x/component"
+	"github.com/CoyAce/whily"
 	"golang.org/x/exp/shiny/materialdesign/colornames"
 )
 
@@ -112,7 +114,20 @@ func NewIconStack() *IconStack {
 		VisibilityAnimation: &iconStackAnimation,
 		IconButtons: []*IconButton{
 			{Theme: fonts.DefaultTheme, Icon: settingsIcon, Enabled: true, OnClick: settings.ShowWithModal},
-			{Theme: fonts.DefaultTheme, Icon: filesIcon},
+			{Theme: fonts.DefaultTheme, Icon: filesIcon, Enabled: true, OnClick: func(gtx layout.Context) {
+				iconStackAnimation.Disappear(gtx.Now)
+				go func() {
+					fd, err := ChooseFile()
+					if err != nil {
+						log.Printf("choose file failed: %v", err)
+						return
+					}
+					message := &Message{State: Stateless, Theme: fonts.DefaultTheme, Size: uint64(fd.Size),
+						UUID: whily.DefaultClient.FullID(), Type: File, ExternalFilePath: fd.Path,
+						Sender: whily.DefaultClient.FullID(), CreatedAt: time.Now()}
+					MessageBox <- message
+				}()
+			}},
 			{Theme: fonts.DefaultTheme, Icon: photoLibraryIcon, Enabled: true, OnClick: ChooseAndSendPhoto},
 			{Theme: fonts.DefaultTheme, Icon: videoCallIcon},
 			audioMakeButton,

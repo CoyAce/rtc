@@ -2,6 +2,7 @@ package view
 
 import (
 	"bufio"
+	"errors"
 	"image"
 	"image/draw"
 	"image/gif"
@@ -31,36 +32,43 @@ type Picker interface {
 	CreateFile(name string) (io.WriteCloser, error)
 }
 
-func ChooseImageAndDecode() (image.Image, *gif.GIF, string, error) {
-	file, err := DefaultPicker.ChooseFile(".jpg", ".jpeg", ".png", ".webp", ".gif")
+type FileDescription struct {
+	File io.ReadCloser
+	Name string
+	Path string
+	Size int64
+}
+
+func ChooseFile() (FileDescription, error) {
+	file, err := DefaultPicker.ChooseFile(".")
 	if err != nil {
-		return nil, nil, "", err
+		return FileDescription{}, err
 	}
-	var filename string
+	return ResolveFileDescription(file)
+}
+
+func ResolveFileDescription(file io.ReadCloser) (FileDescription, error) {
+	if file == nil {
+		return FileDescription{}, errors.New("file is nil")
+	}
 	if f, ok := file.(*os.File); ok {
-		filename = f.Name()
+		fileInfo, _ := f.Stat()
+		return FileDescription{File: file, Name: fileInfo.Name(), Path: f.Name(), Size: fileInfo.Size()}, nil
 	}
 	if runtime.GOOS == "android" {
 		if f, ok := file.(*native.File); ok {
-			log.Printf("file name: %v, size: %v, uri: %v", f.Name(), f.Size(), f.URI())
-			filename = f.Name()
+			return FileDescription{File: file, Name: f.Name(), Path: f.URI(), Size: f.Size()}, nil
 		}
 	}
-	defer file.Close()
+	return FileDescription{}, errors.New("unsupported file type")
+}
 
-	if filepath.Ext(filename) == ".gif" {
-		img, err := decodeGif(file)
-		if err != nil {
-			return nil, nil, filename, err
-		}
-		return nil, img, filename, nil
-	}
-
-	img, err := decodeImage(file)
+func ChooseImage() (FileDescription, error) {
+	file, err := DefaultPicker.ChooseFile(".jpg", ".jpeg", ".png", ".webp", ".gif")
 	if err != nil {
-		return nil, nil, filename, err
+		return FileDescription{}, err
 	}
-	return img, nil, filename, nil
+	return ResolveFileDescription(file)
 }
 
 func decodeGif(file io.ReadCloser) (*gif.GIF, error) {
@@ -187,7 +195,8 @@ func (g *GifCache) addYoung(e GifEntry) *Gif {
 }
 
 func (g *GifCache) addDefault(path string) *Gif {
-	gifImg := &EmptyGif
+	gifImg := new(Gif)
+	*gifImg = Gif{}
 	e := GifEntry{path: path, gif: gifImg}
 	g.addYoung(e)
 	return gifImg
@@ -203,7 +212,7 @@ func (g *GifCache) add(path string) *Gif {
 }
 
 func (g *GifCache) load(path string) (*Gif, error) {
-	file, err := os.Open(path)
+	file, err := Open(path)
 	if err != nil {
 		log.Printf("open %v error: %v", path, err)
 		return nil, err
@@ -321,7 +330,7 @@ func (c *ImageCache) add(path string) *image.Image {
 func (c *ImageCache) load(path string) *image.Image {
 	ptr := new(image.Image)
 	go func() {
-		file, err := os.Open(path)
+		file, err := Open(path)
 		if err != nil {
 			log.Printf("open %v error: %v", path, err)
 			ptr = nil
@@ -343,6 +352,14 @@ func (c *ImageCache) load(path string) *image.Image {
 	return ptr
 }
 
+func Open(path string) (io.ReadCloser, error) {
+	if strings.HasPrefix(path, "content") {
+		picker := DefaultPicker.(*native.Explorer)
+		return picker.ReadFile(path)
+	}
+	return os.Open(path)
+}
+
 func (c *ImageCache) Reset() {
 	c.data = make([]ImageEntry, c.capacity)
 	c.youngHead = 0
@@ -359,13 +376,12 @@ func NewImageCache(capacity int, ratio int) *ImageCache {
 
 var ACache = NewImageCache(10, 2)
 var ICache = NewImageCache(8, 2)
-var GCache = NewGifCache(8, 2)
-var EmptyGif Gif
+var GCache = NewGifCache(15, 2)
 
 func GetDataDir() string {
 	dir, _ := app.DataDir()
 	if runtime.GOOS == "android" {
-		return dir
+		return dir + "/"
 	}
 	return dir + "/coyace.rtc/"
 }
