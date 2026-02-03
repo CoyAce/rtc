@@ -121,7 +121,7 @@ func NewIconStack() *IconStack {
 						log.Printf("choose file failed: %v", err)
 						return
 					}
-					fc := FileControl{Filename: fd.Name, Path: fd.Path, Size: uint64(fd.Size)}
+					fc := FileControl{Filename: fd.Name, Path: fd.Path, Size: uint64(fd.Size), Mime: NewMine(fd.Name)}
 					message := &Message{
 						State:       Stateless,
 						Theme:       fonts.DefaultTheme,

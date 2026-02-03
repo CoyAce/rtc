@@ -232,16 +232,42 @@ func NewTextControl(text string) TextControl {
 	return TextControl{Text: text, Editor: &ed}
 }
 
+type Mime byte
+
+const (
+	Unknown Mime = iota
+	Picture
+	Music
+	Video
+	Ebook
+)
+
+func NewMine(filename string) Mime {
+	switch filepath.Ext(filename) {
+	case ".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg":
+		return Picture
+	case ".epub", ".pdf":
+		return Ebook
+	case ".wav", ".mp3", ".flac", ".ogg", ".opus":
+		return Music
+	case ".mp4", ".avi", ".mov", ".webm":
+		return Video
+	default:
+		return Unknown
+	}
+}
+
 type FileControl struct {
-	Filename       string
-	Path           string
-	Size           uint64
+	Filename string
+	Path     string
+	Size     uint64
+	Mime
 	downloadButton widget.Clickable
 	imageBroken    bool
 }
 
-func (m *FileControl) processFileSave(gtx layout.Context, filePath string) {
-	if !m.downloadButton.Clicked(gtx) {
+func (f *FileControl) processFileSave(gtx layout.Context, filePath string) {
+	if !f.downloadButton.Clicked(gtx) {
 		return
 	}
 	go func() {
@@ -268,12 +294,105 @@ func (m *FileControl) processFileSave(gtx layout.Context, filePath string) {
 	}()
 }
 
-func (m *FileControl) loadGif(filepath string) *Gif {
+func (f *FileControl) loadGif(filepath string) *Gif {
 	return LoadGif(filepath, false)
 }
 
-func (m *FileControl) loadImage(filepath string) *image.Image {
+func (f *FileControl) loadImage(filepath string) *image.Image {
 	return LoadImage(filepath, false)
+}
+
+func (f *FileControl) Layout(gtx layout.Context, theme *material.Theme) layout.Dimensions {
+	hidden := len(f.Filename) >= 25
+	return layout.Flex{Alignment: layout.Middle, Spacing: layout.SpaceAround}.Layout(gtx,
+		layout.Rigid(f.drawIcon(theme)),
+		layout.Flexed(0.45, func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Vertical, Spacing: layout.SpaceAround}.Layout(gtx,
+				layout.Rigid(f.drawFilename(theme)),
+				layout.Rigid(f.drawSize(theme, hidden)),
+			)
+		}),
+		layout.Flexed(0.168, func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Vertical, Spacing: layout.SpaceAround, Alignment: layout.Middle}.Layout(gtx,
+				layout.Rigid(f.drawSize(theme, !hidden)),
+				layout.Rigid(f.drawProgress(theme)),
+				layout.Rigid(f.drawSpeed(theme)),
+			)
+		}),
+	)
+}
+
+func (f *FileControl) drawSpeed(theme *material.Theme) func(gtx layout.Context) layout.Dimensions {
+	return func(gtx layout.Context) layout.Dimensions {
+		label := material.Label(theme, theme.TextSize, "5M/s")
+		label.Color = theme.ContrastFg
+		return layout.UniformInset(unit.Dp(4)).Layout(gtx, label.Layout)
+	}
+}
+
+func (f *FileControl) drawIcon(theme *material.Theme) func(gtx layout.Context) layout.Dimensions {
+	return func(gtx layout.Context) layout.Dimensions {
+		gtx.Constraints.Min.X = gtx.Constraints.Min.Y
+		return f.getIconByMimeType().Layout(gtx, theme.ContrastFg)
+	}
+}
+
+func (f *FileControl) drawProgress(theme *material.Theme) func(gtx layout.Context) layout.Dimensions {
+	return func(gtx layout.Context) layout.Dimensions {
+		label := material.Label(theme, theme.TextSize, "100%")
+		label.Color = theme.ContrastFg
+		return layout.UniformInset(unit.Dp(4)).Layout(gtx, label.Layout)
+	}
+}
+
+func (f *FileControl) drawSize(theme *material.Theme, hidden bool) func(gtx layout.Context) layout.Dimensions {
+	return func(gtx layout.Context) layout.Dimensions {
+		if hidden {
+			return layout.Dimensions{}
+		}
+		label := material.Label(theme, theme.TextSize, f.getHumanReadableSize())
+		label.Color = theme.ContrastFg
+		return layout.UniformInset(unit.Dp(4)).Layout(gtx, label.Layout)
+	}
+}
+
+func (f *FileControl) drawFilename(theme *material.Theme) func(layout.Context) layout.Dimensions {
+	return func(gtx layout.Context) layout.Dimensions {
+		label := material.Label(theme, theme.TextSize, f.Filename)
+		label.Font.Weight = font.Bold
+		label.Color = theme.ContrastFg
+		return layout.UniformInset(unit.Dp(4)).Layout(gtx, label.Layout)
+	}
+}
+
+func (f *FileControl) getIconByMimeType() *widget.Icon {
+	switch f.Mime {
+	case Picture:
+		return imageIcon
+	case Ebook:
+		return bookIcon
+	case Music:
+		return musicIcon
+	case Video:
+		return videoIcon
+	default:
+		return unknownIcon
+	}
+}
+
+func (f *FileControl) getHumanReadableSize() string {
+	size := float64(f.Size)
+	suffix := "B"
+	if size < 1024 {
+		suffix = "B"
+	} else if size < 1024*1024 {
+		suffix = "KB"
+		size /= 1024
+	} else if size < 1024*1024*1024 {
+		suffix = "MB"
+		size /= 1024 * 1024
+	}
+	return fmt.Sprintf("%.1f %s", size, suffix)
 }
 
 type MediaControl struct {
@@ -535,11 +654,19 @@ func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
 }
 
 func (m *Message) drawFile(gtx layout.Context) layout.Dimensions {
-	return layout.Dimensions{}
+	v := m.getBaseWidth(gtx)
+	gtx.Constraints.Min.X = int(float32(gtx.Constraints.Max.X) * 0.618)
+	gtx.Constraints.Min.Y = int(v * 0.382)
+	gtx.Constraints.Max.X = gtx.Constraints.Min.X
+	macro := op.Record(gtx.Ops)
+	d := m.FileControl.Layout(gtx, m.Theme)
+	call := macro.Stop()
+	m.drawBorder(gtx, d, call)
+	return d
 }
 
 func (m *Message) drawBlankBox(gtx layout.Context) layout.Dimensions {
-	v := int(float32(gtx.Constraints.Max.X) * 0.382)
+	v := int(m.getBaseWidth(gtx))
 	return layout.Dimensions{Size: image.Pt(v, v)}
 }
 
@@ -548,7 +675,7 @@ func (m *Message) fileNotExist() bool {
 }
 
 func (m *Message) drawVoice(gtx layout.Context) layout.Dimensions {
-	v := float32(gtx.Constraints.Max.X) * 0.382
+	v := m.getBaseWidth(gtx)
 	gtx.Constraints.Min.X = int(float32(gtx.Constraints.Max.X) * 0.618)
 	gtx.Constraints.Min.Y = int(v * 0.382)
 	macro := op.Record(gtx.Ops)
@@ -566,8 +693,12 @@ func (m *Message) drawVoice(gtx layout.Context) layout.Dimensions {
 	return d
 }
 
+func (m *Message) getBaseWidth(gtx layout.Context) float32 {
+	return float32(gtx.Constraints.Max.X) * 0.382
+}
+
 func (m *Message) drawGif(gtx layout.Context, gif *Gif) layout.Dimensions {
-	v := float32(gtx.Constraints.Max.X) * 0.382
+	v := m.getBaseWidth(gtx)
 	gtx.Constraints.Min.X = int(v)
 	macro := op.Record(gtx.Ops)
 	d := gif.Layout(gtx)
@@ -578,7 +709,7 @@ func (m *Message) drawGif(gtx layout.Context, gif *Gif) layout.Dimensions {
 
 func (m *Message) drawBrokenImage(gtx layout.Context) layout.Dimensions {
 	m.imageBroken = true
-	v := float32(gtx.Constraints.Max.X) * 0.382
+	v := m.getBaseWidth(gtx)
 	gtx.Constraints.Min.X = int(v)
 	macro := op.Record(gtx.Ops)
 	d := imageBrokenIcon.Layout(gtx, m.Theme.ContrastFg)
@@ -588,7 +719,7 @@ func (m *Message) drawBrokenImage(gtx layout.Context) layout.Dimensions {
 }
 
 func (m *Message) drawImage(gtx layout.Context, img image.Image) layout.Dimensions {
-	v := float32(gtx.Constraints.Max.X) * 0.382
+	v := m.getBaseWidth(gtx)
 	dx := img.Bounds().Dx()
 	dy := img.Bounds().Dy()
 	var point image.Point
