@@ -14,7 +14,6 @@ import (
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"gioui.org/x/component"
-	"github.com/CoyAce/whily"
 	"golang.org/x/exp/shiny/materialdesign/colornames"
 )
 
@@ -122,9 +121,15 @@ func NewIconStack() *IconStack {
 						log.Printf("choose file failed: %v", err)
 						return
 					}
-					message := &Message{State: Stateless, Theme: fonts.DefaultTheme, Size: uint64(fd.Size),
-						UUID: whily.DefaultClient.FullID(), Type: File, ExternalFilePath: fd.Path,
-						Sender: whily.DefaultClient.FullID(), CreatedAt: time.Now()}
+					fc := FileControl{Filename: fd.Name, Path: fd.Path, Size: uint64(fd.Size)}
+					message := &Message{
+						State:       Stateless,
+						Theme:       fonts.DefaultTheme,
+						FileControl: fc,
+						Contacts:    FromMyself(),
+						MessageType: File,
+						CreatedAt:   time.Now(),
+					}
 					MessageBox <- message
 				}()
 			}},

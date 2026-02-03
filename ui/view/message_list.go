@@ -137,7 +137,7 @@ func (k *MessageKeeper) Messages() []*Message {
 		if msg.State == Stateless {
 			msg.State = Failed
 		}
-		if msg.Type == Voice {
+		if msg.MessageType == Voice {
 			msg.StreamConfig = k.StreamConfig
 		}
 		ret = append(ret, &msg)

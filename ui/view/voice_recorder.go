@@ -110,11 +110,11 @@ func (v *VoiceRecorder) encodeAndSendAsync() {
 		v.buf = nil
 		duration := uint64(ogg.GetDuration(samples) / time.Millisecond)
 		message := Message{
-			State: Stateless,
-			Theme: fonts.DefaultTheme,
-			UUID:  whily.DefaultClient.FullID(),
-			Type:  Voice, Filename: filepath.Base(filePath),
-			Sender:       whily.DefaultClient.FullID(),
+			State:        Stateless,
+			Theme:        fonts.DefaultTheme,
+			Contacts:     FromMyself(),
+			MessageType:  Voice,
+			FileControl:  FileControl{Filename: filepath.Base(filePath)},
 			CreatedAt:    time.Now(),
 			MediaControl: MediaControl{StreamConfig: v.StreamConfig, Duration: duration},
 		}

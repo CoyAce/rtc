@@ -82,28 +82,26 @@ func Draw(window *app.Window, c *whily.Client) error {
 					State:       view.Sent,
 					TextControl: view.NewTextControl(text),
 					Theme:       fonts.DefaultTheme,
-					UUID:        whily.DefaultClient.FullID(), Type: view.Text,
-					Text:      text,
-					Sender:    m.Sign.UUID,
-					CreatedAt: time.Now(),
+					Contacts:    view.FromSender(m.Sign.UUID),
+					MessageType: view.Text,
+					CreatedAt:   time.Now(),
 				}
 			case m := <-c.FileMessages:
+				message = &view.Message{
+					State:       view.Sent,
+					Theme:       fonts.DefaultTheme,
+					Contacts:    view.FromSender(m.UUID),
+					FileControl: view.FileControl{Filename: m.Filename},
+					CreatedAt:   time.Now()}
 				switch m.Code {
 				case whily.OpSendImage:
-					message = &view.Message{State: view.Sent, Theme: fonts.DefaultTheme,
-						UUID: whily.DefaultClient.FullID(), Type: view.Image, Filename: m.Filename,
-						Sender: m.UUID, CreatedAt: time.Now()}
-					view.LoadImage(message.OptimizedFilePath(), true)
+					message.MessageType = view.Image
 				case whily.OpSendGif:
-					message = &view.Message{State: view.Sent, Theme: fonts.DefaultTheme,
-						UUID: whily.DefaultClient.FullID(), Type: view.GIF, Filename: m.Filename,
-						Sender: m.UUID, CreatedAt: time.Now()}
-					view.LoadGif(message.OptimizedFilePath(), true)
+					message.MessageType = view.GIF
 				case whily.OpSendVoice:
-					message = &view.Message{State: view.Sent, Theme: fonts.DefaultTheme,
-						UUID: whily.DefaultClient.FullID(), Type: view.Voice, Filename: m.Filename,
-						Sender: m.UUID, CreatedAt: time.Now(),
-						MediaControl: view.MediaControl{StreamConfig: streamConfig, Duration: m.Duration}}
+					mediaControl := view.MediaControl{StreamConfig: streamConfig, Duration: m.Duration}
+					message.MessageType = view.Voice
+					message.MediaControl = mediaControl
 				default:
 					handleOp(m)
 					continue
@@ -156,10 +154,9 @@ func Draw(window *app.Window, c *whily.Client) error {
 					message := view.Message{State: view.Stateless,
 						TextControl: view.NewTextControl(msg),
 						Theme:       fonts.DefaultTheme,
-						UUID:        whily.DefaultClient.FullID(), Type: view.Text,
-						Text:      msg,
-						Sender:    whily.DefaultClient.FullID(),
-						CreatedAt: time.Now()}
+						Contacts:    view.FromMyself(),
+						MessageType: view.Text,
+						CreatedAt:   time.Now()}
 					view.MessageBox <- &message
 					if whily.DefaultClient.Connected && whily.DefaultClient.SendText(msg) == nil {
 						message.State = view.Sent

@@ -33,6 +33,7 @@ import (
 	"gioui.org/widget/material"
 	"gioui.org/x/component"
 	"github.com/CoyAce/opus/ogg"
+	"github.com/CoyAce/whily"
 	"golang.org/x/exp/shiny/materialdesign/colornames"
 )
 
@@ -52,6 +53,7 @@ const (
 	Image
 	GIF
 	Voice
+	File
 )
 
 // LongPressDuration is the default duration of a long press gesture.
@@ -184,22 +186,31 @@ func (i *InteractiveSpan) Layout(gtx layout.Context) layout.Dimensions {
 type Message struct {
 	State
 	MediaControl
-	*material.Theme  `json:"-"`
-	InteractiveSpan  `json:"-"`
-	FileControl      `json:"-"`
-	TextControl      `json:"-"`
-	Filename         string
-	ExternalFilePath string
-	Size             uint64
-	Type             MessageType
-	UUID             string
-	Text             string
-	Sender           string
-	CreatedAt        time.Time
+	*material.Theme `json:"-"`
+	InteractiveSpan `json:"-"`
+	FileControl
+	TextControl
+	MessageType
+	Contacts
+	CreatedAt time.Time
+}
+
+type Contacts struct {
+	UUID   string
+	Sender string
+}
+
+func FromSender(sender string) Contacts {
+	return Contacts{UUID: whily.DefaultClient.FullID(), Sender: sender}
+}
+
+func FromMyself() Contacts {
+	return FromSender(whily.DefaultClient.FullID())
 }
 
 type TextControl struct {
-	Editor     *app.Editor
+	Text       string
+	Editor     *app.Editor `json:"-"`
 	copyButton widget.Clickable
 }
 
@@ -218,10 +229,13 @@ func (m *TextControl) processTextCopy(gtx layout.Context, textForCopy string) {
 func NewTextControl(text string) TextControl {
 	ed := app.Editor{ReadOnly: true}
 	ed.SetText(text)
-	return TextControl{Editor: &ed}
+	return TextControl{Text: text, Editor: &ed}
 }
 
 type FileControl struct {
+	Filename       string
+	Path           string
+	Size           uint64
 	downloadButton widget.Clickable
 	imageBroken    bool
 }
@@ -334,10 +348,10 @@ func (m *MediaControl) playAudioAsync(filePath string) {
 }
 
 func (m *Message) Layout(gtx layout.Context) (d layout.Dimensions) {
-	if m.Type == Text && m.Text == "" {
+	if m.MessageType == Text && m.Text == "" {
 		return d
 	}
-	if (m.Type == Image || m.Type == Voice) && m.fileNotExist() {
+	if (m.MessageType == Image || m.MessageType == Voice) && m.fileNotExist() {
 		return d
 	}
 
@@ -457,7 +471,7 @@ func (m *Message) FilePath() string {
 
 func (m *Message) OptimizedFilePath() string {
 	if m.isMe() {
-		return m.ExternalFilePath
+		return m.Path
 	}
 	return m.FilePath()
 }
@@ -466,7 +480,7 @@ func (m *Message) drawOperation(gtx layout.Context) layout.Dimensions {
 	if m.imageBroken {
 		return layout.Dimensions{}
 	}
-	switch m.Type {
+	switch m.MessageType {
 	case Text:
 		return m.copyButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return contentCopyIcon.Layout(gtx, m.ContrastBg)
@@ -482,11 +496,11 @@ func (m *Message) drawOperation(gtx layout.Context) layout.Dimensions {
 }
 
 func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
-	switch m.Type {
+	if m.Text == "" && m.fileNotExist() {
+		return layout.Dimensions{}
+	}
+	switch m.MessageType {
 	case Text:
-		if m.Text == "" {
-			return layout.Dimensions{}
-		}
 		// calculate text size for later use
 		macro := op.Record(gtx.Ops)
 		d := layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -498,9 +512,6 @@ func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
 		m.drawBorder(gtx, d, call)
 		return d
 	case Image:
-		if m.fileNotExist() {
-			return layout.Dimensions{}
-		}
 		img := m.loadImage(m.OptimizedFilePath())
 		if img == nil {
 			return m.drawBrokenImage(gtx)
@@ -510,20 +521,20 @@ func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
 		}
 		return m.drawImage(gtx, *img)
 	case GIF:
-		if m.fileNotExist() {
-			return layout.Dimensions{}
-		}
 		gifImg := m.loadGif(m.OptimizedFilePath())
 		if gifImg.GIF == nil {
 			return m.drawBrokenImage(gtx)
 		}
 		return m.drawGif(gtx, gifImg)
 	case Voice:
-		if m.fileNotExist() {
-			return layout.Dimensions{}
-		}
 		return m.drawVoice(gtx)
+	case File:
+		return m.drawFile(gtx)
 	}
+	return layout.Dimensions{}
+}
+
+func (m *Message) drawFile(gtx layout.Context) layout.Dimensions {
 	return layout.Dimensions{}
 }
 
@@ -533,7 +544,7 @@ func (m *Message) drawBlankBox(gtx layout.Context) layout.Dimensions {
 }
 
 func (m *Message) fileNotExist() bool {
-	return m.Filename == "" && m.ExternalFilePath == ""
+	return m.Filename == "" && m.Path == ""
 }
 
 func (m *Message) drawVoice(gtx layout.Context) layout.Dimensions {

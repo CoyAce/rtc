@@ -26,9 +26,8 @@ func ChooseAndSendPhoto(gtx layout.Context) {
 			mType = GIF
 			opCode = whily.OpSendGif
 		}
-		message := &Message{State: Stateless, Theme: fonts.DefaultTheme,
-			UUID: whily.DefaultClient.FullID(), Type: mType, ExternalFilePath: fd.Path,
-			Sender: whily.DefaultClient.FullID(), CreatedAt: time.Now()}
+		message := &Message{State: Stateless, Theme: fonts.DefaultTheme, Contacts: FromMyself(),
+			MessageType: mType, FileControl: FileControl{Path: fd.Path}, CreatedAt: time.Now()}
 		MessageBox <- message
 		err = whily.DefaultClient.SendFile(fd.File, opCode, fd.Name, uint64(fd.Size), 0)
 		if err != nil {
