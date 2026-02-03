@@ -79,10 +79,8 @@ public class explorer_android {
                     }
                     try {
                         ParcelFileDescriptor pfd = resolver.openFileDescriptor(uri, "r");
-                        FileDescriptor fd = Optional.ofNullable(pfd)
-                                .map(ParcelFileDescriptor::getFileDescriptor)
-                                .orElseThrow();
-                        FileInputStream f = new FileInputStream(fd);
+                        FileInputStream f = new ParcelFileDescriptor.AutoCloseInputStream(pfd);
+                        resolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
                         explorer_android.ImportCallback(f, requestCode, getFileInfoFromContentUri(uri), "");
                     } catch (IOException e) {
                         explorer_android.ImportCallback(null, requestCode, null, e.toString());
@@ -99,10 +97,7 @@ public class explorer_android {
                     }
                     try {
                         ParcelFileDescriptor pfd = resolver.openFileDescriptor(uri, "wt");
-                        FileDescriptor fd = Optional.ofNullable(pfd)
-                                .map(ParcelFileDescriptor::getFileDescriptor)
-                                .orElseThrow();
-                        FileOutputStream f = new FileOutputStream(fd);
+                        FileOutputStream f = new ParcelFileDescriptor.AutoCloseOutputStream(pfd);
                         explorer_android.ExportCallback(f, requestCode, null, "");
                     } catch (IOException e) {
                         explorer_android.ExportCallback(null, requestCode, null, e.toString());
@@ -153,6 +148,8 @@ public class explorer_android {
             final Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
             intent.setType("*/*");
             intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
 
             if (mime != null) {
                 final String[] mimes = mime.split(",");
@@ -170,10 +167,7 @@ public class explorer_android {
         ContentResolver resolver = activity.getApplicationContext().getContentResolver();
         try {
             ParcelFileDescriptor pfd = resolver.openFileDescriptor(Uri.parse(uri), "r");
-            FileDescriptor fd = Optional.ofNullable(pfd)
-                    .map(ParcelFileDescriptor::getFileDescriptor)
-                    .orElseThrow();
-            return new FileInputStream(fd);
+            return new ParcelFileDescriptor.AutoCloseInputStream(pfd);
         } catch (IOException e) {
             return null;
         }

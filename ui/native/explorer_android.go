@@ -146,7 +146,7 @@ func (e *Explorer) readFile(uri string) (io.ReadCloser, error) {
 				return err
 			}
 
-			stream, err := jni.CallObjectMethod(env, e.libObject, e.explorer.importFile,
+			stream, err := jni.CallObjectMethod(env, e.libObject, e.explorer.openFileInputStream,
 				jni.Value(e.view),
 				jni.Value(jni.JavaString(env, uri)),
 			)
