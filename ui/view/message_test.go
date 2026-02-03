@@ -1,14 +1,15 @@
 package view
 
 import (
-	"rtc/core"
 	"testing"
+
+	"github.com/CoyAce/whily"
 )
 
 func TestMessagePersistence(t *testing.T) {
-	core.DefaultClient = &core.Client{UUID: "#00001"}
-	core.Mkdir(GetDir(core.DefaultClient.FullID()))
-	core.RemoveFile(GetDataPath("message.log"))
+	whily.DefaultClient = &whily.Client{UUID: "#00001"}
+	whily.Mkdir(GetDir(whily.DefaultClient.FullID()))
+	whily.RemoveFile(GetDataPath("message.log"))
 	mk := MessageKeeper{MessageChannel: make(chan *Message, 1)}
 	go mk.Loop()
 	mk.MessageChannel <- &Message{Text: "hello world", Sender: "test#00001", UUID: "#00001"}
