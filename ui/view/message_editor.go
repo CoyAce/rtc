@@ -5,8 +5,6 @@ import (
 	"io"
 	"math"
 	"rtc/assets/fonts"
-	app "rtc/ui/layout"
-	"rtc/ui/layout/component"
 	"strings"
 
 	"gioui.org/f32"
@@ -19,6 +17,7 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+	"gioui.org/x/component"
 )
 
 type MessageEditor struct {
@@ -131,7 +130,7 @@ func (e *MessageEditor) Submitted(gtx layout.Context) bool {
 func (e *MessageEditor) submittedByCarriageReturn(gtx layout.Context) (submit bool) {
 	for {
 		ev, ok := e.InputField.Editor.Update(gtx)
-		if _, submit = ev.(app.SubmitEvent); submit {
+		if _, submit = ev.(widget.SubmitEvent); submit {
 			break
 		}
 		if !ok {

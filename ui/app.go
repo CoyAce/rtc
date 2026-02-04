@@ -7,7 +7,6 @@ import (
 	"rtc/assets/fonts"
 	"rtc/internal/audio"
 	ui "rtc/ui/layout"
-	"rtc/ui/layout/component"
 	"rtc/ui/native"
 	"rtc/ui/view"
 	"runtime"
@@ -17,6 +16,8 @@ import (
 	"gioui.org/app"
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/widget"
+	"gioui.org/x/component"
 	"gioui.org/x/explorer"
 	"github.com/CoyAce/wi"
 	"github.com/gen2brain/malgo"
@@ -41,7 +42,7 @@ func Draw(window *app.Window, c *wi.Client) error {
 	// ops are the operations from the UI
 	var ops op.Ops
 
-	var messageList = &view.MessageList{List: ui.List{Axis: ui.Vertical, ScrollToEnd: true},
+	var messageList = &view.MessageList{List: layout.List{Axis: layout.Vertical, ScrollToEnd: true},
 		Theme: fonts.DefaultTheme}
 	var messageKeeper = &view.MessageKeeper{MessageChannel: make(chan *view.Message, 1), StreamConfig: streamConfig}
 	messageList.Messages = messageKeeper.Messages()
@@ -115,7 +116,7 @@ func Draw(window *app.Window, c *wi.Client) error {
 	}()
 	// handle sync operation
 	wi.DefaultClient.SyncFunc = view.SyncCachedIcon
-	inputField := component.TextField{Editor: ui.Editor{Submit: true}}
+	inputField := component.TextField{Editor: widget.Editor{Submit: true}}
 	messageEditor := view.MessageEditor{InputField: &inputField, Theme: fonts.DefaultTheme}
 	iconStack := view.NewIconStack()
 	audioStack := view.NewAudioIconStack(streamConfig)

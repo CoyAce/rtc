@@ -1,6 +1,8 @@
 package layout
 
 import (
+	"image/color"
+
 	"gioui.org/font"
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -8,6 +10,7 @@ import (
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"gioui.org/x/component"
+	"golang.org/x/exp/shiny/materialdesign/colornames"
 	"golang.org/x/exp/shiny/materialdesign/icons"
 )
 
@@ -52,7 +55,7 @@ func (m *ModalContent) DrawContent(gtx layout.Context, contentWidget layout.Widg
 			margins := layout.Inset{Top: unit.Dp(16), Bottom: unit.Dp(16), Right: unit.Dp(8), Left: unit.Dp(8)}
 			return margins.Layout(gtx, m.header.Layout)
 		}),
-		layout.Rigid(Hr{Height: unit.Dp(1)}.Layout),
+		layout.Rigid(layout.Hr{Height: unit.Dp(1), Color: color.NRGBA(colornames.Grey300)}.Layout),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return m.List.Layout(gtx, 1, func(gtx layout.Context, index int) layout.Dimensions {
 				return contentWidget(gtx)

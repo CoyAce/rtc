@@ -7,7 +7,6 @@ import (
 	"os"
 	"rtc/assets/fonts"
 	"rtc/internal/audio"
-	app "rtc/ui/layout"
 	"sync"
 	"time"
 
@@ -19,7 +18,7 @@ import (
 )
 
 type MessageList struct {
-	app.List
+	layout.List
 	*material.Theme
 	widget.Clickable
 	Messages []*Message

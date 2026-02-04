@@ -13,8 +13,6 @@ import (
 	"os"
 	"path/filepath"
 	"rtc/internal/audio"
-	app "rtc/ui/layout"
-	mt "rtc/ui/layout/material"
 	"strings"
 	"time"
 
@@ -210,7 +208,7 @@ func FromMyself() Contacts {
 
 type TextControl struct {
 	Text       string
-	Editor     *app.Editor `json:"-"`
+	Editor     *widget.Editor `json:"-"`
 	copyButton widget.Clickable
 }
 
@@ -227,7 +225,7 @@ func (m *TextControl) processTextCopy(gtx layout.Context, textForCopy string) {
 }
 
 func NewTextControl(text string) TextControl {
-	ed := app.Editor{ReadOnly: true}
+	ed := widget.Editor{ReadOnly: true}
 	ed.SetText(text)
 	return TextControl{Text: text, Editor: &ed}
 }
@@ -625,7 +623,7 @@ func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
 		d := layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Min.X = 0
 			gtx.Constraints.Max.X = int(float32(gtx.Constraints.Max.X) / 1.5)
-			return mt.Editor(m.Theme, m.Editor, "hint").Layout(gtx)
+			return material.Editor(m.Theme, m.Editor, "hint").Layout(gtx)
 		})
 		call := macro.Stop()
 		m.drawBorder(gtx, d, call)
