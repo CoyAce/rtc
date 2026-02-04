@@ -348,7 +348,7 @@ func (ae *Enhancer) ProcessAudio(samples []float32) ([]float32, error) {
 	}
 
 	// Stage 3: Echo cancellation (should be first)
-	if ae.config != nil {
+	if ae.config.ApmConfig != nil {
 		ae.processor.SetStreamDelay(ae.config.ApmConfig.EchoCancellation.StreamDelayMs)
 		err := ae.processor.ProcessCapture(output)
 		if err != nil {

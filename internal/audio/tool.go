@@ -84,7 +84,7 @@ func (m *MiniAudioWrapper) initialize() error {
 	r := NewChunkReader(ctx, pcmChunks)
 	go func() {
 		if err := Playback(ctx, r, m.StreamConfig); err != nil && !errors.Is(err, io.EOF) {
-			log.Printf("audio playback: %w", err)
+			log.Printf("audio playback: %v", err)
 		}
 	}()
 	return nil

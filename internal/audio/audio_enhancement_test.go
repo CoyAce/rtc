@@ -16,9 +16,6 @@ func TestAudioEnhancer_NewAudioEnhancer(t *testing.T) {
 	if enhancer.agc == nil {
 		t.Error("enhancer agc is nil")
 	}
-	if enhancer.echo == nil {
-		t.Error("enhancer echo is nil")
-	}
 	if enhancer.compressor == nil {
 		t.Error("enhancer compressor is nil")
 	}
@@ -73,7 +70,6 @@ func TestAudioEnhancer_ProcessAudio(t *testing.T) {
 func TestAudioEnhancer_ProcessBasic(t *testing.T) {
 	config := DefaultEnhancementConfig()
 	config.AGC.Enabled = true
-	config.EchoCancellation.Enabled = false // Disable echo cancellation for basic test
 	config.Compression.Enabled = true
 
 	enhancer := NewEnhancer(config)
@@ -101,10 +97,6 @@ func TestAudioEnhancer_AllFeaturesEnabled(t *testing.T) {
 		AGC: AGCConfig{
 			Enabled:     true,
 			TargetLevel: -20,
-		},
-		EchoCancellation: EchoCancellationConfig{
-			Enabled:      true,
-			FilterLength: 256,
 		},
 		Compression: CompressionConfig{
 			Enabled:   true,
@@ -142,9 +134,8 @@ func TestAudioEnhancer_AllFeaturesEnabled(t *testing.T) {
 
 func BenchmarkAudioEnhancer_ProcessAudio(b *testing.B) {
 	config := &EnhancementConfig{
-		AGC:              AGCConfig{Enabled: true},
-		EchoCancellation: EchoCancellationConfig{Enabled: true},
-		Compression:      CompressionConfig{Enabled: true},
+		AGC:         AGCConfig{Enabled: true},
+		Compression: CompressionConfig{Enabled: true},
 	}
 
 	enhancer := NewEnhancer(config)
