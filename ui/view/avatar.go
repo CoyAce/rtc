@@ -14,7 +14,7 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
-	"github.com/CoyAce/whily"
+	"github.com/CoyAce/wi"
 	"golang.org/x/exp/shiny/materialdesign/icons"
 )
 
@@ -66,11 +66,11 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 				v.Gif = LoadGif(gifPath, false)
 				v.GIF = gifImg
 				v.AvatarType = GIF_IMG
-				avatar := AvatarCache.LoadOrElseNew(whily.DefaultClient.FullID())
+				avatar := AvatarCache.LoadOrElseNew(wi.DefaultClient.FullID())
 				avatar.Gif = v.Gif
 				avatar.AvatarType = GIF_IMG
 				SaveGif(gifImg, "icon.gif", true)
-				whily.RemoveFile(GetPath(v.UUID, "icon.png"))
+				wi.RemoveFile(GetPath(v.UUID, "icon.png"))
 				// sync to server
 				if v.OnChange != nil {
 					v.OnChange(nil, gifImg)
@@ -85,11 +85,11 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 				}
 				v.Image = &img
 				v.AvatarType = IMG
-				avatar := AvatarCache.LoadOrElseNew(whily.DefaultClient.FullID())
+				avatar := AvatarCache.LoadOrElseNew(wi.DefaultClient.FullID())
 				avatar.Image = &img
 				avatar.AvatarType = IMG
 				SaveImg(img, "icon.png", true)
-				whily.RemoveFile(GetPath(v.UUID, "icon.gif"))
+				wi.RemoveFile(GetPath(v.UUID, "icon.gif"))
 				// sync to server
 				if v.OnChange != nil {
 					v.OnChange(img, nil)
@@ -152,7 +152,7 @@ func (v *Avatar) Reload(avatarType AvatarType) {
 		if gifImg.GIF != nil {
 			v.Gif = gifImg
 			v.AvatarType = GIF_IMG
-			whily.RemoveFile(GetPath(v.UUID, "icon.png"))
+			wi.RemoveFile(GetPath(v.UUID, "icon.png"))
 			return
 		}
 	}
@@ -164,7 +164,7 @@ func (v *Avatar) Reload(avatarType AvatarType) {
 	}
 	v.Image = img
 	v.AvatarType = IMG
-	whily.RemoveFile(GetPath(v.UUID, "icon.gif"))
+	wi.RemoveFile(GetPath(v.UUID, "icon.gif"))
 }
 
 func resizeImage(src image.Image, newWidth, newHeight int) image.Image {

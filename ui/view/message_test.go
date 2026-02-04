@@ -3,17 +3,17 @@ package view
 import (
 	"testing"
 
-	"github.com/CoyAce/whily"
+	"github.com/CoyAce/wi"
 )
 
 func TestMessagePersistence(t *testing.T) {
-	whily.DefaultClient = &whily.Client{UUID: "#00001"}
-	whily.Mkdir(GetDir(whily.DefaultClient.FullID()))
-	whily.RemoveFile(GetDataPath("message.log"))
+	wi.DefaultClient = &wi.Client{UUID: "#00001"}
+	wi.Mkdir(GetDir(wi.DefaultClient.FullID()))
+	wi.RemoveFile(GetDataPath("message.log"))
 	mk := MessageKeeper{MessageChannel: make(chan *Message, 1)}
 	go mk.Loop()
-	mk.MessageChannel <- &Message{Text: "hello world", Sender: "test#00001", UUID: "#00001"}
-	mk.MessageChannel <- &Message{Text: "hello beautiful world", Sender: "test#00001", UUID: "#00001"}
+	mk.MessageChannel <- &Message{TextControl: NewTextControl("hello world"), Contacts: Contacts{Sender: "test#00001", UUID: "#00001"}}
+	mk.MessageChannel <- &Message{TextControl: NewTextControl("hello beautiful world"), Contacts: Contacts{Sender: "test#00001", UUID: "#00001"}}
 	mk.Append()
 	messages := mk.Messages()
 	if len(messages) != 2 {

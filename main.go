@@ -12,7 +12,7 @@ import (
 	"rtc/ui/view"
 	"strconv"
 
-	"github.com/CoyAce/whily"
+	"github.com/CoyAce/wi"
 
 	"gioui.org/app"
 	_ "gioui.org/app/permission/microphone"
@@ -45,7 +45,7 @@ func main() {
 		fmt.Scanln(&sign)
 
 		// setup client
-		c := whily.Client{ConfigName: *config, DataDir: view.GetDataDir(), ServerAddr: *address, Status: make(chan struct{}), UUID: uuid, Sign: sign}
+		c := wi.Client{ConfigName: *config, DataDir: view.GetDataDir(), ServerAddr: *address, Status: make(chan struct{}), UUID: uuid, Sign: sign}
 		go func() {
 			c.ListenAndServe("0.0.0.0:")
 		}()
@@ -62,9 +62,9 @@ func main() {
 	}
 
 	// setup client
-	c := whily.Load(view.GetFilePath(*config))
+	c := wi.Load(view.GetFilePath(*config))
 	if c == nil {
-		c = &whily.Client{ConfigName: *config, DataDir: view.GetDataDir(), ServerAddr: *address, Status: make(chan struct{}), UUID: uuid, Sign: "default"}
+		c = &wi.Client{ConfigName: *config, DataDir: view.GetDataDir(), ServerAddr: *address, Status: make(chan struct{}), UUID: uuid, Sign: "default"}
 	} else {
 		c.Status = make(chan struct{})
 		c.DataDir = view.GetDataDir()

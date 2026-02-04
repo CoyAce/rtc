@@ -20,7 +20,7 @@ import (
 	"gioui.org/unit"
 	"github.com/CoyAce/opus"
 	"github.com/CoyAce/opus/ogg"
-	"github.com/CoyAce/whily"
+	"github.com/CoyAce/wi"
 	"github.com/gen2brain/malgo"
 )
 
@@ -120,7 +120,7 @@ func (v *VoiceRecorder) encodeAndSendAsync() {
 		}
 		message.Format = malgo.FormatS16
 		MessageBox <- &message
-		err = whily.DefaultClient.SendVoice(filepath.Base(filePath), duration)
+		err = wi.DefaultClient.SendVoice(filepath.Base(filePath), duration)
 		if err != nil {
 			log.Printf("Send voice %s failed, %s", filePath, err)
 		} else {

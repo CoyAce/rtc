@@ -18,13 +18,13 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/x/explorer"
-	"github.com/CoyAce/whily"
+	"github.com/CoyAce/wi"
 	"github.com/gen2brain/malgo"
 )
 
-func Draw(window *app.Window, c *whily.Client) error {
+func Draw(window *app.Window, c *wi.Client) error {
 	// save client to global pointer
-	whily.DefaultClient = c
+	wi.DefaultClient = c
 	// audio
 	maCtx, err := malgo.InitContext(nil, malgo.ContextConfig{}, func(message string) {
 		log.Print("internal/audio: ", message)
@@ -49,20 +49,20 @@ func Draw(window *app.Window, c *whily.Client) error {
 	go view.ConsumeAudioData(streamConfig)
 	// listen for events in the messages channel
 	go func() {
-		handleOp := func(m whily.WriteReq) {
+		handleOp := func(m wi.WriteReq) {
 			switch m.Code {
-			case whily.OpSyncIcon:
+			case wi.OpSyncIcon:
 				avatar := view.AvatarCache.LoadOrElseNew(m.UUID)
 				if filepath.Ext(m.Filename) == ".gif" {
 					avatar.Reload(view.GIF_IMG)
 				} else {
 					avatar.Reload(view.IMG)
 				}
-			case whily.OpAudioCall:
+			case wi.OpAudioCall:
 				view.ShowIncomingCall(m)
-			case whily.OpAcceptAudioCall:
+			case wi.OpAcceptAudioCall:
 				go view.PostAudioCallAccept(streamConfig)
-			case whily.OpEndAudioCall:
+			case wi.OpEndAudioCall:
 				view.EndIncomingCall(m.FileId == 0)
 			default:
 			}
@@ -94,11 +94,11 @@ func Draw(window *app.Window, c *whily.Client) error {
 					FileControl: view.FileControl{Filename: m.Filename},
 					CreatedAt:   time.Now()}
 				switch m.Code {
-				case whily.OpSendImage:
+				case wi.OpSendImage:
 					message.MessageType = view.Image
-				case whily.OpSendGif:
+				case wi.OpSendGif:
 					message.MessageType = view.GIF
-				case whily.OpSendVoice:
+				case wi.OpSendVoice:
 					mediaControl := view.MediaControl{StreamConfig: streamConfig, Duration: m.Duration}
 					message.MessageType = view.Voice
 					message.MediaControl = mediaControl
@@ -114,7 +114,7 @@ func Draw(window *app.Window, c *whily.Client) error {
 		}
 	}()
 	// handle sync operation
-	whily.DefaultClient.SyncFunc = view.SyncCachedIcon
+	wi.DefaultClient.SyncFunc = view.SyncCachedIcon
 	inputField := component.TextField{Editor: ui.Editor{Submit: true}}
 	messageEditor := view.MessageEditor{InputField: &inputField, Theme: fonts.DefaultTheme}
 	iconStack := view.NewIconStack()
@@ -136,7 +136,7 @@ func Draw(window *app.Window, c *whily.Client) error {
 			return e.Err
 		case app.ConfigEvent:
 			if e.Config.Focused == false {
-				whily.DefaultClient.Store()
+				wi.DefaultClient.Store()
 				messageKeeper.Append()
 				view.ICache.Reset()
 				view.GCache.Reset()
@@ -158,7 +158,7 @@ func Draw(window *app.Window, c *whily.Client) error {
 						MessageType: view.Text,
 						CreatedAt:   time.Now()}
 					view.MessageBox <- &message
-					if whily.DefaultClient.Connected && whily.DefaultClient.SendText(msg) == nil {
+					if wi.DefaultClient.Connected && wi.DefaultClient.SendText(msg) == nil {
 						message.State = view.Sent
 					} else {
 						message.State = view.Failed

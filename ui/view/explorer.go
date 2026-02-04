@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/CoyAce/whily"
+	"github.com/CoyAce/wi"
 
 	"gioui.org/app"
 	"gioui.org/io/event"
@@ -398,7 +398,7 @@ func GetPath(uuid string, filename string) string {
 }
 
 func GetDataPath(filename string) string {
-	return GetPath(whily.DefaultClient.FullID(), filename)
+	return GetPath(wi.DefaultClient.FullID(), filename)
 }
 
 func GetFilePath(filename string) string {
@@ -414,13 +414,13 @@ func SaveImg(img image.Image, filename string, rewrite bool) {
 	if err == nil && !rewrite {
 		return
 	}
-	whily.Mkdir(filepath.Dir(filePath))
+	wi.Mkdir(filepath.Dir(filePath))
 	file, err := os.Create(filePath)
 	defer file.Close()
 	if err != nil {
 		log.Printf("create file failed, %v", err)
 	}
-	err = whily.EncodeImg(file, filePath, img)
+	err = wi.EncodeImg(file, filePath, img)
 	if err != nil {
 		log.Printf("encode file failed, %v", err)
 	} else {
@@ -434,11 +434,11 @@ func SaveGif(gifImg *gif.GIF, filename string, rewrite bool) {
 	if err == nil && !rewrite {
 		return
 	}
-	whily.Mkdir(filepath.Dir(filePath))
+	wi.Mkdir(filepath.Dir(filePath))
 	file, err := os.Create(filePath)
 	defer file.Close()
 	if err != nil {
 		log.Printf("create file failed, %v", err)
 	}
-	whily.EncodeGif(file, filename, gifImg)
+	wi.EncodeGif(file, filename, gifImg)
 }

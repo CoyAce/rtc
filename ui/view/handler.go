@@ -8,14 +8,14 @@ import (
 	modal "rtc/ui/layout"
 
 	"gioui.org/layout"
-	"github.com/CoyAce/whily"
+	"github.com/CoyAce/wi"
 )
 
 var OnSettingsSubmit = func(gtx layout.Context) {
 	modal.DefaultModal.Dismiss(nil)
 }
 var SyncCachedIcon = func() {
-	avatar := AvatarCache.LoadOrElseNew(whily.DefaultClient.FullID())
+	avatar := AvatarCache.LoadOrElseNew(wi.DefaultClient.FullID())
 	switch avatar.AvatarType {
 	case Default:
 		if avatar.Gif != nil {
@@ -37,13 +37,13 @@ var SyncCachedIcon = func() {
 var SyncSelectedIcon = func(img image.Image, gifImg *gif.GIF) {
 	go func() {
 		if img == nil {
-			err := whily.DefaultClient.SyncGif(gifImg)
+			err := wi.DefaultClient.SyncGif(gifImg)
 			if err != nil {
 				log.Printf("Failed to sync icon: %v", err)
 			}
 			return
 		}
-		err := whily.DefaultClient.SyncIcon(img)
+		err := wi.DefaultClient.SyncIcon(img)
 		if err != nil {
 			log.Printf("Failed to sync icon: %v", err)
 		}

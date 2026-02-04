@@ -33,7 +33,7 @@ import (
 	"gioui.org/widget/material"
 	"gioui.org/x/component"
 	"github.com/CoyAce/opus/ogg"
-	"github.com/CoyAce/whily"
+	"github.com/CoyAce/wi"
 	"golang.org/x/exp/shiny/materialdesign/colornames"
 )
 
@@ -201,11 +201,11 @@ type Contacts struct {
 }
 
 func FromSender(sender string) Contacts {
-	return Contacts{UUID: whily.DefaultClient.FullID(), Sender: sender}
+	return Contacts{UUID: wi.DefaultClient.FullID(), Sender: sender}
 }
 
 func FromMyself() Contacts {
-	return FromSender(whily.DefaultClient.FullID())
+	return FromSender(wi.DefaultClient.FullID())
 }
 
 type TextControl struct {

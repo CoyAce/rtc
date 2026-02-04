@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"gioui.org/layout"
-	"github.com/CoyAce/whily"
+	"github.com/CoyAce/wi"
 )
 
 func ChooseAndSendPhoto(gtx layout.Context) {
@@ -20,16 +20,16 @@ func ChooseAndSendPhoto(gtx layout.Context) {
 		}
 		defer fd.File.Close()
 		mType := Image
-		opCode := whily.OpSendImage
+		opCode := wi.OpSendImage
 		isGif := filepath.Ext(fd.Name) == ".gif"
 		if isGif {
 			mType = GIF
-			opCode = whily.OpSendGif
+			opCode = wi.OpSendGif
 		}
 		message := &Message{State: Stateless, Theme: fonts.DefaultTheme, Contacts: FromMyself(),
 			MessageType: mType, FileControl: FileControl{Path: fd.Path}, CreatedAt: time.Now()}
 		MessageBox <- message
-		err = whily.DefaultClient.SendFile(fd.File, opCode, fd.Name, uint64(fd.Size), 0)
+		err = wi.DefaultClient.SendFile(fd.File, opCode, fd.Name, uint64(fd.Size), 0)
 		if err != nil {
 			log.Printf("send image failed, %v", err)
 			message.State = Failed
