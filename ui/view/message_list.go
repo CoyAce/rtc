@@ -3,19 +3,154 @@ package view
 import (
 	"bufio"
 	"encoding/json"
+	"image"
 	"log"
 	"os"
+	"path/filepath"
 	"rtc/assets/fonts"
 	"rtc/internal/audio"
 	"sync"
 	"time"
 
+	"gioui.org/app"
 	"gioui.org/io/key"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+	"gioui.org/x/component"
+	"github.com/CoyAce/wi"
 )
+
+type VoiceMode bool
+
+type MessageManager struct {
+	*VoiceMode
+	*MessageList
+	*MessageKeeper
+	*VoiceRecorder
+	*MessageEditor
+	audioStack *IconStack
+	iconStack  *IconStack
+}
+
+func (v *VoiceMode) SwitchBetweenTextAndVoice(voiceMessage *IconButton) func() {
+	return func() {
+		*v = !*v
+		if *v {
+			voiceMessage.Icon = chatIcon
+		} else {
+			voiceMessage.Icon = voiceMessageIcon
+		}
+	}
+}
+
+func (m *MessageManager) Process(window *app.Window, c *wi.Client) {
+	go ConsumeAudioData(m.StreamConfig)
+	go m.MessageKeeper.Loop()
+	// listen for events in the messages channel
+	go func() {
+		handleOp := func(req wi.WriteReq) {
+			switch req.Code {
+			case wi.OpSyncIcon:
+				avatar := AvatarCache.LoadOrElseNew(req.UUID)
+				if filepath.Ext(req.Filename) == ".gif" {
+					avatar.Reload(GIF_IMG)
+				} else {
+					avatar.Reload(IMG)
+				}
+			case wi.OpAudioCall:
+				ShowIncomingCall(req)
+			case wi.OpAcceptAudioCall:
+				go PostAudioCallAccept(m.StreamConfig)
+			case wi.OpEndAudioCall:
+				EndIncomingCall(req.FileId == 0)
+			default:
+			}
+		}
+		for {
+			var message *Message
+			select {
+			case msg := <-MessageBox:
+				if msg == nil {
+					log.Printf("nil message")
+					continue
+				}
+				message = msg
+			case msg := <-c.SignedMessages:
+				text := string(msg.Payload)
+				message = &Message{
+					State:       Sent,
+					TextControl: NewTextControl(text),
+					Theme:       fonts.DefaultTheme,
+					Contacts:    FromSender(msg.Sign.UUID),
+					MessageType: Text,
+					CreatedAt:   time.Now(),
+				}
+			case msg := <-c.FileMessages:
+				message = &Message{
+					State:       Sent,
+					Theme:       fonts.DefaultTheme,
+					Contacts:    FromSender(msg.UUID),
+					FileControl: FileControl{Filename: msg.Filename},
+					CreatedAt:   time.Now()}
+				switch msg.Code {
+				case wi.OpSendImage:
+					message.MessageType = Image
+				case wi.OpSendGif:
+					message.MessageType = GIF
+				case wi.OpSendVoice:
+					mediaControl := MediaControl{StreamConfig: m.StreamConfig, Duration: msg.Duration}
+					message.MessageType = Voice
+					message.MediaControl = mediaControl
+				default:
+					handleOp(msg)
+					continue
+				}
+			}
+			message.AddTo(m.MessageList)
+			message.SendTo(m.MessageKeeper)
+			m.MessageList.ScrollToEnd = true
+			window.Invalidate()
+		}
+	}()
+}
+
+func (m *MessageManager) Layout(gtx layout.Context) {
+	w := m.MessageEditor.Layout
+	if *m.VoiceMode {
+		w = m.VoiceRecorder.Layout
+	}
+	layout.Flex{Axis: layout.Vertical, Spacing: layout.SpaceBetween}.Layout(gtx,
+		layout.Flexed(1, m.MessageList.Layout),
+		layout.Rigid(w),
+	)
+	_, d := m.audioStack.Layout(gtx)
+	op.Offset(image.Pt(0, -d.Size.Y)).Add(gtx.Ops)
+	m.iconStack.Layout(gtx)
+}
+
+func NewMessageManager(streamConfig audio.StreamConfig) MessageManager {
+	mode := new(VoiceMode)
+	voiceRecorder := &VoiceRecorder{StreamConfig: streamConfig}
+	messageKeeper := &MessageKeeper{MessageChannel: make(chan *Message, 1)}
+	messageList := &MessageList{
+		List:     layout.List{Axis: layout.Vertical, ScrollToEnd: true},
+		Theme:    fonts.DefaultTheme,
+		Messages: messageKeeper.Messages(streamConfig),
+	}
+	inputField := component.TextField{Editor: widget.Editor{Submit: true}}
+	messageEditor := &MessageEditor{InputField: &inputField, Theme: fonts.DefaultTheme}
+	return MessageManager{
+		audioStack:    NewAudioIconStack(streamConfig),
+		iconStack:     NewIconStack(mode.SwitchBetweenTextAndVoice),
+		VoiceMode:     mode,
+		VoiceRecorder: voiceRecorder,
+		MessageList:   messageList,
+		MessageKeeper: messageKeeper,
+		MessageEditor: messageEditor,
+	}
+}
 
 type MessageList struct {
 	layout.List
@@ -59,10 +194,9 @@ func (l *MessageList) getFocusAndResetIconStackIfClicked(gtx layout.Context) {
 
 type MessageKeeper struct {
 	MessageChannel chan *Message
-	audio.StreamConfig
-	buffer []*Message
-	ready  chan struct{}
-	lock   sync.Mutex
+	buffer         []*Message
+	ready          chan struct{}
+	lock           sync.Mutex
 }
 
 func (k *MessageKeeper) Loop() {
@@ -114,7 +248,7 @@ func (k *MessageKeeper) writeJson(file *os.File, msg *Message) {
 	}
 }
 
-func (k *MessageKeeper) Messages() []*Message {
+func (k *MessageKeeper) Messages(streamConfig audio.StreamConfig) []*Message {
 	filePath := GetDataPath("message.log")
 	f, err := os.Open(filePath)
 	if err != nil {
@@ -136,7 +270,7 @@ func (k *MessageKeeper) Messages() []*Message {
 			msg.State = Failed
 		}
 		if msg.MessageType == Voice {
-			msg.StreamConfig = k.StreamConfig
+			msg.StreamConfig = streamConfig
 		}
 		ret = append(ret, &msg)
 	}

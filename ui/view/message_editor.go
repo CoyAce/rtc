@@ -6,6 +6,7 @@ import (
 	"math"
 	"rtc/assets/fonts"
 	"strings"
+	"time"
 
 	"gioui.org/f32"
 	"gioui.org/io/clipboard"
@@ -18,6 +19,7 @@ import (
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"gioui.org/x/component"
+	"github.com/CoyAce/wi"
 )
 
 type MessageEditor struct {
@@ -59,6 +61,7 @@ func (e *MessageEditor) Layout(gtx layout.Context) layout.Dimensions {
 }
 
 func (e *MessageEditor) update(gtx layout.Context) {
+	e.processSubmit(gtx)
 	e.processTextCut(gtx)
 	e.processTextCopy(gtx)
 	e.processTextPaste(gtx)
@@ -138,6 +141,28 @@ func (e *MessageEditor) submittedByCarriageReturn(gtx layout.Context) (submit bo
 		}
 	}
 	return submit
+}
+
+func (e *MessageEditor) processSubmit(gtx layout.Context) {
+	// ---------- Handle input ----------
+	if e.Submitted(gtx) {
+		msg := strings.TrimSpace(e.InputField.Text())
+		e.InputField.Clear()
+		go func() {
+			message := Message{State: Stateless,
+				TextControl: NewTextControl(msg),
+				Theme:       fonts.DefaultTheme,
+				Contacts:    FromMyself(),
+				MessageType: Text,
+				CreatedAt:   time.Now()}
+			MessageBox <- &message
+			if wi.DefaultClient.Connected && wi.DefaultClient.SendText(msg) == nil {
+				message.State = Sent
+			} else {
+				message.State = Failed
+			}
+		}()
+	}
 }
 
 type EditorOperator struct {

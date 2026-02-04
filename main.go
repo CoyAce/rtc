@@ -9,9 +9,11 @@ import (
 	"os"
 	"rtc/internal/audio"
 	"rtc/ui"
+	"rtc/ui/native"
 	"rtc/ui/view"
 	"strconv"
 
+	"gioui.org/x/explorer"
 	"github.com/CoyAce/wi"
 
 	"gioui.org/app"
@@ -62,14 +64,7 @@ func main() {
 	}
 
 	// setup client
-	c := wi.Load(view.GetFilePath(*config))
-	if c == nil {
-		c = &wi.Client{ConfigName: *config, DataDir: view.GetDataDir(), ServerAddr: *address, Status: make(chan struct{}), UUID: uuid, Sign: "default"}
-	} else {
-		c.Status = make(chan struct{})
-		c.DataDir = view.GetDataDir()
-		c.ConfigName = *config
-	}
+	c := setup(uuid)
 	c.Store()
 	go func() {
 		c.ListenAndServe("0.0.0.0:")
@@ -81,10 +76,34 @@ func main() {
 		w.Option(app.Title("◯"))
 		w.Option(app.Size(unit.Dp(463), unit.Dp(750)))
 		w.Option(app.MinSize(unit.Dp(463)/1.5, unit.Dp(750)/1.5))
+		initTools(w)
 		if err := ui.Draw(w, c); err != nil {
 			log.Fatal(err)
 		}
 		os.Exit(0)
 	}()
 	app.Main()
+}
+
+func setup(uuid string) *wi.Client {
+	c := wi.Load(view.GetFilePath(*config))
+	if c == nil {
+		c = &wi.Client{
+			ServerAddr: *address,
+			UUID:       uuid,
+			Sign:       "default",
+		}
+	}
+	c.Status = make(chan struct{})
+	c.DataDir = view.GetDataDir()
+	c.ConfigName = *config
+	c.SyncFunc = view.SyncCachedIcon
+	// save client to global pointer
+	wi.DefaultClient = c
+	return c
+}
+
+func initTools(window *app.Window) {
+	view.DefaultPicker = explorer.NewExplorer(window)
+	native.DefaultRecorder = native.NewRecorder(window)
 }

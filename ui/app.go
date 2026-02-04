@@ -1,30 +1,20 @@
 package ui
 
 import (
-	"image"
 	"log"
-	"path/filepath"
-	"rtc/assets/fonts"
 	"rtc/internal/audio"
 	ui "rtc/ui/layout"
 	"rtc/ui/native"
 	"rtc/ui/view"
-	"strings"
-	"time"
 
 	"gioui.org/app"
-	"gioui.org/layout"
+	"gioui.org/io/event"
 	"gioui.org/op"
-	"gioui.org/widget"
-	"gioui.org/x/component"
-	"gioui.org/x/explorer"
 	"github.com/CoyAce/wi"
 	"github.com/gen2brain/malgo"
 )
 
 func Draw(window *app.Window, c *wi.Client) error {
-	// save client to global pointer
-	wi.DefaultClient = c
 	// audio
 	maCtx, err := malgo.InitContext(nil, malgo.ContextConfig{}, func(message string) {
 		log.Print("internal/audio: ", message)
@@ -36,105 +26,23 @@ func Draw(window *app.Window, c *wi.Client) error {
 		_ = maCtx.Uninit()
 		maCtx.Free()
 	}()
-	streamConfig := audio.NewStreamConfig(maCtx, 1)
-	voiceRecorder := view.VoiceRecorder{StreamConfig: streamConfig}
+	m := view.NewMessageManager(audio.NewStreamConfig(maCtx, 1))
+	m.Process(window, c)
 	// ops are the operations from the UI
 	var ops op.Ops
-
-	var messageList = &view.MessageList{List: layout.List{Axis: layout.Vertical, ScrollToEnd: true},
-		Theme: fonts.DefaultTheme}
-	var messageKeeper = &view.MessageKeeper{MessageChannel: make(chan *view.Message, 1), StreamConfig: streamConfig}
-	messageList.Messages = messageKeeper.Messages()
-	go messageKeeper.Loop()
-	go view.ConsumeAudioData(streamConfig)
-	// listen for events in the messages channel
-	go func() {
-		handleOp := func(m wi.WriteReq) {
-			switch m.Code {
-			case wi.OpSyncIcon:
-				avatar := view.AvatarCache.LoadOrElseNew(m.UUID)
-				if filepath.Ext(m.Filename) == ".gif" {
-					avatar.Reload(view.GIF_IMG)
-				} else {
-					avatar.Reload(view.IMG)
-				}
-			case wi.OpAudioCall:
-				view.ShowIncomingCall(m)
-			case wi.OpAcceptAudioCall:
-				go view.PostAudioCallAccept(streamConfig)
-			case wi.OpEndAudioCall:
-				view.EndIncomingCall(m.FileId == 0)
-			default:
-			}
-		}
-		for {
-			var message *view.Message
-			select {
-			case m := <-view.MessageBox:
-				if m == nil {
-					log.Printf("nil message")
-					continue
-				}
-				message = m
-			case m := <-c.SignedMessages:
-				text := string(m.Payload)
-				message = &view.Message{
-					State:       view.Sent,
-					TextControl: view.NewTextControl(text),
-					Theme:       fonts.DefaultTheme,
-					Contacts:    view.FromSender(m.Sign.UUID),
-					MessageType: view.Text,
-					CreatedAt:   time.Now(),
-				}
-			case m := <-c.FileMessages:
-				message = &view.Message{
-					State:       view.Sent,
-					Theme:       fonts.DefaultTheme,
-					Contacts:    view.FromSender(m.UUID),
-					FileControl: view.FileControl{Filename: m.Filename},
-					CreatedAt:   time.Now()}
-				switch m.Code {
-				case wi.OpSendImage:
-					message.MessageType = view.Image
-				case wi.OpSendGif:
-					message.MessageType = view.GIF
-				case wi.OpSendVoice:
-					mediaControl := view.MediaControl{StreamConfig: streamConfig, Duration: m.Duration}
-					message.MessageType = view.Voice
-					message.MediaControl = mediaControl
-				default:
-					handleOp(m)
-					continue
-				}
-			}
-			message.AddTo(messageList)
-			message.SendTo(messageKeeper)
-			messageList.ScrollToEnd = true
-			window.Invalidate()
-		}
-	}()
-	// handle sync operation
-	wi.DefaultClient.SyncFunc = view.SyncCachedIcon
-	inputField := component.TextField{Editor: widget.Editor{Submit: true}}
-	messageEditor := view.MessageEditor{InputField: &inputField, Theme: fonts.DefaultTheme}
-	iconStack := view.NewIconStack()
-	audioStack := view.NewAudioIconStack(streamConfig)
-	view.DefaultPicker = explorer.NewExplorer(window)
-	native.DefaultRecorder = native.NewRecorder(window)
 	// listen for events in the window.
 	for {
-		event := window.Event()
-		view.DefaultPicker.ListenEvents(event)
-		native.DefaultRecorder.ListenEvents(event)
+		evt := window.Event()
+		listenEvents(evt)
 		// detect what type of event
-		switch e := event.(type) {
+		switch e := evt.(type) {
 		// this is sent when the application is closed
 		case app.DestroyEvent:
 			return e.Err
 		case app.ConfigEvent:
 			if e.Config.Focused == false {
 				wi.DefaultClient.Store()
-				messageKeeper.Append()
+				m.MessageKeeper.Append()
 				view.ICache.Reset()
 				view.GCache.Reset()
 			}
@@ -143,40 +51,16 @@ func Draw(window *app.Window, c *wi.Client) error {
 			// This graphics context is used for managing the rendering state.
 			gtx := app.NewContext(&ops, e)
 
-			// ---------- Handle input ----------
-			if messageEditor.Submitted(gtx) {
-				msg := strings.TrimSpace(inputField.Text())
-				inputField.Clear()
-				go func() {
-					message := view.Message{State: view.Stateless,
-						TextControl: view.NewTextControl(msg),
-						Theme:       fonts.DefaultTheme,
-						Contacts:    view.FromMyself(),
-						MessageType: view.Text,
-						CreatedAt:   time.Now()}
-					view.MessageBox <- &message
-					if wi.DefaultClient.Connected && wi.DefaultClient.SendText(msg) == nil {
-						message.State = view.Sent
-					} else {
-						message.State = view.Failed
-					}
-				}()
-			}
-			w := messageEditor.Layout
-			if view.VoiceMode {
-				w = voiceRecorder.Layout
-			}
-			layout.Flex{Axis: layout.Vertical, Spacing: layout.SpaceBetween}.Layout(gtx,
-				layout.Flexed(1, messageList.Layout),
-				layout.Rigid(w),
-			)
-			_, d := audioStack.Layout(gtx)
-			op.Offset(image.Pt(0, -d.Size.Y)).Add(gtx.Ops)
-			iconStack.Layout(gtx)
+			m.Layout(gtx)
 			ui.DefaultModal.Layout(gtx)
 
 			// Pass the drawing operations to the GPU.
 			e.Frame(gtx.Ops)
 		}
 	}
+}
+
+func listenEvents(event event.Event) {
+	view.DefaultPicker.ListenEvents(event)
+	native.DefaultRecorder.ListenEvents(event)
 }

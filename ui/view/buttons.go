@@ -130,11 +130,11 @@ var iconStackAnimation = component.VisibilityAnimation{
 	Started:  time.Time{},
 }
 
-func NewIconStack() *IconStack {
+func NewIconStack(modeSwitch func(*IconButton) func()) *IconStack {
 	settings := NewSettingsForm(OnSettingsSubmit)
 	audioMakeButton.OnClick = MakeAudioCall(audioMakeButton)
 	voiceMessageSwitch := &IconButton{Theme: fonts.DefaultTheme, Icon: voiceMessageIcon, Enabled: true}
-	voiceMessageSwitch.OnClick = SwitchBetweenTextAndVoice(voiceMessageSwitch)
+	voiceMessageSwitch.OnClick = modeSwitch(voiceMessageSwitch)
 	return &IconStack{
 		Sticky:              false,
 		Theme:               fonts.DefaultTheme,
