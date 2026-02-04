@@ -304,13 +304,13 @@ func (f *FileControl) Layout(gtx layout.Context, theme *material.Theme) layout.D
 	hidden := len(f.Filename) >= 25
 	return layout.Flex{Alignment: layout.Middle, Spacing: layout.SpaceAround}.Layout(gtx,
 		layout.Rigid(f.drawIcon(theme)),
-		layout.Flexed(0.45, func(gtx layout.Context) layout.Dimensions {
+		layout.Flexed(0.75*0.618, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical, Spacing: layout.SpaceAround}.Layout(gtx,
 				layout.Rigid(f.drawFilename(theme)),
 				layout.Rigid(f.drawSize(theme, hidden)),
 			)
 		}),
-		layout.Flexed(0.168, func(gtx layout.Context) layout.Dimensions {
+		layout.Flexed(0.75*0.618*0.618, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical, Spacing: layout.SpaceAround, Alignment: layout.Middle}.Layout(gtx,
 				layout.Rigid(f.drawSize(theme, !hidden)),
 				layout.Rigid(f.drawProgress(theme)),
