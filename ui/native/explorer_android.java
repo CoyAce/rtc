@@ -25,6 +25,7 @@ import android.webkit.MimeTypeMap;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 @SuppressWarnings("deprecation")
@@ -66,7 +67,6 @@ public class explorer_android {
             super.onActivityResult(requestCode, resultCode, data);
 
             Activity activity = this.getActivity();
-            Uri uri = data.getData();
             ContentResolver resolver = activity.getApplicationContext().getContentResolver();
 
             activity.runOnUiThread(() -> {
@@ -78,10 +78,11 @@ public class explorer_android {
                         return;
                     }
                     try {
+                        Uri uri = Objects.requireNonNull(data.getData());
                         ParcelFileDescriptor pfd = resolver.openFileDescriptor(uri, "r");
                         FileInputStream f = new ParcelFileDescriptor.AutoCloseInputStream(pfd);
-                        resolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                        explorer_android.ImportCallback(f, requestCode, getFileInfoFromContentUri(uri), "");
+                        resolver.takePersistableUriPermission(data.getData(), Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        explorer_android.ImportCallback(f, requestCode, getFileInfoFromContentUri(data.getData()), "");
                     } catch (IOException e) {
                         explorer_android.ImportCallback(null, requestCode, null, e.toString());
                         return;
@@ -96,6 +97,7 @@ public class explorer_android {
                         return;
                     }
                     try {
+                        Uri uri = Objects.requireNonNull(data.getData());
                         ParcelFileDescriptor pfd = resolver.openFileDescriptor(uri, "wt");
                         FileOutputStream f = new ParcelFileDescriptor.AutoCloseOutputStream(pfd);
                         explorer_android.ExportCallback(f, requestCode, null, "");
@@ -148,8 +150,7 @@ public class explorer_android {
             final Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
             intent.setType("*/*");
             intent.addCategory(Intent.CATEGORY_OPENABLE);
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
 
             if (mime != null) {
                 final String[] mimes = mime.split(",");
