@@ -4,9 +4,9 @@ go 1.24.0
 
 toolchain go1.24.11
 
-replace gioui.org/x v0.9.0 => ../gio-x
+replace gioui.org/x v0.9.0 => github.com/CoyAce/gio-x v0.9.1
 
-replace gioui.org v0.9.1-0.20260107121033-99647591f6b9 => ../gio
+replace gioui.org => github.com/CoyAce/gio v0.9.1
 
 require (
 	gioui.org v0.9.1-0.20260107121033-99647591f6b9
@@ -14,7 +14,7 @@ require (
 	git.wow.st/gmp/jni v0.0.0-20210610011705-34026c7e22d0
 	github.com/CoyAce/apm v0.1.3
 	github.com/CoyAce/opus v0.1.8
-	github.com/CoyAce/whily v0.1.3
+	github.com/CoyAce/wi v0.1.4
 	github.com/gen2brain/malgo v0.11.24
 	github.com/go-text/typesetting v0.3.0
 	golang.org/x/exp/shiny v0.0.0-20251209150349-8475f28825e9
