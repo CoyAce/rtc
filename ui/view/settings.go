@@ -26,14 +26,14 @@ type SettingsForm struct {
 	*material.Theme
 	avatar           Avatar
 	modalContent     *modal.ModalContent
-	onSuccess        func(gtx layout.Context)
+	onSuccess        func()
 	nicknameEditor   *component.TextField
 	signEditor       *component.TextField
 	serverAddrEditor *component.TextField
 	submitButton     IconButton
 }
 
-func NewSettingsForm(onSuccess func(gtx layout.Context)) *SettingsForm {
+func NewSettingsForm(onSuccess func()) *SettingsForm {
 	s := &SettingsForm{
 		Theme:            fonts.NewTheme(),
 		avatar:           Avatar{UUID: wi.DefaultClient.FullID(), Size: 64, Editable: true, Theme: fonts.DefaultTheme, OnChange: SyncSelectedIcon},
@@ -44,7 +44,7 @@ func NewSettingsForm(onSuccess func(gtx layout.Context)) *SettingsForm {
 		submitButton:     IconButton{Theme: fonts.DefaultTheme, Icon: actionDoneIcon, Enabled: true},
 	}
 	s.Theme.TextSize = 0.75 * s.Theme.TextSize
-	s.submitButton.OnClick = func(gtx layout.Context) {
+	s.submitButton.OnClick = func() {
 		oldUUID := wi.DefaultClient.FullID()
 		nicknameChanged := s.nicknameEditor.Text() != wi.DefaultClient.Nickname
 		if nicknameChanged {
@@ -69,7 +69,7 @@ func NewSettingsForm(onSuccess func(gtx layout.Context)) *SettingsForm {
 			}
 		}
 		wi.DefaultClient.Store()
-		s.onSuccess(gtx)
+		s.onSuccess()
 	}
 	s.modalContent = modal.NewModalContent(fonts.DefaultTheme, func() {
 		modal.DefaultModal.Dismiss(nil)
@@ -175,8 +175,7 @@ func (s *SettingsForm) drawInputArea(label string, widget layout.Widget) func(gt
 	}
 }
 
-func (s *SettingsForm) ShowWithModal(gtx layout.Context) {
-	iconStackAnimation.Disappear(gtx.Now)
+func (s *SettingsForm) ShowWithModal() {
 	modal.DefaultModal.Show(s.ZoomInWithModalContent, nil, component.VisibilityAnimation{
 		Duration: time.Millisecond * 250,
 		State:    component.Invisible,

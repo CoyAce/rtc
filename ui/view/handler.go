@@ -7,11 +7,10 @@ import (
 
 	modal "rtc/ui/layout"
 
-	"gioui.org/layout"
 	"github.com/CoyAce/wi"
 )
 
-var OnSettingsSubmit = func(gtx layout.Context) {
+var OnSettingsSubmit = func() {
 	modal.DefaultModal.Dismiss(nil)
 }
 var SyncCachedIcon = func() {

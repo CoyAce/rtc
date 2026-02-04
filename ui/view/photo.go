@@ -6,12 +6,10 @@ import (
 	"rtc/assets/fonts"
 	"time"
 
-	"gioui.org/layout"
 	"github.com/CoyAce/wi"
 )
 
-func ChooseAndSendPhoto(gtx layout.Context) {
-	iconStackAnimation.Disappear(gtx.Now)
+func ChooseAndSendPhoto() {
 	go func() {
 		fd, err := ChooseImage()
 		if err != nil {

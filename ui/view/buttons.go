@@ -7,6 +7,8 @@ import (
 	"rtc/assets/fonts"
 	"time"
 
+	"gioui.org/io/event"
+	"gioui.org/io/key"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
@@ -31,13 +33,13 @@ type IconButton struct {
 	Enabled bool
 	Hidden  bool
 	Mode
-	OnClick func(gtx layout.Context)
+	OnClick func()
 	button  widget.Clickable
 }
 
 func (b *IconButton) Layout(gtx layout.Context) layout.Dimensions {
 	if b.button.Clicked(gtx) && b.OnClick != nil {
-		b.OnClick(gtx)
+		b.OnClick()
 	}
 	bg := b.Theme.ContrastBg
 	if !b.Enabled {
@@ -63,6 +65,7 @@ func (b *IconButton) Layout(gtx layout.Context) layout.Dimensions {
 type IconStack struct {
 	*material.Theme
 	*component.VisibilityAnimation
+	Sticky      bool
 	IconButtons []*IconButton
 }
 
@@ -80,6 +83,7 @@ func (s *IconStack) drawIconStackItems(gtx layout.Context) layout.Dimensions {
 }
 
 func (s *IconStack) Layout(gtx layout.Context) (layout.Dimensions, layout.Dimensions) {
+	s.update(gtx)
 	var d layout.Dimensions
 	return layout.Stack{Alignment: layout.SE}.Layout(gtx,
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
@@ -92,10 +96,32 @@ func (s *IconStack) Layout(gtx layout.Context) (layout.Dimensions, layout.Dimens
 			d.Size.Y = int(float32(d.Size.Y) * progress)
 			component.Rect{Size: d.Size, Color: color.NRGBA{}}.Layout(gtx)
 			defer clip.Rect{Max: d.Size}.Push(gtx.Ops).Pop()
+			event.Op(gtx.Ops, s)
 			call.Add(gtx.Ops)
 			return d
 		}),
 	), d
+}
+
+func (s *IconStack) update(gtx layout.Context) {
+	if !s.Sticky && s.State == component.Visible && !gtx.Focused(s) {
+		gtx.Execute(key.FocusCmd{Tag: s})
+		gtx.Execute(op.InvalidateCmd{})
+	}
+	for {
+		e, ok := gtx.Event(
+			key.FocusFilter{Target: s},
+		)
+		if !ok {
+			break
+		}
+		switch e := e.(type) {
+		case key.FocusEvent:
+			if !e.Focus && !s.Sticky {
+				s.VisibilityAnimation.Disappear(gtx.Now)
+			}
+		}
+	}
 }
 
 var iconStackAnimation = component.VisibilityAnimation{
@@ -109,12 +135,13 @@ func NewIconStack() *IconStack {
 	audioMakeButton.OnClick = MakeAudioCall(audioMakeButton)
 	voiceMessageSwitch := &IconButton{Theme: fonts.DefaultTheme, Icon: voiceMessageIcon, Enabled: true}
 	voiceMessageSwitch.OnClick = SwitchBetweenTextAndVoice(voiceMessageSwitch)
-	return &IconStack{Theme: fonts.DefaultTheme,
+	return &IconStack{
+		Sticky:              false,
+		Theme:               fonts.DefaultTheme,
 		VisibilityAnimation: &iconStackAnimation,
 		IconButtons: []*IconButton{
 			{Theme: fonts.DefaultTheme, Icon: settingsIcon, Enabled: true, OnClick: settings.ShowWithModal},
-			{Theme: fonts.DefaultTheme, Icon: filesIcon, Enabled: true, OnClick: func(gtx layout.Context) {
-				iconStackAnimation.Disappear(gtx.Now)
+			{Theme: fonts.DefaultTheme, Icon: filesIcon, Enabled: true, OnClick: func() {
 				go func() {
 					fd, err := ChooseFile()
 					if err != nil {

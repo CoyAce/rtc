@@ -13,7 +13,6 @@ import (
 	"time"
 	"unsafe"
 
-	"gioui.org/layout"
 	"gioui.org/x/component"
 	"github.com/CoyAce/opus"
 	"github.com/CoyAce/opus/ogg"
@@ -63,10 +62,10 @@ func generateAudioId() uint32 {
 func NewAudioIconStack(streamConfig audio.StreamConfig) *IconStack {
 	audioAcceptButton.OnClick = acceptAudioCall(streamConfig)
 	var audioDeclineButton = &IconButton{Theme: fonts.DefaultTheme, Icon: audioCallIcon, Enabled: true, Mode: Decline}
-	audioDeclineButton.OnClick = func(gtx layout.Context) {
+	audioDeclineButton.OnClick = func() {
 		audioMakeButton.Hidden = false
 		resetMuteButton()
-		audioStackAnimation.Disappear(gtx.Now)
+		audioStackAnimation.Disappear(time.Now())
 		time.AfterFunc(audioStackAnimation.Duration, func() {
 			audioAcceptButton.Hidden = false
 		})
@@ -94,10 +93,12 @@ func NewAudioIconStack(streamConfig audio.StreamConfig) *IconStack {
 			}
 		}()
 	}
-	micOffButton.OnClick = func(gtx layout.Context) {
+	micOffButton.OnClick = func() {
 		toggleMuteButton()
 	}
-	return &IconStack{Theme: fonts.DefaultTheme,
+	return &IconStack{
+		Sticky:              true,
+		Theme:               fonts.DefaultTheme,
 		VisibilityAnimation: &audioStackAnimation,
 		IconButtons: []*IconButton{
 			audioAcceptButton,
@@ -107,8 +108,8 @@ func NewAudioIconStack(streamConfig audio.StreamConfig) *IconStack {
 	}
 }
 
-func acceptAudioCall(streamConfig audio.StreamConfig) func(gtx layout.Context) {
-	return func(gtx layout.Context) {
+func acceptAudioCall(streamConfig audio.StreamConfig) func() {
+	return func() {
 		audioAcceptButton.Hidden = true
 		audioMode = Accept
 		timestamp = uint16(time.Now().Unix())
@@ -282,13 +283,13 @@ func newPlayer(pcmChunks <-chan *bytes.Buffer, streamConfig audio.StreamConfig) 
 	}
 }
 
-func MakeAudioCall(audioButton *IconButton) func(gtx layout.Context) {
-	return func(gtx layout.Context) {
+func MakeAudioCall(audioButton *IconButton) func() {
+	return func() {
 		audioMode = None
 		audioButton.Hidden = true
 		audioAcceptButton.Hidden = true
 		time.AfterFunc(iconStackAnimation.Duration, func() {
-			audioStackAnimation.Appear(gtx.Now)
+			audioStackAnimation.Appear(time.Now())
 		})
 		go func() {
 			err := wi.DefaultClient.SendText("发起了语音通话")
@@ -299,7 +300,7 @@ func MakeAudioCall(audioButton *IconButton) func(gtx layout.Context) {
 			err = wi.DefaultClient.MakeAudioCall(generateAudioId())
 			if err != nil {
 				log.Printf("audio call err: %v", err)
-				audioStackAnimation.Disappear(gtx.Now)
+				audioStackAnimation.Disappear(time.Now())
 			}
 		}()
 	}

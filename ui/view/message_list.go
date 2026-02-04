@@ -54,7 +54,6 @@ func (l *MessageList) getFocusAndResetIconStackIfClicked(gtx layout.Context) {
 	if l.Clicked(gtx) {
 		gtx.Execute(key.FocusCmd{Tag: &l.Clickable})
 		gtx.Execute(op.InvalidateCmd{})
-		iconStackAnimation.Disappear(gtx.Now)
 	}
 }
 
