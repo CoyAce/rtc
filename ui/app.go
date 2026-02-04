@@ -9,7 +9,6 @@ import (
 	ui "rtc/ui/layout"
 	"rtc/ui/native"
 	"rtc/ui/view"
-	"runtime"
 	"strings"
 	"time"
 
@@ -121,9 +120,6 @@ func Draw(window *app.Window, c *wi.Client) error {
 	iconStack := view.NewIconStack()
 	audioStack := view.NewAudioIconStack(streamConfig)
 	view.DefaultPicker = explorer.NewExplorer(window)
-	if runtime.GOOS == "android" {
-		view.DefaultPicker = native.NewExplorer(window)
-	}
 	native.DefaultRecorder = native.NewRecorder(window)
 	// listen for events in the window.
 	for {

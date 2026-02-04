@@ -11,26 +11,18 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
-	"rtc/ui/native"
 	"runtime"
 	"strings"
 	"time"
 
+	"gioui.org/x/explorer"
 	"github.com/CoyAce/wi"
 
 	"gioui.org/app"
-	"gioui.org/io/event"
 	"golang.org/x/image/webp"
 )
 
-var DefaultPicker Picker
-
-type Picker interface {
-	ListenEvents(evt event.Event)
-	ChooseFile(extensions ...string) (io.ReadCloser, error)
-	ChooseFiles(extensions ...string) ([]io.ReadCloser, error)
-	CreateFile(name string) (io.WriteCloser, error)
-}
+var DefaultPicker *explorer.Explorer
 
 type FileDescription struct {
 	File io.ReadCloser
@@ -56,7 +48,7 @@ func ResolveFileDescription(file io.ReadCloser) (FileDescription, error) {
 		return FileDescription{File: file, Name: fileInfo.Name(), Path: f.Name(), Size: fileInfo.Size()}, nil
 	}
 	if runtime.GOOS == "android" {
-		if f, ok := file.(*native.File); ok {
+		if f, ok := file.(*explorer.File); ok {
 			return FileDescription{File: file, Name: f.Name(), Path: f.URI(), Size: f.Size()}, nil
 		}
 	}
@@ -354,8 +346,7 @@ func (c *ImageCache) load(path string) *image.Image {
 
 func Open(path string) (io.ReadCloser, error) {
 	if strings.HasPrefix(path, "content") {
-		picker := DefaultPicker.(*native.Explorer)
-		return picker.ReadFile(path)
+		return DefaultPicker.ReadFile(path)
 	}
 	return os.Open(path)
 }
