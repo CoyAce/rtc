@@ -278,6 +278,13 @@ type FileControl struct {
 	imageBroken    bool
 }
 
+func (f *FileControl) processFileDownload(gtx layout.Context) {
+	if !f.downloadButton.Clicked(gtx) {
+		return
+	}
+	log.Printf("downloading...")
+}
+
 func (f *FileControl) processFileSave(gtx layout.Context, filePath string) {
 	if !f.downloadButton.Clicked(gtx) {
 		return
@@ -550,7 +557,12 @@ func (m *Message) SendTo(messageAppender *MessageKeeper) {
 
 func (m *Message) drawMessage(gtx layout.Context) layout.Dimensions {
 	m.processTextCopy(gtx, m.Text)
-	m.processFileSave(gtx, m.FilePath())
+	switch m.MessageType {
+	case File:
+		m.processFileDownload(gtx)
+	default:
+		m.processFileSave(gtx, m.FilePath())
+	}
 	m.getFocusIfClickedToEnableFocusLostEvent(gtx)
 	flex := layout.Flex{Axis: layout.Vertical, Alignment: layout.Start}
 	if m.isMe() {
@@ -605,6 +617,9 @@ func (m *Message) drawStateAndContent(gtx layout.Context) layout.Dimensions {
 }
 
 func (m *Message) operationNeeded() bool {
+	if m.MessageType == File && m.isMe() {
+		return false
+	}
 	return m.longPressed || m.TextSelected()
 }
 
@@ -635,9 +650,9 @@ func (m *Message) drawOperation(gtx layout.Context) layout.Dimensions {
 		return m.copyButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return contentCopyIcon.Layout(gtx, m.ContrastBg)
 		})
-	case Image, Voice:
+	case Image, Voice, GIF:
 		fallthrough
-	case GIF:
+	case File:
 		return m.downloadButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return downloadIcon.Layout(gtx, m.ContrastBg)
 		})
