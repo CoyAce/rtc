@@ -652,8 +652,8 @@ func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
 }
 
 func (m *Message) drawFile(gtx layout.Context) layout.Dimensions {
-	v := m.getBaseWidth(gtx)
-	gtx.Constraints.Min.X = int(float32(gtx.Constraints.Max.X) * 0.618)
+	v := m.getReverseBaseWidth(gtx)
+	gtx.Constraints.Min.X = int(m.getBaseWidth(gtx))
 	gtx.Constraints.Min.Y = int(v * 0.382)
 	gtx.Constraints.Max.X = gtx.Constraints.Min.X
 	macro := op.Record(gtx.Ops)
@@ -664,7 +664,7 @@ func (m *Message) drawFile(gtx layout.Context) layout.Dimensions {
 }
 
 func (m *Message) drawBlankBox(gtx layout.Context) layout.Dimensions {
-	v := int(m.getBaseWidth(gtx))
+	v := int(m.getReverseBaseWidth(gtx))
 	return layout.Dimensions{Size: image.Pt(v, v)}
 }
 
@@ -673,8 +673,8 @@ func (m *Message) fileNotExist() bool {
 }
 
 func (m *Message) drawVoice(gtx layout.Context) layout.Dimensions {
-	v := m.getBaseWidth(gtx)
-	gtx.Constraints.Min.X = int(float32(gtx.Constraints.Max.X) * 0.618)
+	v := m.getReverseBaseWidth(gtx)
+	gtx.Constraints.Min.X = int(m.getBaseWidth(gtx))
 	gtx.Constraints.Min.Y = int(v * 0.382)
 	macro := op.Record(gtx.Ops)
 	d := m.MediaControl.Layout(gtx, m.FilePath(), m.ContrastBg)
@@ -692,6 +692,10 @@ func (m *Message) drawVoice(gtx layout.Context) layout.Dimensions {
 }
 
 func (m *Message) getBaseWidth(gtx layout.Context) float32 {
+	return float32(gtx.Constraints.Max.X) * 0.618
+}
+
+func (m *Message) getReverseBaseWidth(gtx layout.Context) float32 {
 	return float32(gtx.Constraints.Max.X) * 0.382
 }
 
@@ -699,7 +703,7 @@ func (m *Message) drawGif(gtx layout.Context, gif *Gif) layout.Dimensions {
 	v := m.getBaseWidth(gtx)
 	gtx.Constraints.Min.X = int(v)
 	macro := op.Record(gtx.Ops)
-	d := gif.Layout(gtx)
+	d := gif.Layout(gtx, WidthFixed)
 	call := macro.Stop()
 	m.drawBorder(gtx, d, call)
 	return d
@@ -707,7 +711,7 @@ func (m *Message) drawGif(gtx layout.Context, gif *Gif) layout.Dimensions {
 
 func (m *Message) drawBrokenImage(gtx layout.Context) layout.Dimensions {
 	m.imageBroken = true
-	v := m.getBaseWidth(gtx)
+	v := m.getReverseBaseWidth(gtx)
 	gtx.Constraints.Min.X = int(v)
 	macro := op.Record(gtx.Ops)
 	d := imageBrokenIcon.Layout(gtx, m.Theme.ContrastFg)
@@ -720,12 +724,7 @@ func (m *Message) drawImage(gtx layout.Context, img image.Image) layout.Dimensio
 	v := m.getBaseWidth(gtx)
 	dx := img.Bounds().Dx()
 	dy := img.Bounds().Dy()
-	var point image.Point
-	if dx < dy {
-		point = image.Point{X: int(v), Y: int(float32(dy) / float32(dx) * v)}
-	} else {
-		point = image.Point{X: int(float32(dx) / float32(dy) * v), Y: int(v)}
-	}
+	point := image.Point{X: int(v), Y: int(float32(dy) / float32(dx) * v)}
 	gtx.Constraints.Max = point
 	macro := op.Record(gtx.Ops)
 	imgOps := paint.NewImageOp(img)

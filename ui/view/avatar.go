@@ -111,7 +111,7 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 					d = imgWidget.Layout(gtx)
 				} else {
 					gtx.Constraints.Min.X = gtx.Constraints.Max.X
-					d = v.Gif.Layout(gtx)
+					d = v.Gif.Layout(gtx, ShortEdgeFixed)
 				}
 				call := macro.Stop()
 				xSpace := d.Size.X - gtx.Constraints.Max.X

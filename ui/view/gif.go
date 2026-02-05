@@ -13,6 +13,13 @@ import (
 	"gioui.org/op/paint"
 )
 
+type Fit byte
+
+const (
+	WidthFixed Fit = iota
+	ShortEdgeFixed
+)
+
 type Gif struct {
 	*gif.GIF
 	index     int
@@ -20,12 +27,10 @@ type Gif struct {
 	nextFrame time.Time
 }
 
-func (g *Gif) Layout(gtx layout.Context) layout.Dimensions {
+func (g *Gif) Layout(gtx layout.Context, fit Fit) layout.Dimensions {
 	v := gtx.Constraints.Min.X
-	if g.Config.Width < g.Config.Height {
-		gtx.Constraints.Min.X = v
-		gtx.Constraints.Min.Y = int(float32(g.Config.Height) / float32(g.Config.Width) * float32(v))
-	} else {
+	gtx.Constraints.Min.Y = int(float32(g.Config.Height) / float32(g.Config.Width) * float32(v))
+	if fit == ShortEdgeFixed && g.Config.Width > g.Config.Height {
 		gtx.Constraints.Min.Y = v
 		gtx.Constraints.Min.X = int(float32(g.Config.Width) / float32(g.Config.Height) * float32(v))
 	}
