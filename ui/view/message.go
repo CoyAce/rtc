@@ -278,11 +278,17 @@ type FileControl struct {
 	imageBroken    bool
 }
 
-func (f *FileControl) processFileDownload(gtx layout.Context) {
+func (f *FileControl) processFileDownload(gtx layout.Context, sender string) {
 	if !f.downloadButton.Clicked(gtx) {
 		return
 	}
 	log.Printf("downloading...")
+	go func() {
+		err := wi.DefaultClient.SubscribeFile(f.FileId, sender)
+		if err != nil {
+			log.Printf("Subsrcibe file failed: %v", err)
+		}
+	}()
 }
 
 func (f *FileControl) processFileSave(gtx layout.Context, filePath string) {
@@ -559,7 +565,7 @@ func (m *Message) drawMessage(gtx layout.Context) layout.Dimensions {
 	m.processTextCopy(gtx, m.Text)
 	switch m.MessageType {
 	case File:
-		m.processFileDownload(gtx)
+		m.processFileDownload(gtx, m.Sender)
 	default:
 		m.processFileSave(gtx, m.OptimizedFilePath())
 	}

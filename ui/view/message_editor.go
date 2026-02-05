@@ -158,7 +158,7 @@ func (e *MessageEditor) processSubmit(gtx layout.Context) {
 				MessageType: Text,
 				CreatedAt:   time.Now()}
 			MessageBox <- &message
-			if wi.DefaultClient.Connected && wi.DefaultClient.SendText(msg) == nil {
+			if wi.DefaultClient.SendText(msg) == nil {
 				message.State = Sent
 			} else {
 				message.State = Failed

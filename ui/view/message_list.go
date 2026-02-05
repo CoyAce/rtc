@@ -89,6 +89,9 @@ func (m *MessageManager) Process(window *app.Window, c *wi.Client) {
 					MessageType: Text,
 					CreatedAt:   time.Now(),
 				}
+			case msg := <-c.SubMessages:
+				log.Printf("subscribe req received %v", msg)
+				continue
 			case msg := <-c.FileMessages:
 				message = &Message{
 					State: Sent,
