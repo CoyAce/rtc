@@ -561,7 +561,7 @@ func (m *Message) drawMessage(gtx layout.Context) layout.Dimensions {
 	case File:
 		m.processFileDownload(gtx)
 	default:
-		m.processFileSave(gtx, m.FilePath())
+		m.processFileSave(gtx, m.OptimizedFilePath())
 	}
 	m.getFocusIfClickedToEnableFocusLostEvent(gtx)
 	flex := layout.Flex{Axis: layout.Vertical, Alignment: layout.Start}
@@ -634,6 +634,7 @@ func (m *Message) FilePath() string {
 	return GetPath(m.UUID, m.Filename)
 }
 
+// OptimizedFilePath return path for received file and user chosen file
 func (m *Message) OptimizedFilePath() string {
 	if m.isMe() {
 		return m.Path
