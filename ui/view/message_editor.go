@@ -62,16 +62,16 @@ func (e *MessageEditor) Layout(gtx layout.Context) layout.Dimensions {
 
 func (e *MessageEditor) update(gtx layout.Context) {
 	e.processSubmit(gtx)
-	e.processTextCut(gtx)
-	e.processTextCopy(gtx)
-	e.processTextPaste(gtx)
+	e.processCut(gtx)
+	e.processCopy(gtx)
+	e.processPaste(gtx)
 }
 
 func (e *MessageEditor) operationBarNeeded(gtx layout.Context) bool {
 	return e.longPressed && gtx.Focused(&e.InputField.Editor) || e.InputField.SelectionLen() > 0
 }
 
-func (e *MessageEditor) processTextCut(gtx layout.Context) {
+func (e *MessageEditor) processCut(gtx layout.Context) {
 	if e.cutButton.Clicked(gtx) {
 		if e.InputField.Editor.SelectionLen() > 0 {
 			textForCopy := e.InputField.Editor.SelectedText()
@@ -82,7 +82,7 @@ func (e *MessageEditor) processTextCut(gtx layout.Context) {
 	}
 }
 
-func (e *MessageEditor) processTextPaste(gtx layout.Context) {
+func (e *MessageEditor) processPaste(gtx layout.Context) {
 	if e.pasteButton.Clicked(gtx) {
 		if e.InputField.Editor.SelectionLen() > 0 {
 			e.InputField.Editor.Delete(1)
@@ -92,7 +92,7 @@ func (e *MessageEditor) processTextPaste(gtx layout.Context) {
 	}
 }
 
-func (e *MessageEditor) processTextCopy(gtx layout.Context) {
+func (e *MessageEditor) processCopy(gtx layout.Context) {
 	if e.copyButton.Clicked(gtx) {
 		textForCopy := e.InputField.Text()
 		if e.InputField.Editor.SelectionLen() > 0 {
