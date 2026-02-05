@@ -103,6 +103,15 @@ func (m *MessageManager) Process(window *app.Window, c *wi.Client) {
 					mediaControl := MediaControl{StreamConfig: m.StreamConfig, Duration: msg.Duration}
 					message.MessageType = Voice
 					message.MediaControl = mediaControl
+				case wi.OpPublish:
+					fileControl := FileControl{
+						Filename: msg.Filename,
+						FileId:   msg.FileId,
+						Size:     msg.Size,
+						Mime:     NewMine(msg.Filename),
+					}
+					message.MessageType = File
+					message.FileControl = fileControl
 				default:
 					handleOp(msg)
 					continue

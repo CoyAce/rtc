@@ -43,8 +43,6 @@ func Draw(window *app.Window, c *wi.Client) error {
 			if e.Config.Focused == false {
 				wi.DefaultClient.Store()
 				m.MessageKeeper.Flush()
-				view.ICache.Reset()
-				view.GCache.Reset()
 			}
 		// this is sent when the application should re-render.
 		case app.FrameEvent:

@@ -257,6 +257,7 @@ func NewMine(filename string) Mime {
 
 type FileControl struct {
 	Filename string
+	FileId   uint32
 	Path     string
 	Size     uint64
 	Mime
@@ -737,14 +738,13 @@ func (m *Message) drawImage(gtx layout.Context, img image.Image) layout.Dimensio
 func (m *Message) drawBorder(gtx layout.Context, d layout.Dimensions, call op.CallOp) {
 	// draw border
 	bgColor := m.Theme.ContrastBg
+	bgColor.A = 128
 	radius := gtx.Dp(16)
 	sE, sW, nW, nE := radius, radius, radius, radius
 	if m.isMe() {
 		nE = 0
-		bgColor.A = 128
 	} else {
 		nW = 0
-		bgColor.A = 50
 	}
 	defer clip.RRect{Rect: image.Rectangle{
 		Max: d.Size,
