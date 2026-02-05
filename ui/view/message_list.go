@@ -82,15 +82,19 @@ func (m *MessageManager) Process(window *app.Window, c *wi.Client) {
 				message = &Message{
 					State:       Sent,
 					TextControl: NewTextControl(text),
-					Theme:       fonts.DefaultTheme,
+					MessageStyle: MessageStyle{
+						Theme: fonts.DefaultTheme,
+					},
 					Contacts:    FromSender(msg.Sign.UUID),
 					MessageType: Text,
 					CreatedAt:   time.Now(),
 				}
 			case msg := <-c.FileMessages:
 				message = &Message{
-					State:       Sent,
-					Theme:       fonts.DefaultTheme,
+					State: Sent,
+					MessageStyle: MessageStyle{
+						Theme: fonts.DefaultTheme,
+					},
 					Contacts:    FromSender(msg.UUID),
 					FileControl: FileControl{Filename: msg.Filename},
 					CreatedAt:   time.Now()}

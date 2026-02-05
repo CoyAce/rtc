@@ -24,8 +24,16 @@ func ChooseAndSendPhoto() {
 			mType = GIF
 			opCode = wi.OpSendGif
 		}
-		message := &Message{State: Stateless, Theme: fonts.DefaultTheme, Contacts: FromMyself(),
-			MessageType: mType, FileControl: FileControl{Path: fd.Path}, CreatedAt: time.Now()}
+		message := &Message{
+			State: Stateless,
+			MessageStyle: MessageStyle{
+				Theme: fonts.DefaultTheme,
+			},
+			Contacts:    FromMyself(),
+			MessageType: mType,
+			FileControl: FileControl{Path: fd.Path},
+			CreatedAt:   time.Now(),
+		}
 		MessageBox <- message
 		err = wi.DefaultClient.SendFile(fd.File, opCode, fd.Name, uint64(fd.Size), 0)
 		if err != nil {

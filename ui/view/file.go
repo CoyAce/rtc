@@ -26,8 +26,10 @@ func ChooseAndSendFile(appendFile func(*FileMapping)) func() {
 				Mime:     NewMine(fd.Name),
 			}
 			message := &Message{
-				State:       Stateless,
-				Theme:       fonts.DefaultTheme,
+				State: Stateless,
+				MessageStyle: MessageStyle{
+					Theme: fonts.DefaultTheme,
+				},
 				FileControl: fc,
 				Contacts:    FromMyself(),
 				MessageType: File,

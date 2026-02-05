@@ -151,7 +151,9 @@ func (e *MessageEditor) processSubmit(gtx layout.Context) {
 		go func() {
 			message := Message{State: Stateless,
 				TextControl: NewTextControl(msg),
-				Theme:       fonts.DefaultTheme,
+				MessageStyle: MessageStyle{
+					Theme: fonts.DefaultTheme,
+				},
 				Contacts:    FromMyself(),
 				MessageType: Text,
 				CreatedAt:   time.Now()}
