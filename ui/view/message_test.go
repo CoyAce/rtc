@@ -15,7 +15,7 @@ func TestMessagePersistence(t *testing.T) {
 	go mk.Loop()
 	mk.MessageChannel <- &Message{TextControl: NewTextControl("hello world"), Contacts: Contacts{Sender: "test#00001", UUID: "#00001"}}
 	mk.MessageChannel <- &Message{TextControl: NewTextControl("hello beautiful world"), Contacts: Contacts{Sender: "test#00001", UUID: "#00001"}}
-	mk.Append()
+	mk.Flush()
 	messages := mk.Messages(audio.StreamConfig{})
 	if len(messages) != 2 {
 		t.Errorf("Messages length should be 2, but %d", len(messages))

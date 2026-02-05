@@ -274,19 +274,19 @@ func (f *FileControl) processFileSave(gtx layout.Context, filePath string) {
 		}
 		w, err := DefaultPicker.CreateFile(filepath.Base(filePath))
 		if err != nil {
-			log.Printf("Couldn't create file for %s: %s", filePath, err)
+			log.Printf("Create file %s failed: %s", filePath, err)
 			return
 		}
 		defer w.Close()
 		r, err := os.Open(filePath)
 		if err != nil {
-			log.Printf("Couldn't open file for %s: %s", filePath, err)
+			log.Printf("Open file %s failed: %s", filePath, err)
 			return
 		}
 		defer r.Close()
 		_, err = io.Copy(w, r)
 		if err != nil {
-			log.Printf("Couldn't save file for %s: %s", filePath, err)
+			log.Printf("Save file %s failed: %s", filePath, err)
 			return
 		}
 	}()

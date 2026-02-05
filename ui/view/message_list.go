@@ -133,7 +133,9 @@ func (m *MessageManager) Layout(gtx layout.Context) {
 func NewMessageManager(streamConfig audio.StreamConfig) MessageManager {
 	mode := new(VoiceMode)
 	voiceRecorder := &VoiceRecorder{StreamConfig: streamConfig}
-	messageKeeper := &MessageKeeper{MessageChannel: make(chan *Message, 1)}
+	messageKeeper := &MessageKeeper{
+		MessageChannel: make(chan *Message, 1),
+	}
 	messageList := &MessageList{
 		List:     layout.List{Axis: layout.Vertical, ScrollToEnd: true},
 		Theme:    fonts.DefaultTheme,
@@ -143,7 +145,7 @@ func NewMessageManager(streamConfig audio.StreamConfig) MessageManager {
 	messageEditor := &MessageEditor{InputField: &inputField, Theme: fonts.DefaultTheme}
 	return MessageManager{
 		audioStack:    NewAudioIconStack(streamConfig),
-		iconStack:     NewIconStack(mode.SwitchBetweenTextAndVoice),
+		iconStack:     NewIconStack(mode.SwitchBetweenTextAndVoice, messageKeeper.Append),
 		VoiceMode:     mode,
 		VoiceRecorder: voiceRecorder,
 		MessageList:   messageList,
@@ -192,40 +194,41 @@ func (l *MessageList) getFocusAndResetIconStackIfClicked(gtx layout.Context) {
 	}
 }
 
+type FileMapping struct {
+	ID   uint32
+	Path string
+}
+
 type MessageKeeper struct {
 	MessageChannel chan *Message
 	buffer         []*Message
-	ready          chan struct{}
 	lock           sync.Mutex
 }
 
 func (k *MessageKeeper) Loop() {
-	k.ready = make(chan struct{}, 1)
-	flushFreq := 5 * time.Minute
+	flushFreq := 1 * time.Second
 	timer := time.NewTimer(flushFreq)
 	for {
-		timer.Reset(flushFreq)
 		select {
 		case msg := <-k.MessageChannel:
 			k.lock.Lock()
 			k.buffer = append(k.buffer, msg)
 			k.lock.Unlock()
 		case <-timer.C:
-			k.ready <- struct{}{}
-		case <-k.ready:
 			if len(k.buffer) == 0 {
 				continue
 			}
-			k.Append()
+			k.Flush()
+			timer.Reset(flushFreq)
 		}
 	}
 }
 
-func (k *MessageKeeper) Append() {
+func (k *MessageKeeper) Flush() {
 	filePath := GetDataPath("message.log")
 	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		log.Printf("Couldn't open file: %v", err)
+		log.Printf("Open file failed: %v", err)
 	}
 	defer file.Close()
 	k.lock.Lock()
@@ -236,23 +239,54 @@ func (k *MessageKeeper) Append() {
 	k.buffer = k.buffer[:0]
 }
 
-func (k *MessageKeeper) writeJson(file *os.File, msg *Message) {
+func (k *MessageKeeper) Append(fm *FileMapping) {
+	filePath := GetDataPath("file.log")
+	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Printf("Open file failed: %v", err)
+	}
+	defer file.Close()
+	k.writeJson(file, fm)
+}
+
+func (k *MessageKeeper) writeJson(file *os.File, msg any) {
 	s, err := json.Marshal(msg)
 	if err != nil {
-		log.Printf("Couldn't marshall message: %v", err)
+		log.Printf("Marshall failed: %v", err)
 		return
 	}
 	_, err = file.WriteString(string(s) + "\n")
 	if err != nil {
-		log.Printf("Couldn't write to file: %v", err)
+		log.Printf("Write file failed: %v", err)
 	}
+}
+
+func (k *FileMapping) Mappings() []*FileMapping {
+	filePath := GetDataPath("file.log")
+	f, err := os.Open(filePath)
+	if err != nil {
+		log.Printf("Open file failed: %v", err)
+		return []*FileMapping{}
+	}
+	ret := make([]*FileMapping, 0, 32)
+	s := bufio.NewScanner(f)
+	for s.Scan() {
+		var fm FileMapping
+		line := s.Bytes()
+		err = json.Unmarshal(line, &fm)
+		if err != nil {
+			log.Printf("Unmarshall file mapping failed: %v", err)
+		}
+		ret = append(ret, &fm)
+	}
+	return ret
 }
 
 func (k *MessageKeeper) Messages(streamConfig audio.StreamConfig) []*Message {
 	filePath := GetDataPath("message.log")
 	f, err := os.Open(filePath)
 	if err != nil {
-		log.Printf("Couldn't open file: %v", err)
+		log.Printf("Open file failed: %v", err)
 		return []*Message{}
 	}
 	ret := make([]*Message, 0, 32)
@@ -262,7 +296,7 @@ func (k *MessageKeeper) Messages(streamConfig audio.StreamConfig) []*Message {
 		line := s.Bytes()
 		err = json.Unmarshal(line, &msg)
 		if err != nil {
-			log.Printf("Couldn't unmarshall message: %v", err)
+			log.Printf("Unmarshall message failed: %v", err)
 		}
 		msg.TextControl = NewTextControl(msg.Text)
 		msg.Theme = fonts.DefaultTheme

@@ -3,7 +3,6 @@ package view
 import (
 	"image"
 	"image/color"
-	"log"
 	"rtc/assets/fonts"
 	"time"
 
@@ -130,7 +129,7 @@ var iconStackAnimation = component.VisibilityAnimation{
 	Started:  time.Time{},
 }
 
-func NewIconStack(modeSwitch func(*IconButton) func()) *IconStack {
+func NewIconStack(modeSwitch func(*IconButton) func(), appendFile func(mapping *FileMapping)) *IconStack {
 	settings := NewSettingsForm(OnSettingsSubmit)
 	audioMakeButton.OnClick = MakeAudioCall(audioMakeButton)
 	voiceMessageSwitch := &IconButton{Theme: fonts.DefaultTheme, Icon: voiceMessageIcon, Enabled: true}
@@ -141,25 +140,7 @@ func NewIconStack(modeSwitch func(*IconButton) func()) *IconStack {
 		VisibilityAnimation: &iconStackAnimation,
 		IconButtons: []*IconButton{
 			{Theme: fonts.DefaultTheme, Icon: settingsIcon, Enabled: true, OnClick: settings.ShowWithModal},
-			{Theme: fonts.DefaultTheme, Icon: filesIcon, Enabled: true, OnClick: func() {
-				go func() {
-					fd, err := ChooseFile()
-					if err != nil {
-						log.Printf("choose file failed: %v", err)
-						return
-					}
-					fc := FileControl{Filename: fd.Name, Path: fd.Path, Size: uint64(fd.Size), Mime: NewMine(fd.Name)}
-					message := &Message{
-						State:       Stateless,
-						Theme:       fonts.DefaultTheme,
-						FileControl: fc,
-						Contacts:    FromMyself(),
-						MessageType: File,
-						CreatedAt:   time.Now(),
-					}
-					MessageBox <- message
-				}()
-			}},
+			{Theme: fonts.DefaultTheme, Icon: filesIcon, Enabled: true, OnClick: ChooseAndSendFile(appendFile)},
 			{Theme: fonts.DefaultTheme, Icon: photoLibraryIcon, Enabled: true, OnClick: ChooseAndSendPhoto},
 			{Theme: fonts.DefaultTheme, Icon: videoCallIcon},
 			audioMakeButton,

@@ -42,7 +42,7 @@ func Draw(window *app.Window, c *wi.Client) error {
 		case app.ConfigEvent:
 			if e.Config.Focused == false {
 				wi.DefaultClient.Store()
-				m.MessageKeeper.Append()
+				m.MessageKeeper.Flush()
 				view.ICache.Reset()
 				view.GCache.Reset()
 			}
