@@ -64,7 +64,7 @@ func (m *MessageManager) Process(window *app.Window, c *wi.Client) {
 			case wi.OpAcceptAudioCall:
 				go PostAudioCallAccept(m.StreamConfig)
 			case wi.OpEndAudioCall:
-				EndIncomingCall(req.FileId == 0)
+				EndIncomingCall()
 			default:
 			}
 		}

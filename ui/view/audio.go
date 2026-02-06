@@ -139,8 +139,8 @@ func ShowIncomingCall(wrq wi.WriteReq) {
 	audioStackAnimation.Appear(time.Now())
 }
 
-func EndIncomingCall(cancel bool) {
-	if audioMode != Accept && !cancel {
+func EndIncomingCall() {
+	if audioMode != Accept {
 		return
 	}
 	audioMode = None
