@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"rtc/internal/audio"
+	"strconv"
 	"strings"
 	"time"
 
@@ -274,6 +275,8 @@ type FileControl struct {
 	Path     string
 	Size     uint64
 	Mime
+	progress       int
+	speed          int
 	downloadButton widget.Clickable
 	imageBroken    bool
 }
@@ -284,11 +287,19 @@ func (f *FileControl) processFileDownload(gtx layout.Context, sender string) {
 	}
 	log.Printf("downloading...")
 	go func() {
-		err := wi.DefaultClient.SubscribeFile(f.FileId, sender)
+		err := wi.DefaultClient.SubscribeFile(f.FileId, sender, f.updateProgress, f.updateSpeed)
 		if err != nil {
 			log.Printf("Subsrcibe file failed: %v", err)
 		}
 	}()
+}
+
+func (f *FileControl) updateProgress(p int) {
+	f.progress = p
+}
+
+func (f *FileControl) updateSpeed(s int) {
+	f.speed = s
 }
 
 func (f *FileControl) processFileSave(gtx layout.Context, filePath string) {
@@ -362,12 +373,19 @@ func (f *FileControl) isLongName() bool {
 
 func (f *FileControl) drawSpeed(theme *material.Theme) func(gtx layout.Context) layout.Dimensions {
 	return func(gtx layout.Context) layout.Dimensions {
-		label := material.Label(theme, theme.TextSize, "5M/s")
+		label := material.Label(theme, theme.TextSize, f.getSpeed())
 		label.Color = theme.ContrastFg
 		gtx.Constraints.Min.X = 0
 		margins := layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(4)}
 		return margins.Layout(gtx, label.Layout)
 	}
+}
+
+func (f *FileControl) getSpeed() string {
+	if f.speed == 0 {
+		return "-"
+	}
+	return f.toHumanReadable(float32(f.speed)) + "/s"
 }
 
 func (f *FileControl) drawIcon(theme *material.Theme) func(gtx layout.Context) layout.Dimensions {
@@ -379,7 +397,7 @@ func (f *FileControl) drawIcon(theme *material.Theme) func(gtx layout.Context) l
 
 func (f *FileControl) drawProgress(theme *material.Theme) func(gtx layout.Context) layout.Dimensions {
 	return func(gtx layout.Context) layout.Dimensions {
-		label := material.Label(theme, theme.TextSize, "100%")
+		label := material.Label(theme, theme.TextSize, f.getProgress())
 		label.Color = theme.ContrastFg
 		gtx.Constraints.Min.X = 0
 		margins := layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(4)}
@@ -387,9 +405,19 @@ func (f *FileControl) drawProgress(theme *material.Theme) func(gtx layout.Contex
 	}
 }
 
+func (f *FileControl) getProgress() string {
+	if f.Path != "" {
+		return "-"
+	}
+	if f.progress == 0 {
+		return "未下载"
+	}
+	return strconv.Itoa(f.progress) + "%"
+}
+
 func (f *FileControl) drawSize(theme *material.Theme) func(gtx layout.Context) layout.Dimensions {
 	return func(gtx layout.Context) layout.Dimensions {
-		label := material.Label(theme, theme.TextSize, f.getHumanReadableSize())
+		label := material.Label(theme, theme.TextSize, f.toHumanReadable(float32(f.Size)))
 		label.Color = theme.ContrastFg
 		gtx.Constraints.Min.X = 0
 		margins := layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(4)}
@@ -423,19 +451,18 @@ func (f *FileControl) getIconByMimeType() *widget.Icon {
 	}
 }
 
-func (f *FileControl) getHumanReadableSize() string {
-	size := float64(f.Size)
+func (f *FileControl) toHumanReadable(v float32) string {
 	suffix := "B"
-	if size < 1024 {
+	if v < 1024 {
 		suffix = "B"
-	} else if size < 1024*1024 {
+	} else if v < 1024*1024 {
 		suffix = "KB"
-		size /= 1024
-	} else if size < 1024*1024*1024 {
+		v /= 1024
+	} else if v < 1024*1024*1024 {
 		suffix = "MB"
-		size /= 1024 * 1024
+		v /= 1024 * 1024
 	}
-	return fmt.Sprintf("%.1f %s", size, suffix)
+	return fmt.Sprintf("%.1f %s", v, suffix)
 }
 
 type MediaControl struct {

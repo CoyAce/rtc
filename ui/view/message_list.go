@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"rtc/assets/fonts"
 	"rtc/internal/audio"
-	"slices"
 	"sync"
 	"time"
 
@@ -67,7 +66,11 @@ func (m *MessageManager) Process(window *app.Window, c *wi.Client) {
 			case wi.OpEndAudioCall:
 				EndIncomingCall()
 			case wi.OpContent:
-				_ = wi.DefaultClient.UnsubscribeFile(req.FileId, req.UUID)
+				fd := m.findDownloadableFile(req.FileId)
+				if fd != nil {
+					m.MessageKeeper.AppendDownloaded(fd)
+					_ = wi.DefaultClient.UnsubscribeFile(req.FileId, req.UUID)
+				}
 			default:
 			}
 		}
@@ -120,6 +123,9 @@ func (m *MessageManager) Process(window *app.Window, c *wi.Client) {
 						Size:     msg.Size,
 						Mime:     NewMine(msg.Filename),
 					}
+					m.MessageKeeper.AppendDownloadable(&FileDescription{
+						ID: msg.FileId, Name: msg.Filename, Size: int64(msg.Size),
+					})
 					message.MessageType = File
 					message.FileControl = fileControl
 				default:
@@ -137,13 +143,18 @@ func (m *MessageManager) Process(window *app.Window, c *wi.Client) {
 
 func (m *MessageManager) publishContent(msg wi.ReadReq) {
 	log.Printf("subscribe req received %v", msg)
-	fds := m.MessageKeeper.PublishedFiles
-	i := slices.IndexFunc(fds, func(fd *FileDescription) bool {
-		return fd.ID == msg.FileId
-	})
-	if i != -1 {
-		PublishContent(fds[i])
+	fd := m.findPublishedFile(msg.FileId)
+	if fd != nil {
+		PublishContent(fd)
 	}
+}
+
+func (m *MessageManager) findPublishedFile(id uint32) *FileDescription {
+	return m.MessageKeeper.PublishedFiles[id]
+}
+
+func (m *MessageManager) findDownloadableFile(id uint32) *FileDescription {
+	return m.MessageKeeper.DownloadableFiles[id]
 }
 
 func (m *MessageManager) Layout(gtx layout.Context) {
@@ -166,7 +177,6 @@ func NewMessageManager(streamConfig audio.StreamConfig) MessageManager {
 	messageKeeper := &MessageKeeper{
 		MessageChannel: make(chan *Message, 1),
 	}
-	messageKeeper.PublishedFiles = messageKeeper.Files()
 	messageList := &MessageList{
 		List:     layout.List{Axis: layout.Vertical, ScrollToEnd: true},
 		Theme:    fonts.DefaultTheme,
@@ -176,7 +186,7 @@ func NewMessageManager(streamConfig audio.StreamConfig) MessageManager {
 	messageEditor := &MessageEditor{InputField: &inputField, Theme: fonts.DefaultTheme}
 	return MessageManager{
 		audioStack:    NewAudioIconStack(streamConfig),
-		iconStack:     NewIconStack(mode.SwitchBetweenTextAndVoice, messageKeeper.Append),
+		iconStack:     NewIconStack(mode.SwitchBetweenTextAndVoice, messageKeeper.AppendPublish),
 		VoiceMode:     mode,
 		VoiceRecorder: voiceRecorder,
 		MessageList:   messageList,
@@ -226,10 +236,12 @@ func (l *MessageList) getFocusAndResetIconStackIfClicked(gtx layout.Context) {
 }
 
 type MessageKeeper struct {
-	MessageChannel chan *Message
-	buffer         []*Message
-	PublishedFiles []*FileDescription
-	lock           sync.Mutex
+	MessageChannel    chan *Message
+	buffer            []*Message
+	DownloadableFiles map[uint32]*FileDescription
+	PublishedFiles    map[uint32]*FileDescription
+	DownloadedFiles   map[uint32]*FileDescription
+	lock              sync.Mutex
 }
 
 func (k *MessageKeeper) Loop() {
@@ -266,9 +278,23 @@ func (k *MessageKeeper) Flush() {
 	k.buffer = k.buffer[:0]
 }
 
-func (k *MessageKeeper) Append(fd *FileDescription) {
-	k.PublishedFiles = append(k.PublishedFiles, fd)
-	filePath := GetDataPath("file.log")
+func (k *MessageKeeper) AppendPublish(fd *FileDescription) {
+	k.PublishedFiles[fd.ID] = fd
+	k.append("file.log", fd)
+}
+
+func (k *MessageKeeper) AppendDownloaded(fd *FileDescription) {
+	k.DownloadedFiles[fd.ID] = fd
+	k.append("download.log", fd)
+}
+
+func (k *MessageKeeper) AppendDownloadable(fd *FileDescription) {
+	k.DownloadableFiles[fd.ID] = fd
+	k.append("downloadable.log", fd)
+}
+
+func (k *MessageKeeper) append(filename string, fd *FileDescription) {
+	filePath := GetDataPath(filename)
 	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Printf("Open file failed: %v", err)
@@ -289,14 +315,26 @@ func (k *MessageKeeper) writeJson(file *os.File, msg any) {
 	}
 }
 
-func (k *MessageKeeper) Files() []*FileDescription {
-	filePath := GetDataPath("file.log")
+func (k *MessageKeeper) ReadPublishedFiles() map[uint32]*FileDescription {
+	return k.read("file.log")
+}
+
+func (k *MessageKeeper) ReadDownloadedFiles() map[uint32]*FileDescription {
+	return k.read("download.log")
+}
+
+func (k *MessageKeeper) ReadDownloadableFiles() map[uint32]*FileDescription {
+	return k.read("downloadable.log")
+}
+
+func (k *MessageKeeper) read(filename string) map[uint32]*FileDescription {
+	ret := make(map[uint32]*FileDescription)
+	filePath := GetDataPath(filename)
 	f, err := os.Open(filePath)
 	if err != nil {
 		log.Printf("Open file failed: %v", err)
-		return []*FileDescription{}
+		return ret
 	}
-	ret := make([]*FileDescription, 0, 32)
 	s := bufio.NewScanner(f)
 	for s.Scan() {
 		var fd FileDescription
@@ -305,12 +343,15 @@ func (k *MessageKeeper) Files() []*FileDescription {
 		if err != nil {
 			log.Printf("Unmarshall file mapping failed: %v", err)
 		}
-		ret = append(ret, &fd)
+		ret[fd.ID] = &fd
 	}
 	return ret
 }
 
 func (k *MessageKeeper) Messages(streamConfig audio.StreamConfig) []*Message {
+	k.PublishedFiles = k.ReadPublishedFiles()
+	k.DownloadedFiles = k.ReadDownloadedFiles()
+	k.DownloadableFiles = k.ReadDownloadableFiles()
 	filePath := GetDataPath("message.log")
 	f, err := os.Open(filePath)
 	if err != nil {
@@ -333,6 +374,9 @@ func (k *MessageKeeper) Messages(streamConfig audio.StreamConfig) []*Message {
 		}
 		if msg.MessageType == Voice {
 			msg.StreamConfig = streamConfig
+		}
+		if k.DownloadedFiles[msg.FileId] != nil {
+			msg.progress = 100
 		}
 		ret = append(ret, &msg)
 	}
