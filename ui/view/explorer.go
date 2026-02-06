@@ -25,7 +25,8 @@ import (
 var DefaultPicker *explorer.Explorer
 
 type FileDescription struct {
-	File io.ReadCloser
+	ID   uint32
+	File io.ReadCloser `json:"-"`
 	Name string
 	Path string
 	Size int64

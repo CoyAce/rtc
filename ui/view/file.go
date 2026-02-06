@@ -1,6 +1,7 @@
 package view
 
 import (
+	"io"
 	"log"
 	"rtc/assets/fonts"
 	"time"
@@ -9,7 +10,7 @@ import (
 	"github.com/CoyAce/wi"
 )
 
-func ChooseAndSendFile(appendFile func(*FileMapping)) func() {
+func ChooseAndSendFile(appendFile func(description *FileDescription)) func() {
 	return func() {
 		go func() {
 			fd, err := ChooseFile()
@@ -36,7 +37,8 @@ func ChooseAndSendFile(appendFile func(*FileMapping)) func() {
 				CreatedAt:   time.Now(),
 			}
 			MessageBox <- message
-			appendFile(&FileMapping{ID: id, Path: fd.Path})
+			fd.ID = id
+			appendFile(&fd)
 			err = wi.DefaultClient.PublishFile(fd.Name, uint64(fd.Size), id)
 			if err != nil {
 				log.Printf("Publish file failed, %v", err)
@@ -46,4 +48,18 @@ func ChooseAndSendFile(appendFile func(*FileMapping)) func() {
 			}
 		}()
 	}
+}
+
+func PublishContent(fd *FileDescription) {
+	r, err := DefaultPicker.ReadFile(fd.Path)
+	f, ok := r.(io.ReadSeekCloser)
+	if err != nil {
+		log.Printf("Load file failed %v", err)
+		return
+	}
+	if !ok {
+		log.Printf("Current os not support")
+		return
+	}
+	_ = wi.DefaultClient.PublishContent(fd.Name, uint64(fd.Size), fd.ID, f)
 }

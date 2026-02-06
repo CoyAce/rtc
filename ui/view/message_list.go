@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"rtc/assets/fonts"
 	"rtc/internal/audio"
+	"slices"
 	"sync"
 	"time"
 
@@ -65,6 +66,8 @@ func (m *MessageManager) Process(window *app.Window, c *wi.Client) {
 				go PostAudioCallAccept(m.StreamConfig)
 			case wi.OpEndAudioCall:
 				EndIncomingCall()
+			case wi.OpContent:
+				_ = wi.DefaultClient.UnsubscribeFile(req.FileId, req.UUID)
 			default:
 			}
 		}
@@ -90,7 +93,7 @@ func (m *MessageManager) Process(window *app.Window, c *wi.Client) {
 					CreatedAt:   time.Now(),
 				}
 			case msg := <-c.SubMessages:
-				log.Printf("subscribe req received %v", msg)
+				m.publishContent(msg)
 				continue
 			case msg := <-c.FileMessages:
 				message = &Message{
@@ -132,6 +135,17 @@ func (m *MessageManager) Process(window *app.Window, c *wi.Client) {
 	}()
 }
 
+func (m *MessageManager) publishContent(msg wi.ReadReq) {
+	log.Printf("subscribe req received %v", msg)
+	fds := m.MessageKeeper.PublishedFiles
+	i := slices.IndexFunc(fds, func(fd *FileDescription) bool {
+		return fd.ID == msg.FileId
+	})
+	if i != -1 {
+		PublishContent(fds[i])
+	}
+}
+
 func (m *MessageManager) Layout(gtx layout.Context) {
 	w := m.MessageEditor.Layout
 	if *m.VoiceMode {
@@ -152,6 +166,7 @@ func NewMessageManager(streamConfig audio.StreamConfig) MessageManager {
 	messageKeeper := &MessageKeeper{
 		MessageChannel: make(chan *Message, 1),
 	}
+	messageKeeper.PublishedFiles = messageKeeper.Files()
 	messageList := &MessageList{
 		List:     layout.List{Axis: layout.Vertical, ScrollToEnd: true},
 		Theme:    fonts.DefaultTheme,
@@ -210,14 +225,10 @@ func (l *MessageList) getFocusAndResetIconStackIfClicked(gtx layout.Context) {
 	}
 }
 
-type FileMapping struct {
-	ID   uint32
-	Path string
-}
-
 type MessageKeeper struct {
 	MessageChannel chan *Message
 	buffer         []*Message
+	PublishedFiles []*FileDescription
 	lock           sync.Mutex
 }
 
@@ -255,14 +266,15 @@ func (k *MessageKeeper) Flush() {
 	k.buffer = k.buffer[:0]
 }
 
-func (k *MessageKeeper) Append(fm *FileMapping) {
+func (k *MessageKeeper) Append(fd *FileDescription) {
+	k.PublishedFiles = append(k.PublishedFiles, fd)
 	filePath := GetDataPath("file.log")
 	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Printf("Open file failed: %v", err)
 	}
 	defer file.Close()
-	k.writeJson(file, fm)
+	k.writeJson(file, fd)
 }
 
 func (k *MessageKeeper) writeJson(file *os.File, msg any) {
@@ -277,23 +289,23 @@ func (k *MessageKeeper) writeJson(file *os.File, msg any) {
 	}
 }
 
-func (k *FileMapping) Mappings() []*FileMapping {
+func (k *MessageKeeper) Files() []*FileDescription {
 	filePath := GetDataPath("file.log")
 	f, err := os.Open(filePath)
 	if err != nil {
 		log.Printf("Open file failed: %v", err)
-		return []*FileMapping{}
+		return []*FileDescription{}
 	}
-	ret := make([]*FileMapping, 0, 32)
+	ret := make([]*FileDescription, 0, 32)
 	s := bufio.NewScanner(f)
 	for s.Scan() {
-		var fm FileMapping
+		var fd FileDescription
 		line := s.Bytes()
-		err = json.Unmarshal(line, &fm)
+		err = json.Unmarshal(line, &fd)
 		if err != nil {
 			log.Printf("Unmarshall file mapping failed: %v", err)
 		}
-		ret = append(ret, &fm)
+		ret = append(ret, &fd)
 	}
 	return ret
 }
