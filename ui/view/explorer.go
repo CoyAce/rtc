@@ -3,6 +3,7 @@ package view
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"image"
 	"image/draw"
 	"image/gif"
@@ -10,6 +11,7 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -30,6 +32,35 @@ type FileDescription struct {
 	Name string
 	Path string
 	Size int64
+}
+
+// OpenInFinder 在Finder中打开指定路径
+func OpenInFinder(path string) error {
+	// 确保路径存在
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return fmt.Errorf("file not exist: %s", path)
+	}
+
+	// 获取绝对路径
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return err
+	}
+
+	switch runtime.GOOS {
+	case "darwin": // macOS
+		cmd := exec.Command("open", "-R", absPath)
+		return cmd.Run()
+	case "windows":
+		cmd := exec.Command("explorer", "/select,", absPath)
+		return cmd.Run()
+	case "linux":
+		// Linux使用文件管理器，不同发行版可能不同
+		cmd := exec.Command("xdg-open", filepath.Dir(absPath))
+		return cmd.Run()
+	default:
+		return fmt.Errorf("unsupported os: %s", runtime.GOOS)
+	}
 }
 
 func ChooseFile() (FileDescription, error) {

@@ -299,11 +299,17 @@ func (f *FileControl) processFileDownload(gtx layout.Context, sender string) {
 	}()
 }
 
-func (f *FileControl) processFileBrowse(gtx layout.Context) {
+func (f *FileControl) processFileBrowse(gtx layout.Context, path string) {
 	if !f.browseButton.Clicked(gtx) {
 		return
 	}
 	log.Printf("browsing file...")
+	go func() {
+		err := OpenInFinder(path)
+		if err != nil {
+			log.Printf("Open in finder failed: %v", err)
+		}
+	}()
 }
 
 func (f *FileControl) updateProgress(p int) {
@@ -605,7 +611,7 @@ func (m *Message) drawMessage(gtx layout.Context) layout.Dimensions {
 	switch m.MessageType {
 	case File:
 		m.processFileDownload(gtx, m.Sender)
-		m.processFileBrowse(gtx)
+		m.processFileBrowse(gtx, m.OptimizedFilePath())
 	default:
 		m.processFileSave(gtx, m.OptimizedFilePath())
 	}
