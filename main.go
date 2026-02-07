@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"flag"
 	"fmt"
 	"log"
@@ -25,7 +24,6 @@ import (
 var (
 	address          = flag.String("a", "0.0.0.0:52000", "listen address")
 	config           = flag.String("c", "config.json", "config file")
-	commandLineMode  = flag.Bool("i", false, "server mode")
 	testAudioLatency = flag.Bool("t", false, "test audio latency")
 )
 
@@ -40,46 +38,19 @@ func main() {
 	uuid := "#" + strconv.Itoa(rand.Intn(90000)+10000)
 	log.Println("client uuid:", uuid)
 
-	if *commandLineMode {
-		// set sign
-		fmt.Println("input sign:")
-		var sign string
-		fmt.Scanln(&sign)
-
-		// setup client
-		c := wi.Client{
-			Config:   wi.Config{ConfigName: *config, DataDir: view.GetDataDir(), ServerAddr: *address},
-			Identity: wi.Identity{UUID: uuid, Sign: sign},
-			Status:   make(chan struct{})}
-		go func() {
-			c.ListenAndServe("0.0.0.0:")
-		}()
-		c.Ready()
-
-		// send text
-		reader := bufio.NewReader(os.Stdin)
-		for {
-			fmt.Println("input text:")
-			text, _ := reader.ReadString('\n')
-			text = text[:len(text)-1]
-			c.SendText(text)
-		}
-	}
-
-	// setup client
-	c := setup(uuid)
-	c.Store()
-	go func() {
-		c.ListenAndServe("0.0.0.0:")
-	}()
-	c.Ready()
-
 	go func() {
 		w := new(app.Window)
 		w.Option(app.Title("◯"))
 		w.Option(app.Size(unit.Dp(463), unit.Dp(750)))
 		w.Option(app.MinSize(unit.Dp(463)/1.5, unit.Dp(750)/1.5))
 		initTools(w)
+		// setup client
+		c := setup(uuid)
+		c.Store()
+		go func() {
+			c.ListenAndServe("0.0.0.0:")
+		}()
+		c.Ready()
 		if err := ui.Draw(w, c); err != nil {
 			log.Fatal(err)
 		}

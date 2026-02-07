@@ -21,3 +21,6 @@ func (r *PlatformTool) GetExternalDir() string {
 	dir, _ := app.DataDir()
 	return dir
 }
+
+func (r *PlatformTool) BrowseFile(path string) {
+}
