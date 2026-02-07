@@ -16,3 +16,8 @@ func (r *PlatformTool) ListenEvents(evt event.Event) {
 
 func (r *PlatformTool) AskMicrophonePermission() {
 }
+
+func (r *PlatformTool) GetExternalDir() string {
+	dir, _ := app.DataDir()
+	return dir
+}

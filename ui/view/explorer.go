@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"rtc/ui/native"
 	"runtime"
 	"strings"
 	"time"
@@ -410,7 +411,11 @@ func GetDataDir() string {
 }
 
 func GetExternalDir() string {
-	return GetDataDir()
+	dir := native.Tool.GetExternalDir()
+	if runtime.GOOS == "android" {
+		return dir + "/"
+	}
+	return dir + "/coyace.rtc/"
 }
 
 func GetDir(uuid string) string {

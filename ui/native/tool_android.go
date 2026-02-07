@@ -21,10 +21,11 @@ import (
 //go:generate jar cf tool_android.jar -C /tmp/tool_android/classes .
 
 type PlatformTool struct {
-	window        *app.Window
-	view          uintptr
-	libClass      jni.Class
-	askPermission jni.MethodID
+	window         *app.Window
+	view           uintptr
+	libClass       jni.Class
+	askPermission  jni.MethodID
+	getExternalDir jni.MethodID
 }
 
 func (r *PlatformTool) init(env jni.Env) error {
@@ -39,6 +40,7 @@ func (r *PlatformTool) init(env jni.Env) error {
 
 	r.libClass = jni.Class(jni.NewGlobalRef(env, jni.Object(class)))
 	r.askPermission = jni.GetStaticMethodID(env, r.libClass, "askPermission", "(Landroid/view/View;)V")
+	r.getExternalDir = jni.GetStaticMethodID(env, r.libClass, "getExternalDir", "(Landroid/view/View;)Ljava/lang/String;")
 
 	return nil
 }
@@ -63,3 +65,30 @@ func (r *PlatformTool) AskMicrophonePermission() {
 		}
 	})
 }
+
+func (r *PlatformTool) GetExternalDir() string {
+	if result != "" {
+		return result
+	}
+	err := jni.Do(jni.JVMFor(app.JavaVM()), func(env jni.Env) error {
+		if err := r.init(env); err != nil {
+			return err
+		}
+		obj, err := jni.CallStaticObjectMethod(env, r.libClass, r.getExternalDir, jni.Value(r.view))
+		if err != nil {
+			return err
+		}
+		if obj != 0 { // jni.Object 是 uintptr
+			result = jni.GoString(env, jni.String(obj))
+		}
+		return nil
+	})
+	if err != nil {
+		log.Println(err)
+	}
+	return result
+}
+
+var (
+	result string
+)
