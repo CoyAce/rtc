@@ -320,34 +320,6 @@ func (f *FileControl) updateSpeed(s int) {
 	f.speed = s
 }
 
-func (f *FileControl) processFileSave(gtx layout.Context, filePath string) {
-	if !f.downloadButton.Clicked(gtx) {
-		return
-	}
-	go func() {
-		if filePath == "" {
-			return
-		}
-		w, err := Picker.CreateFile(filepath.Base(filePath))
-		if err != nil {
-			log.Printf("Create file %s failed: %s", filePath, err)
-			return
-		}
-		defer w.Close()
-		r, err := os.Open(filePath)
-		if err != nil {
-			log.Printf("Open file %s failed: %s", filePath, err)
-			return
-		}
-		defer r.Close()
-		_, err = io.Copy(w, r)
-		if err != nil {
-			log.Printf("Save file %s failed: %s", filePath, err)
-			return
-		}
-	}()
-}
-
 func (f *FileControl) loadGif(filepath string) *Gif {
 	return LoadGif(filepath, false)
 }
@@ -609,11 +581,13 @@ func (m *Message) SendTo(messageAppender *MessageKeeper) {
 func (m *Message) drawMessage(gtx layout.Context) layout.Dimensions {
 	m.processTextCopy(gtx, m.Text)
 	switch m.MessageType {
+	case Voice:
+		m.processFileBrowse(gtx, m.FilePath())
 	case File:
 		m.processFileDownload(gtx, m.Sender)
-		m.processFileBrowse(gtx, m.OptimizedFilePath())
+		fallthrough
 	default:
-		m.processFileSave(gtx, m.OptimizedFilePath())
+		m.processFileBrowse(gtx, m.OptimizedFilePath())
 	}
 	m.getFocusIfClickedToEnableFocusLostEvent(gtx)
 	flex := layout.Flex{Axis: layout.Vertical, Alignment: layout.Start}
@@ -704,8 +678,8 @@ func (m *Message) drawOperation(gtx layout.Context) layout.Dimensions {
 			return contentCopyIcon.Layout(gtx, m.ContrastBg)
 		})
 	case Image, Voice, GIF:
-		return m.downloadButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return downloadIcon.Layout(gtx, m.ContrastBg)
+		return m.browseButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return folderOpenIcon.Layout(gtx, m.ContrastBg)
 		})
 	case File:
 		if m.downloaded() {
