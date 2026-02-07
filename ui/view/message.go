@@ -278,7 +278,12 @@ type FileControl struct {
 	progress       int
 	speed          int
 	downloadButton widget.Clickable
+	browseButton   widget.Clickable
 	imageBroken    bool
+}
+
+func (f *FileControl) downloaded() bool {
+	return f.progress == 100
 }
 
 func (f *FileControl) processFileDownload(gtx layout.Context, sender string) {
@@ -292,6 +297,13 @@ func (f *FileControl) processFileDownload(gtx layout.Context, sender string) {
 			log.Printf("Subsrcibe file failed: %v", err)
 		}
 	}()
+}
+
+func (f *FileControl) processFileBrowse(gtx layout.Context) {
+	if !f.browseButton.Clicked(gtx) {
+		return
+	}
+	log.Printf("browsing file...")
 }
 
 func (f *FileControl) updateProgress(p int) {
@@ -593,6 +605,7 @@ func (m *Message) drawMessage(gtx layout.Context) layout.Dimensions {
 	switch m.MessageType {
 	case File:
 		m.processFileDownload(gtx, m.Sender)
+		m.processFileBrowse(gtx)
 	default:
 		m.processFileSave(gtx, m.OptimizedFilePath())
 	}
@@ -685,10 +698,17 @@ func (m *Message) drawOperation(gtx layout.Context) layout.Dimensions {
 			return contentCopyIcon.Layout(gtx, m.ContrastBg)
 		})
 	case Image, Voice, GIF:
-		fallthrough
-	case File:
 		return m.downloadButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return downloadIcon.Layout(gtx, m.ContrastBg)
+		})
+	case File:
+		if m.downloaded() {
+			return m.browseButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return folderOpenIcon.Layout(gtx, m.ContrastBg)
+			})
+		}
+		return m.downloadButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return cloudDownloadIcon.Layout(gtx, m.ContrastBg)
 		})
 	}
 	return layout.Dimensions{}
