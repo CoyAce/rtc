@@ -47,7 +47,10 @@ func main() {
 		fmt.Scanln(&sign)
 
 		// setup client
-		c := wi.Client{ConfigName: *config, DataDir: view.GetDataDir(), ServerAddr: *address, Status: make(chan struct{}), UUID: uuid, Sign: sign}
+		c := wi.Client{
+			Config:   wi.Config{ConfigName: *config, DataDir: view.GetDataDir(), ServerAddr: *address},
+			Identity: wi.Identity{UUID: uuid, Sign: sign},
+			Status:   make(chan struct{})}
 		go func() {
 			c.ListenAndServe("0.0.0.0:")
 		}()
@@ -86,16 +89,16 @@ func main() {
 }
 
 func setup(uuid string) *wi.Client {
-	c := wi.Load(view.GetFilePath(*config))
+	c := wi.Load(view.GetConfig(*config))
 	if c == nil {
 		c = &wi.Client{
-			ServerAddr: *address,
-			UUID:       uuid,
-			Sign:       "default",
+			Config:   wi.Config{ServerAddr: *address},
+			Identity: wi.Identity{UUID: uuid, Sign: "default"},
 		}
 	}
 	c.Status = make(chan struct{})
 	c.DataDir = view.GetDataDir()
+	c.ExternalDir = view.GetExternalDir()
 	c.ConfigName = *config
 	c.SyncFunc = view.SyncCachedIcon
 	// save client to global pointer

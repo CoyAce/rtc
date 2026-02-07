@@ -122,7 +122,7 @@ func (v *VoiceRecorder) encodeAndSendAsync() {
 		}
 		message.Format = malgo.FormatS16
 		MessageBox <- &message
-		err = wi.DefaultClient.SendVoice(filepath.Base(filePath), duration)
+		err = wi.DefaultClient.SendVoice(filePath, duration)
 		if err != nil {
 			log.Printf("Send voice %s failed, %s", filePath, err)
 		} else {

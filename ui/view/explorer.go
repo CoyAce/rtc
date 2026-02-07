@@ -409,11 +409,15 @@ func GetDataDir() string {
 	return dir + "/coyace.rtc/"
 }
 
+func GetExternalDir() string {
+	return GetDataDir()
+}
+
 func GetDir(uuid string) string {
 	if uuid == "" {
-		return GetDataDir() + "/default"
+		return GetExternalDir() + "/default"
 	}
-	return GetDataDir() + "/" + strings.Replace(uuid, "#", "_", -1)
+	return GetExternalDir() + "/" + strings.Replace(uuid, "#", "_", -1)
 }
 
 func GetPath(uuid string, filename string) string {
@@ -424,7 +428,7 @@ func GetDataPath(filename string) string {
 	return GetPath(wi.DefaultClient.FullID(), filename)
 }
 
-func GetFilePath(filename string) string {
+func GetConfig(filename string) string {
 	return GetDataDir() + filename
 }
 
