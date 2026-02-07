@@ -104,6 +104,6 @@ func setup(uuid string) *wi.Client {
 }
 
 func initTools(window *app.Window) {
-	view.DefaultPicker = explorer.NewExplorer(window)
-	native.DefaultRecorder = native.NewRecorder(window)
+	view.Picker = explorer.NewExplorer(window)
+	native.Tool = native.NewPlatformTool(window)
 }

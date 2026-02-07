@@ -328,7 +328,7 @@ func (f *FileControl) processFileSave(gtx layout.Context, filePath string) {
 		if filePath == "" {
 			return
 		}
-		w, err := DefaultPicker.CreateFile(filepath.Base(filePath))
+		w, err := Picker.CreateFile(filepath.Base(filePath))
 		if err != nil {
 			log.Printf("Create file %s failed: %s", filePath, err)
 			return

@@ -133,7 +133,7 @@ func (v *VoiceRecorder) encodeAndSendAsync() {
 
 func (v *VoiceRecorder) recordAsync() {
 	go func() {
-		native.DefaultRecorder.AskPermission()
+		native.Tool.AskMicrophonePermission()
 		var ctx context.Context
 		ctx, v.cancel = context.WithCancel(context.Background())
 		v.buf = new(bytes.Buffer)

@@ -59,6 +59,6 @@ func Draw(window *app.Window, c *wi.Client) error {
 }
 
 func listenEvents(event event.Event) {
-	view.DefaultPicker.ListenEvents(event)
-	native.DefaultRecorder.ListenEvents(event)
+	view.Picker.ListenEvents(event)
+	native.Tool.ListenEvents(event)
 }

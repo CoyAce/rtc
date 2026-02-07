@@ -17,22 +17,22 @@ import (
 	"git.wow.st/gmp/jni"
 )
 
-//go:generate javac --release 11  -classpath $ANDROID_HOME/platforms/android-36/android.jar -d /tmp/recorder_android/classes recorder_android.java
-//go:generate jar cf recorder_android.jar -C /tmp/recorder_android/classes .
+//go:generate javac --release 11  -classpath $ANDROID_HOME/platforms/android-36/android.jar -d /tmp/tool_android/classes tool_android.java
+//go:generate jar cf tool_android.jar -C /tmp/tool_android/classes .
 
-type Recorder struct {
+type PlatformTool struct {
 	window        *app.Window
 	view          uintptr
 	libClass      jni.Class
 	askPermission jni.MethodID
 }
 
-func (r *Recorder) init(env jni.Env) error {
+func (r *PlatformTool) init(env jni.Env) error {
 	if r.libClass != 0 {
 		return nil // Already initialized
 	}
 
-	class, err := jni.LoadClass(env, jni.ClassLoaderFor(env, jni.Object(app.AppContext())), "com/coyace/rtc/recorder/recorder_android")
+	class, err := jni.LoadClass(env, jni.ClassLoaderFor(env, jni.Object(app.AppContext())), "com/coyace/rtc/tool/tool_android")
 	if err != nil {
 		return err
 	}
@@ -43,13 +43,13 @@ func (r *Recorder) init(env jni.Env) error {
 	return nil
 }
 
-func (r *Recorder) ListenEvents(evt event.Event) {
+func (r *PlatformTool) ListenEvents(evt event.Event) {
 	if evt, ok := evt.(app.AndroidViewEvent); ok {
 		r.view = evt.View
 	}
 }
 
-func (r *Recorder) AskPermission() {
+func (r *PlatformTool) AskMicrophonePermission() {
 	r.window.Run(func() {
 		err := jni.Do(jni.JVMFor(app.JavaVM()), func(env jni.Env) error {
 			if err := r.init(env); err != nil {

@@ -51,7 +51,7 @@ func ChooseAndSendFile(appendFile func(description *FileDescription)) func() {
 }
 
 func PublishContent(fd *FileDescription) {
-	r, err := DefaultPicker.ReadFile(fd.Path)
+	r, err := Picker.ReadFile(fd.Path)
 	f, ok := r.(io.ReadSeekCloser)
 	if err != nil {
 		log.Printf("Load file failed %v", err)

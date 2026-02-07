@@ -24,7 +24,7 @@ import (
 	"golang.org/x/image/webp"
 )
 
-var DefaultPicker *explorer.Explorer
+var Picker *explorer.Explorer
 
 type FileDescription struct {
 	ID   uint32
@@ -64,7 +64,7 @@ func OpenInFinder(path string) error {
 }
 
 func ChooseFile() (FileDescription, error) {
-	file, err := DefaultPicker.ChooseFile(".")
+	file, err := Picker.ChooseFile(".")
 	if err != nil {
 		return FileDescription{}, err
 	}
@@ -88,7 +88,7 @@ func ResolveFileDescription(file io.ReadCloser) (FileDescription, error) {
 }
 
 func ChooseImage() (FileDescription, error) {
-	file, err := DefaultPicker.ChooseFile(".jpg", ".jpeg", ".png", ".webp", ".gif")
+	file, err := Picker.ChooseFile(".jpg", ".jpeg", ".png", ".webp", ".gif")
 	if err != nil {
 		return FileDescription{}, err
 	}
@@ -378,7 +378,7 @@ func (c *ImageCache) load(path string) *image.Image {
 
 func Open(path string) (io.ReadCloser, error) {
 	if strings.HasPrefix(path, "content") {
-		return DefaultPicker.ReadFile(path)
+		return Picker.ReadFile(path)
 	}
 	return os.Open(path)
 }
