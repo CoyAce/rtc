@@ -9,6 +9,8 @@ import android.net.Uri;
 import android.view.View;
 import android.webkit.MimeTypeMap;
 
+import androidx.core.content.FileProvider;
+
 import java.io.File;
 import java.util.Optional;
 
@@ -32,11 +34,27 @@ public class tool_android {
         // 创建 Intent
         Intent intent = new Intent(Intent.ACTION_VIEW);
         // 设置 MIME 类型
-        String mime = Optional.ofNullable(ctx.getContentResolver().getType(uri)).orElse(getMimeType(path));
-        intent.setDataAndType(uri, mime);
-        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+        Optional<String> type = Optional.ofNullable(ctx.getContentResolver().getType(uri));
+        if (type.isEmpty()) {
+            uri = FileProvider.getUriForFile(
+                    ctx,
+                    ctx.getPackageName() + ".fileprovider",
+                    new File(path)
+            );
+        }
+        intent.setDataAndType(uri, type.orElseGet(() -> getMimeType(path)));
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+                | Intent.FLAG_ACTIVITY_NEW_TASK
+                | Intent.FLAG_ACTIVITY_MULTIPLE_TASK // 允许多个实例
+        );
 
         // 启动 Activity
+        if (type.isEmpty()) {
+            Intent chooser = Intent.createChooser(intent, "选择应用打开文件");
+            chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            ctx.startActivity(chooser);
+            return;
+        }
         ctx.startActivity(intent);
     }
 

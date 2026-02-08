@@ -39,7 +39,6 @@ type FileDescription struct {
 func OpenInFinder(path string) error {
 	switch runtime.GOOS {
 	case "android":
-		log.Printf("file path: %v", path)
 		native.Tool.BrowseFile(path)
 		return nil
 	case "darwin": // macOS
