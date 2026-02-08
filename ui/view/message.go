@@ -282,6 +282,10 @@ type FileControl struct {
 	imageBroken    bool
 }
 
+func (f *FileControl) downloading() bool {
+	return f.progress > 0 && f.progress < 100
+}
+
 func (f *FileControl) downloaded() bool {
 	return f.progress == 100
 }
@@ -292,7 +296,12 @@ func (f *FileControl) processFileDownload(gtx layout.Context, sender string) {
 	}
 	log.Printf("downloading...")
 	go func() {
-		err := wi.DefaultClient.SubscribeFile(f.FileId, sender, f.updateProgress, f.updateSpeed)
+		err := wi.DefaultClient.SubscribeFile(f.FileId, sender,
+			func(p int, s int) {
+				f.updateProgress(p)
+				f.updateSpeed(s)
+				InvalidateRequest <- struct{}{}
+			})
 		if err != nil {
 			log.Printf("Subsrcibe file failed: %v", err)
 		}
@@ -643,8 +652,10 @@ func (m *Message) drawStateAndContent(gtx layout.Context) layout.Dimensions {
 }
 
 func (m *Message) operationNeeded() bool {
-	if m.MessageType == File && m.isMe() {
-		return false
+	if m.MessageType == File {
+		if m.isMe() || m.downloading() {
+			return false
+		}
 	}
 	return m.longPressed || m.TextSelected()
 }
@@ -886,3 +897,4 @@ func (m *Message) drawName(gtx layout.Context) layout.Dimensions {
 }
 
 var MessageBox = make(chan *Message, 10)
+var InvalidateRequest = make(chan struct{}, 1)

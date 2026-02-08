@@ -48,6 +48,11 @@ func (v *VoiceMode) SwitchBetweenTextAndVoice(voiceMessage *IconButton) func() {
 func (m *MessageManager) Process(window *app.Window, c *wi.Client) {
 	go ConsumeAudioData(m.StreamConfig)
 	go m.MessageKeeper.Loop()
+	go func() {
+		for range InvalidateRequest {
+			window.Invalidate()
+		}
+	}()
 	// listen for events in the messages channel
 	go func() {
 		handleOp := func(req wi.WriteReq) {
