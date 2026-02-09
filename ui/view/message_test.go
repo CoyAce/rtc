@@ -8,7 +8,7 @@ import (
 )
 
 func TestMessagePersistence(t *testing.T) {
-	wi.DefaultClient = &wi.Client{UUID: "#00001"}
+	wi.DefaultClient = &wi.Client{Identity: wi.Identity{UUID: "#00001"}}
 	wi.Mkdir(GetDir(wi.DefaultClient.FullID()))
 	wi.RemoveFile(GetDataPath("message.log"))
 	mk := MessageKeeper{MessageChannel: make(chan *Message, 1)}

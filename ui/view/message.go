@@ -277,6 +277,7 @@ type FileControl struct {
 	Mime
 	progress       int
 	speed          int
+	saveButton     widget.Clickable
 	downloadButton widget.Clickable
 	browseButton   widget.Clickable
 	imageBroken    bool
@@ -317,6 +318,34 @@ func (f *FileControl) processFileBrowse(gtx layout.Context, path string) {
 		err := OpenInFinder(path)
 		if err != nil {
 			log.Printf("Open in finder failed: %v", err)
+		}
+	}()
+}
+
+func (f *FileControl) processFileSave(gtx layout.Context, path string) {
+	if !f.saveButton.Clicked(gtx) {
+		return
+	}
+	go func() {
+		if path == "" {
+			return
+		}
+		w, err := Picker.CreateFile(filepath.Base(path))
+		if err != nil {
+			log.Printf("Create file %s failed: %s", path, err)
+			return
+		}
+		defer w.Close()
+		r, err := os.Open(path)
+		if err != nil {
+			log.Printf("Open file %s failed: %s", path, err)
+			return
+		}
+		defer r.Close()
+		_, err = io.Copy(w, r)
+		if err != nil {
+			log.Printf("Save file %s failed: %s", path, err)
+			return
 		}
 	}()
 }
@@ -529,7 +558,7 @@ func (m *MediaControl) playAudioAsync(filePath string) {
 		var ctx context.Context
 		ctx, m.cancel = context.WithCancel(context.Background())
 		if err := audio.Playback(ctx, reader, m.StreamConfig); err != nil && !errors.Is(err, io.EOF) {
-			log.Printf("audio playback: %w", err)
+			log.Printf("audio playback: %v", err)
 		}
 		m.animation.Stop()
 	}()
@@ -589,15 +618,7 @@ func (m *Message) SendTo(messageAppender *MessageKeeper) {
 
 func (m *Message) drawMessage(gtx layout.Context) layout.Dimensions {
 	m.processTextCopy(gtx, m.Text)
-	switch m.MessageType {
-	case Voice:
-		m.processFileBrowse(gtx, m.FilePath())
-	case File:
-		m.processFileDownload(gtx, m.Sender)
-		fallthrough
-	default:
-		m.processFileBrowse(gtx, m.OptimizedFilePath())
-	}
+	m.processFileViewAndSave(gtx)
 	m.getFocusIfClickedToEnableFocusLostEvent(gtx)
 	flex := layout.Flex{Axis: layout.Vertical, Alignment: layout.Start}
 	if m.isMe() {
@@ -608,6 +629,20 @@ func (m *Message) drawMessage(gtx layout.Context) layout.Dimensions {
 		// state and message
 		layout.Rigid(m.drawStateAndContent),
 	)
+}
+
+func (m *Message) processFileViewAndSave(gtx layout.Context) {
+	switch m.MessageType {
+	case Voice:
+		m.processFileBrowse(gtx, m.FilePath())
+		m.processFileSave(gtx, m.FilePath())
+	case File:
+		m.processFileDownload(gtx, m.Sender)
+		fallthrough
+	default:
+		m.processFileBrowse(gtx, m.OptimizedFilePath())
+		m.processFileSave(gtx, m.OptimizedFilePath())
+	}
 }
 
 func (m *Message) getFocusIfClickedToEnableFocusLostEvent(gtx layout.Context) {
@@ -685,24 +720,48 @@ func (m *Message) drawOperation(gtx layout.Context) layout.Dimensions {
 	}
 	switch m.MessageType {
 	case Text:
-		return m.copyButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return contentCopyIcon.Layout(gtx, m.ContrastBg)
-		})
+		return m.drawCopyButton(gtx)
 	case Image, Voice, GIF:
-		return m.browseButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return folderOpenIcon.Layout(gtx, m.ContrastBg)
-		})
+		return m.drawViewAndSave(gtx)
 	case File:
 		if m.downloaded() {
-			return m.browseButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return folderOpenIcon.Layout(gtx, m.ContrastBg)
-			})
+			return m.drawViewAndSave(gtx)
 		}
-		return m.downloadButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return cloudDownloadIcon.Layout(gtx, m.ContrastBg)
-		})
+		return m.drawCloudDownloadButton(gtx)
 	}
 	return layout.Dimensions{}
+}
+
+func (m *Message) drawCopyButton(gtx layout.Context) layout.Dimensions {
+	return m.copyButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return contentCopyIcon.Layout(gtx, m.ContrastBg)
+	})
+}
+
+func (m *Message) drawCloudDownloadButton(gtx layout.Context) layout.Dimensions {
+	return m.downloadButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return cloudDownloadIcon.Layout(gtx, m.ContrastBg)
+	})
+}
+
+func (m *Message) drawViewAndSave(gtx layout.Context) layout.Dimensions {
+	return layout.Flex{Axis: layout.Vertical, Alignment: layout.Middle}.Layout(gtx,
+		layout.Rigid(m.drawViewButton),
+		layout.Rigid(layout.Spacer{Height: unit.Dp(12)}.Layout),
+		layout.Rigid(m.drawSaveButton),
+	)
+}
+
+func (m *Message) drawViewButton(gtx layout.Context) layout.Dimensions {
+	return m.browseButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return browseIcon.Layout(gtx, m.ContrastBg)
+	})
+}
+
+func (m *Message) drawSaveButton(gtx layout.Context) layout.Dimensions {
+	return m.saveButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return addIcon.Layout(gtx, m.ContrastBg)
+	})
 }
 
 func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {

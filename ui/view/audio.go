@@ -279,7 +279,7 @@ func newPlayer(pcmChunks <-chan *bytes.Buffer, streamConfig audio.StreamConfig) 
 	playbackCancels = append(playbackCancels, playbackCancel)
 	reader := audio.NewChunkReader(playbackCtx, pcmChunks)
 	if err := audio.Playback(playbackCtx, reader, streamConfig); err != nil && !errors.Is(err, io.EOF) {
-		log.Printf("audio playback: %w", err)
+		log.Printf("audio playback: %v", err)
 	}
 }
 

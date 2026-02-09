@@ -1,6 +1,8 @@
 package view
 
 import (
+	icon "rtc/assets/icons"
+
 	"gioui.org/widget"
 	"golang.org/x/exp/shiny/materialdesign/icons"
 )
@@ -25,11 +27,12 @@ var contentCopyIcon, _ = widget.NewIcon(icons.ContentContentCopy)
 var contentPasteIcon, _ = widget.NewIcon(icons.ContentContentPaste)
 var downloadIcon, _ = widget.NewIcon(icons.FileFileDownload)
 var cloudDownloadIcon, _ = widget.NewIcon(icons.FileCloudDownload)
+var addIcon, _ = widget.NewIcon(icons.ContentAdd)
 var playIcon, _ = widget.NewIcon(icons.AVPlayArrow)
 var pauseIcon, _ = widget.NewIcon(icons.AVPause)
 var chatIcon, _ = widget.NewIcon(icons.CommunicationChatBubble)
 var filesIcon, _ = widget.NewIcon(icons.FileFolder)
-var folderOpenIcon, _ = widget.NewIcon(icons.FileFolderOpen)
+var browseIcon, _ = widget.NewIcon(icon.Browse)
 var gifIcon, _ = widget.NewIcon(icons.ActionGIF)
 var imageIcon, _ = widget.NewIcon(icons.ImageImage)
 var unknownIcon, _ = widget.NewIcon(icons.FileAttachment)
