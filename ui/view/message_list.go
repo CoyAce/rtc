@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"rtc/assets/fonts"
+	"rtc/assets/icons"
 	"rtc/internal/audio"
 	"sync"
 	"time"
@@ -38,9 +39,9 @@ func (v *VoiceMode) SwitchBetweenTextAndVoice(voiceMessage *IconButton) func() {
 	return func() {
 		*v = !*v
 		if *v {
-			voiceMessage.Icon = chatIcon
+			voiceMessage.Icon = icons.ChatIcon
 		} else {
-			voiceMessage.Icon = voiceMessageIcon
+			voiceMessage.Icon = icons.VoiceMessageIcon
 		}
 	}
 }

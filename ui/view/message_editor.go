@@ -5,6 +5,7 @@ import (
 	"io"
 	"math"
 	"rtc/assets/fonts"
+	"rtc/assets/icons"
 	"strings"
 	"time"
 
@@ -117,7 +118,7 @@ func (e *MessageEditor) drawSubmitButton(gtx layout.Context) layout.Dimensions {
 			return material.IconButtonStyle{
 				Background: e.Theme.ContrastBg,
 				Color:      e.Theme.ContrastFg,
-				Icon:       submitIcon,
+				Icon:       icons.SubmitIcon,
 				Size:       unit.Dp(24.0),
 				Button:     &e.submitButton,
 				Inset:      layout.UniformInset(unit.Dp(9)),
@@ -183,21 +184,21 @@ func (e *EditorOperator) Layout(gtx layout.Context) {
 				offset := image.Pt(-gtx.Dp(unit.Dp(centerOffset+iconSize+margin)), 0)
 				op.Offset(offset).Add(gtx.Ops)
 				return e.cutButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return contentCutIcon.Layout(gtx, fonts.DefaultTheme.ContrastFg)
+					return icons.ContentCutIcon.Layout(gtx, fonts.DefaultTheme.ContrastFg)
 				})
 			}),
 			layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 				offset := image.Pt(-gtx.Dp(unit.Dp(centerOffset)), 0)
 				op.Offset(offset).Add(gtx.Ops)
 				return e.copyButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return contentCopyIcon.Layout(gtx, fonts.DefaultTheme.ContrastFg)
+					return icons.ContentCopyIcon.Layout(gtx, fonts.DefaultTheme.ContrastFg)
 				})
 			}),
 			layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 				offset := image.Pt(-gtx.Dp(unit.Dp(centerOffset-iconSize-margin)), 0)
 				op.Offset(offset).Add(gtx.Ops)
 				return e.pasteButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return contentPasteIcon.Layout(gtx, fonts.DefaultTheme.ContrastFg)
+					return icons.ContentPasteIcon.Layout(gtx, fonts.DefaultTheme.ContrastFg)
 				})
 			}),
 		)

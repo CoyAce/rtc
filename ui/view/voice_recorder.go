@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"rtc/assets/fonts"
+	"rtc/assets/icons"
 	"rtc/internal/audio"
 	"rtc/ui/native"
 	"time"
@@ -73,7 +74,7 @@ func (v *VoiceRecorder) Layout(gtx layout.Context) layout.Dimensions {
 					return layout.Stack{Alignment: layout.Center}.Layout(gtx,
 						layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 							gtx.Constraints.Min.X = int(float32(gtx.Constraints.Max.Y) * 0.85)
-							return voiceMessageIcon.Layout(gtx, fonts.DefaultTheme.ContrastFg)
+							return icons.VoiceMessageIcon.Layout(gtx, fonts.DefaultTheme.ContrastFg)
 						}),
 					)
 				})

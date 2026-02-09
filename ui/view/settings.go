@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"rtc/assets/fonts"
+	"rtc/assets/icons"
 	"time"
 
 	modal "rtc/ui/layout"
@@ -41,7 +42,7 @@ func NewSettingsForm(onSuccess func()) *SettingsForm {
 		nicknameEditor:   &component.TextField{Editor: widget.Editor{}},
 		signEditor:       &component.TextField{Editor: widget.Editor{}},
 		serverAddrEditor: &component.TextField{Editor: widget.Editor{}},
-		submitButton:     IconButton{Theme: fonts.DefaultTheme, Icon: actionDoneIcon, Enabled: true},
+		submitButton:     IconButton{Theme: fonts.DefaultTheme, Icon: icons.ActionDoneIcon, Enabled: true},
 	}
 	s.Theme.TextSize = 0.75 * s.Theme.TextSize
 	s.submitButton.OnClick = func() {

@@ -9,6 +9,7 @@ import (
 	"log"
 	"math"
 	"rtc/assets/fonts"
+	"rtc/assets/icons"
 	"rtc/internal/audio"
 	"time"
 	"unsafe"
@@ -30,9 +31,9 @@ var (
 	audioId                   uint16
 	timestamp                 uint16
 	mute                      bool
-	micOffButton              = &IconButton{Theme: fonts.DefaultTheme, Icon: micOffIcon, Enabled: true, Hidden: true}
-	audioMakeButton           = &IconButton{Theme: fonts.DefaultTheme, Icon: audioCallIcon, Enabled: true}
-	audioAcceptButton         = &IconButton{Theme: fonts.DefaultTheme, Icon: audioCallIcon, Enabled: true, Mode: Accept}
+	micOffButton              = &IconButton{Theme: fonts.DefaultTheme, Icon: icons.MicOffIcon, Enabled: true, Hidden: true}
+	audioMakeButton           = &IconButton{Theme: fonts.DefaultTheme, Icon: icons.AudioCallIcon, Enabled: true}
+	audioAcceptButton         = &IconButton{Theme: fonts.DefaultTheme, Icon: icons.AudioCallIcon, Enabled: true, Mode: Accept}
 	captureCtx, captureCancel = context.WithCancel(context.Background())
 	playbackCancels           []context.CancelFunc
 	players                   = make(map[uint16]chan *bytes.Buffer)
@@ -61,7 +62,7 @@ func generateAudioId() uint32 {
 
 func NewAudioIconStack(streamConfig audio.StreamConfig) *IconStack {
 	audioAcceptButton.OnClick = acceptAudioCall(streamConfig)
-	var audioDeclineButton = &IconButton{Theme: fonts.DefaultTheme, Icon: audioCallIcon, Enabled: true, Mode: Decline}
+	var audioDeclineButton = &IconButton{Theme: fonts.DefaultTheme, Icon: icons.AudioCallIcon, Enabled: true, Mode: Decline}
 	audioDeclineButton.OnClick = func() {
 		audioMakeButton.Hidden = false
 		resetMuteButton()

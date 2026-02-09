@@ -12,6 +12,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"rtc/assets/icons"
 	"rtc/internal/audio"
 	"strconv"
 	"strings"
@@ -252,10 +253,13 @@ const (
 	Music
 	Video
 	Ebook
+	Apk
 )
 
 func NewMine(filename string) Mime {
 	switch filepath.Ext(filename) {
+	case ".apk":
+		return Apk
 	case ".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg":
 		return Picture
 	case ".epub", ".pdf":
@@ -466,16 +470,18 @@ func (f *FileControl) drawFilename(theme *material.Theme) func(layout.Context) l
 
 func (f *FileControl) getIconByMimeType() *widget.Icon {
 	switch f.Mime {
+	case Apk:
+		return icons.ApkIcon
 	case Picture:
-		return imageIcon
+		return icons.ImageIcon
 	case Ebook:
-		return bookIcon
+		return icons.BookIcon
 	case Music:
-		return musicIcon
+		return icons.MusicIcon
 	case Video:
-		return videoIcon
+		return icons.VideoIcon
 	default:
-		return unknownIcon
+		return icons.UnknownIcon
 	}
 }
 
@@ -506,7 +512,7 @@ func (m *MediaControl) Layout(gtx layout.Context, filePath string, fgColor color
 	return layout.Flex{Spacing: layout.SpaceAround, Alignment: layout.Middle}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			btn := &m.playButton
-			icon := playIcon
+			icon := icons.PlayIcon
 			if m.animation == nil {
 				m.animation = &component.Progress{}
 			}
@@ -523,7 +529,7 @@ func (m *MediaControl) Layout(gtx layout.Context, filePath string, fgColor color
 			if m.animation.Started() {
 				gtx.Execute(op.InvalidateCmd{})
 				btn = &m.pauseButton
-				icon = pauseIcon
+				icon = icons.PauseIcon
 			}
 			m.animation.Update(gtx.Now)
 			return btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -734,13 +740,13 @@ func (m *Message) drawOperation(gtx layout.Context) layout.Dimensions {
 
 func (m *Message) drawCopyButton(gtx layout.Context) layout.Dimensions {
 	return m.copyButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return contentCopyIcon.Layout(gtx, m.ContrastBg)
+		return icons.ContentCopyIcon.Layout(gtx, m.ContrastBg)
 	})
 }
 
 func (m *Message) drawCloudDownloadButton(gtx layout.Context) layout.Dimensions {
 	return m.downloadButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return cloudDownloadIcon.Layout(gtx, m.ContrastBg)
+		return icons.CloudDownloadIcon.Layout(gtx, m.ContrastBg)
 	})
 }
 
@@ -754,13 +760,13 @@ func (m *Message) drawViewAndSave(gtx layout.Context) layout.Dimensions {
 
 func (m *Message) drawViewButton(gtx layout.Context) layout.Dimensions {
 	return m.browseButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return browseIcon.Layout(gtx, m.ContrastBg)
+		return icons.BrowseIcon.Layout(gtx, m.ContrastBg)
 	})
 }
 
 func (m *Message) drawSaveButton(gtx layout.Context) layout.Dimensions {
 	return m.saveButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return addIcon.Layout(gtx, m.ContrastBg)
+		return icons.FileExportIcon.Layout(gtx, m.ContrastBg)
 	})
 }
 
@@ -858,7 +864,7 @@ func (m *Message) drawBrokenImage(gtx layout.Context) layout.Dimensions {
 	v := m.getReverseBaseWidth()
 	gtx.Constraints.Min.X = int(v)
 	macro := op.Record(gtx.Ops)
-	d := imageBrokenIcon.Layout(gtx, m.Theme.ContrastFg)
+	d := icons.ImageBrokenIcon.Layout(gtx, m.Theme.ContrastFg)
 	call := macro.Stop()
 	m.drawBorder(gtx, d, call)
 	return d
@@ -914,12 +920,12 @@ func (m *Message) drawState(gtx layout.Context) layout.Dimensions {
 			loader := material.LoaderStyle{Color: m.ContrastBg}
 			return loader.Layout(gtx)
 		case Failed:
-			icon = alertErrorIcon
+			icon = icons.AlertErrorIcon
 			iconColor = color.NRGBA(colornames.Red500)
 		case Sent:
-			icon = actionDoneIcon
+			icon = icons.ActionDoneIcon
 		case Read:
-			icon = actionDoneAllIcon
+			icon = icons.ActionDoneAllIcon
 		}
 		return icon.Layout(gtx, iconColor)
 	}

@@ -4,6 +4,7 @@ import (
 	"image"
 	"image/color"
 	"rtc/assets/fonts"
+	"rtc/assets/icons"
 	"time"
 
 	"gioui.org/io/event"
@@ -132,17 +133,17 @@ var iconStackAnimation = component.VisibilityAnimation{
 func NewIconStack(modeSwitch func(*IconButton) func(), appendFile func(mapping *FileDescription)) *IconStack {
 	settings := NewSettingsForm(OnSettingsSubmit)
 	audioMakeButton.OnClick = MakeAudioCall(audioMakeButton)
-	voiceMessageSwitch := &IconButton{Theme: fonts.DefaultTheme, Icon: voiceMessageIcon, Enabled: true}
+	voiceMessageSwitch := &IconButton{Theme: fonts.DefaultTheme, Icon: icons.VoiceMessageIcon, Enabled: true}
 	voiceMessageSwitch.OnClick = modeSwitch(voiceMessageSwitch)
 	return &IconStack{
 		Sticky:              false,
 		Theme:               fonts.DefaultTheme,
 		VisibilityAnimation: &iconStackAnimation,
 		IconButtons: []*IconButton{
-			{Theme: fonts.DefaultTheme, Icon: settingsIcon, Enabled: true, OnClick: settings.ShowWithModal},
-			{Theme: fonts.DefaultTheme, Icon: filesIcon, Enabled: true, OnClick: ChooseAndSendFile(appendFile)},
-			{Theme: fonts.DefaultTheme, Icon: photoLibraryIcon, Enabled: true, OnClick: ChooseAndSendPhoto},
-			{Theme: fonts.DefaultTheme, Icon: videoCallIcon},
+			{Theme: fonts.DefaultTheme, Icon: icons.SettingsIcon, Enabled: true, OnClick: settings.ShowWithModal},
+			{Theme: fonts.DefaultTheme, Icon: icons.FilesIcon, Enabled: true, OnClick: ChooseAndSendFile(appendFile)},
+			{Theme: fonts.DefaultTheme, Icon: icons.PhotoLibraryIcon, Enabled: true, OnClick: ChooseAndSendPhoto},
+			{Theme: fonts.DefaultTheme, Icon: icons.VideoCallIcon},
 			audioMakeButton,
 			voiceMessageSwitch,
 		},
@@ -160,7 +161,7 @@ func (e *ExpandButton) Layout(gtx layout.Context) layout.Dimensions {
 		gtx,
 		func(gtx layout.Context) layout.Dimensions {
 			btn := &e.expandButton
-			icon := expandIcon
+			icon := icons.ExpandIcon
 			if e.collapseButton.Clicked(gtx) {
 				iconStackAnimation.Disappear(gtx.Now)
 			}
@@ -169,7 +170,7 @@ func (e *ExpandButton) Layout(gtx layout.Context) layout.Dimensions {
 			}
 			if iconStackAnimation.Revealed(gtx) != 0 {
 				btn = &e.collapseButton
-				icon = collapseIcon
+				icon = icons.CollapseIcon
 			}
 			return material.IconButtonStyle{
 				Background: fonts.DefaultTheme.ContrastBg,
