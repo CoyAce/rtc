@@ -5,6 +5,8 @@ import (
 	"golang.org/x/exp/shiny/materialdesign/icons"
 )
 
+//go:generate go run main.go
+
 var ActionDoneIcon, _ = widget.NewIcon(icons.ActionDone)
 var ActionDoneAllIcon, _ = widget.NewIcon(icons.ActionDoneAll)
 var AlertErrorIcon, _ = widget.NewIcon(icons.AlertErrorOutline)
