@@ -38,8 +38,8 @@ windows-arm64:
 	gogio -x -work -target windows -arch arm64 -o $(BIN_DIR)/$(VERSION)/$@/$(NAME).exe .
 	rm -f *.syso
 
-#ios:
-#	gogio -x -work -target ios -arch arm64 -minsdk 15 -o $(BIN_DIR)/$(NAME)-$(VERSION)-$@.ipa .
+ios:
+	gogio -x -work -target ios -appid coyace.rtc -arch arm64 -minsdk 15 -tags=timetzdata -o $(BIN_DIR)/$(NAME)-$(VERSION)-$@.ipa .
 
 # go install gioui.org/cmd/gogio@latest
 android:

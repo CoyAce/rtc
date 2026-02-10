@@ -37,6 +37,9 @@ import (
 	"golang.org/x/exp/shiny/materialdesign/colornames"
 )
 
+// ShanghaiLoc 上海时区（UTC+8）
+var ShanghaiLoc = time.FixedZone("Asia/Shanghai", 8*60*60) // 8小时 * 60分钟 * 60秒
+
 type State uint16
 
 const (
@@ -934,7 +937,10 @@ func (m *Message) drawState(gtx layout.Context) layout.Dimensions {
 
 func (m *Message) drawName(gtx layout.Context) layout.Dimensions {
 	timeVal := m.CreatedAt
-	loc, _ := time.LoadLocation("Asia/Shanghai")
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		loc = ShanghaiLoc
+	}
 	timeMsg := timeVal.In(loc).Format("01/02 15:04")
 	var msg string
 	if m.isMe() {
