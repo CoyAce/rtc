@@ -2,13 +2,12 @@ package fonts
 
 import (
 	_ "embed"
-	"fmt"
 	"log"
 	"os"
-	"path/filepath"
-	"rtc/assets/fonts/notosanscjk"
+	"rtc/assets/fonts/notoemoji"
+	"rtc/assets/fonts/notosanssc"
+	"rtc/assets/fonts/roboto"
 	"runtime"
-	"strings"
 
 	"gioui.org/font"
 	"gioui.org/font/gofont"
@@ -17,30 +16,14 @@ import (
 	"gioui.org/widget/material"
 )
 
-//go:embed NotoColorEmoji.ttf
-var notoColorEmoji []byte
-
-//go:embed Roboto-Bold.ttf
-var robotoBold []byte
-
-//go:embed Roboto-Bold-Italic.ttf
-var robotoBoldItalic []byte
-
-//go:embed Roboto-Regular.ttf
-var robotoRegular []byte
-
-//go:embed Roboto-Regular-Italic.ttf
-var robotoRegularItalic []byte
-
 var collection = mergeAndClean()
 
 func builtinFonts() [][]font.FontFace {
-	// 由于gio不支持svg字体，所以嵌入png字体 todo gio支持svg字体
-	var emoji, _ = opentype.ParseCollection(notoColorEmoji)
-	var bold, _ = opentype.ParseCollection(robotoBold)
-	var boldItalic, _ = opentype.ParseCollection(robotoBoldItalic)
-	var regular, _ = opentype.ParseCollection(robotoRegular)
-	var regularItalic, _ = opentype.ParseCollection(robotoRegularItalic)
+	var emoji, _ = opentype.ParseCollection(notoemoji.TTF)
+	var bold, _ = opentype.ParseCollection(roboto.BOLD)
+	var boldItalic, _ = opentype.ParseCollection(roboto.BOLD_ITALIC)
+	var regular, _ = opentype.ParseCollection(roboto.REGULAR)
+	var regularItalic, _ = opentype.ParseCollection(roboto.REGULAR_ITALIC)
 	return [][]font.FontFace{
 		gofont.Collection(),
 		boldItalic,
@@ -74,13 +57,11 @@ var SystemFonts = []string{
 	"/system/fonts/realmeSans.ttf",
 	"/system/fonts/HonorSans.ttf",
 	"/system/fonts/GoogleSans.ttf",
-	"/system/fonts/NotoSansCJK-Regular.ttc", // Android
-	"C:\\Windows\\Fonts\\msyh.ttc",          // Microsoft YaHei
-	"C:\\Windows\\Fonts\\msyhbd.ttc",        // Microsoft YaHei Bold
+	"C:\\Windows\\Fonts\\msyh.ttc",   // Microsoft YaHei
+	"C:\\Windows\\Fonts\\msyhbd.ttc", // Microsoft YaHei Bold
 }
 
-func WithFamilyAndStyle(f text.FontFace, face string, style font.Style) text.FontFace {
-	f.Font.Typeface = font.Typeface(face)
+func WithStyle(f text.FontFace, style font.Style) text.FontFace {
 	f.Font.Style = style
 	return f
 }
@@ -97,30 +78,32 @@ func merge() []text.FontFace {
 	for _, f := range builtinFonts() {
 		ret = append(ret, f...)
 	}
-	for _, fontPath := range ApplePingFang() {
-		ret = tryAdd(ret, fontPath, weights)
-	}
 	for _, fontPath := range SystemFonts {
 		ret = tryAdd(ret, fontPath, weights)
 	}
-	if runtime.GOOS == "android" {
-		// todo gio支持可变字体，就不需要嵌入粗体了
-		var scBold, _ = opentype.ParseCollection(notosanscjk.TTF)
-		ret = append(ret, []text.FontFace{
-			WithFamilyAndStyle(scBold[0], "Noto Sans CJK SC", font.Italic),
-			WithFamilyAndStyle(scBold[0], "Noto Sans CJK SC", font.Regular),
-		}...)
+	for _, f := range NotoSansSC() {
+		ret = append(ret, f...)
 	}
 	return ret
 }
 
+func NotoSansSC() [][]font.FontFace {
+	var scRegular, _ = opentype.ParseCollection(notosanssc.REGULAR)
+	var scBold, _ = opentype.ParseCollection(notosanssc.BOLD)
+	return [][]font.FontFace{
+		scRegular,
+		scBold,
+	}
+}
+
 func clean() {
-	notoColorEmoji = nil
-	robotoBold = nil
-	robotoBoldItalic = nil
-	robotoRegular = nil
-	robotoRegularItalic = nil
-	notosanscjk.TTF = nil
+	roboto.BOLD = nil
+	roboto.BOLD_ITALIC = nil
+	roboto.REGULAR = nil
+	roboto.REGULAR_ITALIC = nil
+	notoemoji.TTF = nil
+	notosanssc.REGULAR = nil
+	notosanssc.BOLD = nil
 }
 
 func tryAdd(ret []text.FontFace, fontPath string, weights []font.Weight) []text.FontFace {
@@ -130,7 +113,7 @@ func tryAdd(ret []text.FontFace, fontPath string, weights []font.Weight) []text.
 		filteredFonts := filter(parsedFonts, weights)
 		ret = append(ret, filteredFonts...)
 		for _, f := range filteredFonts {
-			ret = append(ret, WithFamilyAndStyle(f, string(f.Font.Typeface), font.Italic))
+			ret = append(ret, WithStyle(f, font.Italic))
 		}
 	}
 	return ret
@@ -161,95 +144,5 @@ func tryLoad(path string) []byte {
 	return buf
 }
 
-func ApplePingFang() []string {
-	targets := []string{
-		"PingFang.ttc",
-	}
-
-	baseDir := "/System/Library/AssetsV2"
-	searchDirs, err := findDirs(baseDir, "com_apple_MobileAsset_Font")
-	if err != nil {
-		log.Printf("search failed: %v", err)
-		searchDirs = []string{}
-	}
-	searchDirs = append(searchDirs, "/System/Library/Fonts")
-
-	return find(targets, searchDirs)
-}
-
-func find(targets []string, searchDirs []string) []string {
-	var foundPaths []string
-	for _, target := range targets {
-		for _, dir := range searchDirs {
-			paths, err := findFontFiles(dir, target)
-			if err != nil {
-				log.Printf("find font failed: %v", err)
-				continue
-			}
-			foundPaths = append(foundPaths, paths...)
-		}
-	}
-
-	return foundPaths
-}
-
-func findDirs(baseDir string, prefix string) ([]string, error) {
-	var dirs []string
-
-	entries, err := os.ReadDir(baseDir)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() && strings.HasPrefix(entry.Name(), prefix) {
-			dirs = append(dirs, filepath.Join(baseDir, entry.Name()))
-		}
-	}
-
-	return dirs, nil
-}
-
-func findFontFiles(dir, filename string) ([]string, error) {
-	var foundPaths []string
-
-	// 首先检查目录是否存在
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		return nil, fmt.Errorf("%v not exist", dir)
-	}
-
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			// 处理权限错误
-			if os.IsPermission(err) {
-				// 尝试以只读方式继续
-				return nil
-			}
-			return err
-		}
-
-		// 检查文件名是否匹配
-		if !info.IsDir() && matchFilename(info.Name(), filename) {
-			foundPaths = append(foundPaths, path)
-		}
-
-		return nil
-	})
-
-	return foundPaths, err
-}
-
-func matchFilename(actual, target string) bool {
-	// 不区分大小写匹配
-	actualLower := strings.ToLower(actual)
-	targetLower := strings.ToLower(target)
-
-	// 精确匹配或包含匹配
-	if actualLower == targetLower {
-		return true
-	}
-	return false
-}
-
-// theme defines the material design style
+// DefaultTheme defines the material design style
 var DefaultTheme = NewTheme()
