@@ -95,6 +95,7 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 					v.OnChange(img, nil)
 				}
 			}
+			InvalidateRequest <- struct{}{}
 		}()
 	}
 	gtx.Constraints.Min, gtx.Constraints.Max = v.point, v.point

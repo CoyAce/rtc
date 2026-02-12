@@ -72,7 +72,7 @@ func ResolveFileDescription(file io.ReadCloser) (FileDescription, error) {
 		fileInfo, _ := f.Stat()
 		return FileDescription{File: file, Name: fileInfo.Name(), Path: f.Name(), Size: fileInfo.Size()}, nil
 	}
-	if runtime.GOOS == "android" {
+	if runtime.GOOS == "android" || runtime.GOOS == "ios" {
 		if f, ok := file.(*explorer.File); ok {
 			return FileDescription{File: file, Name: f.Name(), Path: f.URI(), Size: f.Size()}, nil
 		}
@@ -365,6 +365,7 @@ func (c *ImageCache) load(path string) *image.Image {
 			img = ConvertToGPUFriendlyImage(img)
 		}
 		*ptr = img
+		InvalidateRequest <- struct{}{}
 	}()
 	return ptr
 }
