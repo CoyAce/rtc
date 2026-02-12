@@ -438,7 +438,6 @@ func SaveImg(img image.Image, filename string, rewrite bool) {
 	if err == nil && !rewrite {
 		return
 	}
-	wi.Mkdir(filepath.Dir(filePath))
 	file, err := os.Create(filePath)
 	defer file.Close()
 	if err != nil {
@@ -458,7 +457,6 @@ func SaveGif(gifImg *gif.GIF, filename string, rewrite bool) {
 	if err == nil && !rewrite {
 		return
 	}
-	wi.Mkdir(filepath.Dir(filePath))
 	file, err := os.Create(filePath)
 	defer file.Close()
 	if err != nil {

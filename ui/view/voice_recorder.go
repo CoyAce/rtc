@@ -91,7 +91,6 @@ func (v *VoiceRecorder) encodeAndSendAsync() {
 		loc, _ := time.LoadLocation("Asia/Shanghai")
 		timeNow := time.Now().In(loc).Format("20060102150405")
 		filePath := GetDataPath(timeNow + ".opus")
-		wi.Mkdir(filepath.Dir(filePath))
 		log.Printf("audio file path %s", filePath)
 		w, err := os.Create(filePath)
 		if err != nil {

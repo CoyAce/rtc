@@ -260,11 +260,11 @@ func (k *MessageKeeper) Loop() {
 			k.buffer = append(k.buffer, msg)
 			k.lock.Unlock()
 		case <-timer.C:
+			timer.Reset(flushFreq)
 			if len(k.buffer) == 0 {
 				continue
 			}
 			k.Flush()
-			timer.Reset(flushFreq)
 		}
 	}
 }
@@ -336,6 +336,10 @@ func (k *MessageKeeper) ReadDownloadableFiles() map[uint32]*FileDescription {
 func (k *MessageKeeper) read(filename string) map[uint32]*FileDescription {
 	ret := make(map[uint32]*FileDescription)
 	filePath := GetDataPath(filename)
+	_, err := os.Stat(filePath)
+	if err != nil {
+		return ret
+	}
 	f, err := os.Open(filePath)
 	if err != nil {
 		log.Printf("Open file failed: %v", err)
