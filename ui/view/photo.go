@@ -31,7 +31,7 @@ func ChooseAndSendPhoto() {
 			},
 			Contacts:    FromMyself(),
 			MessageType: mType,
-			FileControl: FileControl{Path: fd.Path},
+			FileControl: FileControl{Path: fd.Path, Filename: fd.Name},
 			CreatedAt:   time.Now(),
 		}
 		MessageBox <- message

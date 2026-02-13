@@ -337,13 +337,13 @@ func (f *FileControl) processFileSave(gtx layout.Context, path string) {
 		if path == "" {
 			return
 		}
-		w, err := Picker.CreateFile(filepath.Base(path))
+		w, err := Picker.CreateFile(f.Filename)
 		if err != nil {
 			log.Printf("Create file %s failed: %s", path, err)
 			return
 		}
 		defer w.Close()
-		r, err := os.Open(path)
+		r, err := Open(path)
 		if err != nil {
 			log.Printf("Open file %s failed: %s", path, err)
 			return

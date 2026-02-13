@@ -4,7 +4,7 @@ go 1.24.0
 
 toolchain go1.24.11
 
-replace gioui.org/x v0.9.0 => github.com/CoyAce/gio-x v0.9.4
+replace gioui.org/x v0.9.0 => github.com/CoyAce/gio-x v0.9.5
 
 replace gioui.org => github.com/CoyAce/gio v0.9.3
 
