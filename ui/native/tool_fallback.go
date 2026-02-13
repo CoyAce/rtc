@@ -1,4 +1,4 @@
-//go:build !android
+//go:build !android && !ios
 
 package native
 
@@ -23,4 +23,8 @@ func (r *PlatformTool) GetExternalDir() string {
 }
 
 func (r *PlatformTool) BrowseFile(path string) {
+}
+
+func (r *PlatformTool) ChoosePhoto() (string, error) {
+	return "", errors.New("not supported")
 }

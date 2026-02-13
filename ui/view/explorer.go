@@ -81,7 +81,19 @@ func ResolveFileDescription(file io.ReadCloser) (FileDescription, error) {
 }
 
 func ChooseImage() (FileDescription, error) {
-	file, err := Picker.ChooseFile(".jpg", ".jpeg", ".png", ".webp", ".gif")
+	var (
+		file io.ReadCloser
+		err  error
+	)
+	if runtime.GOOS == "ios" {
+		path, err := native.Tool.ChoosePhoto()
+		if err != nil {
+			return FileDescription{}, err
+		}
+		file, err = os.Open(path)
+	} else {
+		file, err = Picker.ChooseFile(".jpg", ".jpeg", ".png", ".webp", ".gif")
+	}
 	if err != nil {
 		return FileDescription{}, err
 	}

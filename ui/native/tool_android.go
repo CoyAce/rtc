@@ -10,6 +10,7 @@ package native
 */
 import "C"
 import (
+	"errors"
 	"log"
 
 	"gioui.org/app"
@@ -79,6 +80,10 @@ func (r *PlatformTool) BrowseFile(path string) {
 	if err != nil {
 		log.Println(err)
 	}
+}
+
+func (r *PlatformTool) ChoosePhoto() (string, error) {
+	return "", errors.New("not supported")
 }
 
 func (r *PlatformTool) GetExternalDir() string {
