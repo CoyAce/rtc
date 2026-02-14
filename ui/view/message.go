@@ -176,6 +176,7 @@ func (i *InteractiveSpan) Layout(gtx layout.Context) layout.Dimensions {
 		switch e := e.(type) {
 		case key.FocusEvent:
 			if !e.Focus {
+				i.pressing = false
 				i.longPressed = false
 			}
 		}
