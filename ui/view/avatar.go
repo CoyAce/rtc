@@ -79,6 +79,7 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 				img, err := decodeImage(fd.File)
 				if err != nil {
 					log.Printf("Decode image failed: %v", err)
+					return
 				}
 				if img.Bounds().Dx() > 512 || img.Bounds().Dy() > 512 {
 					img = resizeImage(img, 512, 512)
