@@ -166,10 +166,14 @@ func (m *MessageManager) publishContent(msg wi.ReadReq) {
 }
 
 func (m *MessageManager) findPublishedFile(id uint32) *FileDescription {
+	m.MessageKeeper.lock.Lock()
+	defer m.MessageKeeper.lock.Unlock()
 	return m.MessageKeeper.PublishedFiles[id]
 }
 
 func (m *MessageManager) findDownloadableFile(id uint32) *FileDescription {
+	m.MessageKeeper.lock.Lock()
+	defer m.MessageKeeper.lock.Unlock()
 	return m.MessageKeeper.DownloadableFiles[id]
 }
 
@@ -297,16 +301,22 @@ func (k *MessageKeeper) Flush() {
 }
 
 func (k *MessageKeeper) AppendPublish(fd *FileDescription) {
+	k.lock.Lock()
+	defer k.lock.Unlock()
 	k.PublishedFiles[fd.ID] = fd
 	k.append("file.log", fd)
 }
 
 func (k *MessageKeeper) AppendDownloaded(fd *FileDescription) {
+	k.lock.Lock()
+	defer k.lock.Unlock()
 	k.DownloadedFiles[fd.ID] = fd
 	k.append("download.log", fd)
 }
 
 func (k *MessageKeeper) AppendDownloadable(fd *FileDescription) {
+	k.lock.Lock()
+	defer k.lock.Unlock()
 	k.DownloadableFiles[fd.ID] = fd
 	k.append("downloadable.log", fd)
 }
