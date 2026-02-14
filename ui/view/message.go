@@ -577,6 +577,7 @@ func (m *MediaControl) playAudioAsync(filePath string) {
 		pcm, channels, err := ogg.Decode(file)
 		if err != nil {
 			log.Printf("decode file failed, %v", err)
+			return
 		}
 		m.StreamConfig.Channels = channels
 		reader := bytes.NewReader(pcm)

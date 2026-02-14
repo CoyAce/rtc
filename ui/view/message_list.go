@@ -23,6 +23,7 @@ import (
 	"gioui.org/widget/material"
 	"gioui.org/x/component"
 	"github.com/CoyAce/wi"
+	"github.com/gen2brain/malgo"
 )
 
 type VoiceMode bool
@@ -130,6 +131,7 @@ func (m *MessageManager) Process(window *app.Window, c *wi.Client) {
 					message.MessageType = GIF
 				case wi.OpSendVoice:
 					mediaControl := MediaControl{StreamConfig: m.StreamConfig, Duration: msg.Duration}
+					mediaControl.Format = malgo.FormatS16
 					message.MessageType = Voice
 					message.MediaControl = mediaControl
 				case wi.OpPublish:
