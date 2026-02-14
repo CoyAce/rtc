@@ -14,6 +14,8 @@ import (
 	"path/filepath"
 	"rtc/assets/icons"
 	"rtc/internal/audio"
+	"rtc/ui/native"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -329,14 +331,23 @@ func (f *FileControl) processFileBrowse(gtx layout.Context, path string) {
 	}()
 }
 
-func (f *FileControl) processFileSave(gtx layout.Context, path string) {
-	if !f.saveButton.Clicked(gtx) {
+func (f *FileControl) processPhotoSave(gtx layout.Context, path string) {
+	if !f.saveButton.Clicked(gtx) || path == "" {
 		return
 	}
 	go func() {
-		if path == "" {
-			return
+		err := native.Tool.SavePhoto(path)
+		if err != nil {
+			log.Printf("Save photo failed: %v", err)
 		}
+	}()
+}
+
+func (f *FileControl) processFileSave(gtx layout.Context, path string) {
+	if !f.saveButton.Clicked(gtx) || path == "" {
+		return
+	}
+	go func() {
 		w, err := Picker.CreateFile(f.Filename)
 		if err != nil {
 			log.Printf("Create file %s failed: %s", path, err)
@@ -641,6 +652,11 @@ func (m *Message) drawMessage(gtx layout.Context) layout.Dimensions {
 }
 
 func (m *Message) processFileViewAndSave(gtx layout.Context) {
+	if runtime.GOOS == "ios" && (m.MessageType == Image || m.MessageType == GIF) {
+		m.processFileBrowse(gtx, m.OptimizedFilePath())
+		m.processPhotoSave(gtx, m.OptimizedFilePath())
+		return
+	}
 	switch m.MessageType {
 	case Voice:
 		m.processFileBrowse(gtx, m.FilePath())
@@ -718,6 +734,9 @@ func (m *Message) FilePath() string {
 // OptimizedFilePath return path for received file and user chosen file
 func (m *Message) OptimizedFilePath() string {
 	if m.isMe() {
+		if runtime.GOOS == "ios" {
+			return GetExternalDir() + filepath.Base(m.Path)
+		}
 		return m.Path
 	}
 	return m.FilePath()
@@ -775,6 +794,7 @@ func (m *Message) drawSaveButton(gtx layout.Context) layout.Dimensions {
 
 func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
 	if m.Text == "" && m.fileNotExist() {
+		log.Printf("text: %v, name: %v, path: %v", m.Text, m.Filename, m.Path)
 		return layout.Dimensions{}
 	}
 	switch m.MessageType {

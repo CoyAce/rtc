@@ -110,8 +110,9 @@ func decodeGif(file io.ReadCloser) (*gif.GIF, error) {
 
 func decodeImage(file io.ReadCloser) (image.Image, error) {
 	var img, _, err = image.Decode(bufio.NewReader(file))
-	if img == nil {
+	if err != nil {
 		// try with webp
+		log.Printf("image decode error:%v", err)
 		img, err = webp.Decode(bufio.NewReader(file))
 	}
 	return img, err
@@ -417,7 +418,7 @@ func GetDataDir() string {
 
 func GetExternalDir() string {
 	dir := native.Tool.GetExternalDir()
-	if runtime.GOOS == "android" {
+	if runtime.GOOS == "android" || runtime.GOOS == "ios" {
 		return dir + "/"
 	}
 	return dir + "/coyace.rtc/"

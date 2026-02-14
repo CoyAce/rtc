@@ -3,8 +3,13 @@
 //go:build ios
 
 #import <PhotosUI/PhotosUI.h>
+#import <Photos/Photos.h>
+#import <ImageIO/ImageIO.h>
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #include <stdint.h>
 #include "_cgo_export.h"
+
+NSString* getDocumentsDirectory(void);
 
 @implementation photo_picker
 - (void)pickPhotos {
@@ -17,9 +22,7 @@
             initWithConfiguration:config];
         picker.delegate = self;
 
-        [self.controller presentViewController:picker
-                                      animated:YES
-                                    completion:nil];
+        [self.controller presentViewController:picker animated:YES completion:nil];
     }
 }
 
@@ -29,7 +32,6 @@
     [picker dismissViewControllerAnimated:YES completion:nil];
 
     if (results.count == 0) {
-        // 用户取消了选择
         importPhoto(NULL);
         return;
     }
@@ -37,34 +39,87 @@
     PHPickerResult *result = [results firstObject];
     NSItemProvider *provider = result.itemProvider;
 
-    if ([provider canLoadObjectOfClass:[UIImage class]]) {
-        [provider loadObjectOfClass:[UIImage class]
-                  completionHandler:^(id<NSItemProviderReading> object,
-                                      NSError *error) {
-            if (error) {
-                importPhoto(NULL);
+     [provider loadFileRepresentationForTypeIdentifier:UTTypeImage.identifier
+                                        completionHandler:^(NSURL *url, NSError *error) {
+        if (error || !url) {
+            NSLog(@"load file failed: %@", error);
+            importPhoto(NULL);
+            return;
+        }
+        [self handleFileURL:url];
+    }];
+}
+
+- (void)handleFileURL:(NSURL *)url {
+    [url startAccessingSecurityScopedResource];
+
+    NSString *docDir = getDocumentsDirectory();
+    NSString *destPath = [docDir stringByAppendingPathComponent: url.lastPathComponent];
+    NSURL *destURL = [NSURL fileURLWithPath:destPath];
+
+    NSError *error = nil;
+    if (![[NSFileManager defaultManager] fileExistsAtPath:destPath]) {
+        [[NSFileManager defaultManager] copyItemAtURL:url toURL:destURL error:&error];
+    }
+
+    [url stopAccessingSecurityScopedResource];
+
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (!error) {
+            importPhoto(strdup([destPath UTF8String]));
+        } else {
+            NSLog(@"copy file failed: %@", error);
+            importPhoto(NULL);
+        }
+    });
+}
+
+- (void)savePhoto:(NSString *)path {
+    NSFileManager *fm = [NSFileManager defaultManager];
+    if (![fm fileExistsAtPath:path]) {
+        exportPhoto(strdup("file not found"));
+        return;
+    }
+
+    UIImage *image = [UIImage imageWithContentsOfFile:path];
+    if (!image) {
+        exportPhoto(strdup("failed to load image"));
+        return;
+    }
+
+    [PHPhotoLibrary requestAuthorization:^(PHAuthorizationStatus status) {
+        if (status != PHAuthorizationStatusAuthorized) {
+            exportPhoto(strdup("no photo library permission"));
+            return;
+        }
+
+        [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
+            [PHAssetChangeRequest creationRequestForAssetFromImage:image];
+        } completionHandler:^(BOOL success, NSError *error) {
+            if (success) {
+                exportPhoto(NULL);  // 成功时传 NULL
                 return;
             }
 
-            UIImage *image = (UIImage *)object;
-
-            // 保存到 Documents
-            NSData *imageData = UIImageJPEGRepresentation(image, 0.8);
-            NSString *fileName = [NSString stringWithFormat:@"%@.jpeg",
-                [NSUUID UUID].UUIDString];
-            NSString *docDir = NSSearchPathForDirectoriesInDomains(
-                NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
-            NSString *filePath = [docDir stringByAppendingPathComponent:fileName];
-            NSURL *fileURL = [NSURL fileURLWithPath:filePath];
-
-            [imageData writeToURL:fileURL
-                          options:NSDataWritingAtomic
-                            error:nil];
-
-            // 回调 Go 层
-            importPhoto(strdup([fileURL.path UTF8String]));
+            if (error) {
+                if ([error.domain isEqualToString:PHPhotosErrorDomain]) {
+                    switch (error.code) {
+                        case PHPhotosErrorUserCancelled:
+                            exportPhoto(strdup("user cancelled"));
+                            break;
+                        case PHPhotosErrorAccessUserDenied:
+                            exportPhoto(strdup("access denied"));
+                            break;
+                        default:
+                            exportPhoto(strdup("save failed"));
+                            break;
+                    }
+                }
+                return;
+            }
+            exportPhoto(strdup("save failed"));
         }];
-    }
+    }];
 }
 @end
 
@@ -74,7 +129,27 @@ CFTypeRef createPhotoPicker(CFTypeRef controllerRef) {
 	return (__bridge_retained CFTypeRef)p;
 }
 
-void pickPhotos(CFTypeRef pickerRef) {
+void pickPhoto(CFTypeRef pickerRef) {
     photo_picker *picker = (__bridge photo_picker *)pickerRef;
     [picker pickPhotos];
+}
+
+void savePhoto(CFTypeRef pickerRef, const char* path) {
+    photo_picker *picker = (__bridge photo_picker *)pickerRef;
+    NSString *p = [NSString stringWithUTF8String:path];
+    [picker savePhoto:p];
+}
+
+NSString* getDocumentsDirectory(void) {
+    NSArray *paths = NSSearchPathForDirectoriesInDomains(
+        NSDocumentDirectory,
+        NSUserDomainMask,
+        YES
+    );
+    return paths.firstObject;
+}
+
+const char* getDocDir(void) {
+    NSString *docDir = getDocumentsDirectory();
+    return strdup([docDir UTF8String]);
 }

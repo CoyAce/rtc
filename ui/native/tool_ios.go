@@ -11,10 +11,13 @@ package native
 @end
 
 extern CFTypeRef createPhotoPicker(CFTypeRef controllerRef);
-extern void pickPhotos(CFTypeRef pickerRef);
+extern void pickPhoto(CFTypeRef pickerRef);
+extern void savePhoto(CFTypeRef pickerRef, const char* path);
+extern const char* getDocDir(void);
 */
 import "C"
 import (
+	"errors"
 	"unsafe"
 
 	"gioui.org/app"
@@ -38,8 +41,9 @@ func (r *PlatformTool) AskMicrophonePermission() {
 }
 
 func (r *PlatformTool) GetExternalDir() string {
-	dir, _ := app.DataDir()
-	return dir
+	dir := C.getDocDir()
+	defer C.free(unsafe.Pointer(dir))
+	return C.GoString(dir)
 }
 
 func (r *PlatformTool) BrowseFile(path string) {
@@ -50,13 +54,28 @@ func (r *PlatformTool) ChoosePhoto() (string, error) {
 		return "", explorer.ErrNotAvailable
 	}
 	go r.window.Run(func() {
-		C.pickPhotos(r.picker)
+		C.pickPhoto(r.picker)
 	})
 	path := <-uc
 	if path == "" {
 		return "", explorer.ErrUserDecline
 	}
 	return path, nil
+}
+
+func (r *PlatformTool) SavePhoto(path string) error {
+	if r.picker == 0 {
+		return explorer.ErrNotAvailable
+	}
+	p := C.CString(path)
+	defer C.free(unsafe.Pointer(p))
+
+	go r.window.Run(func() {
+		C.savePhoto(r.picker, p)
+	})
+
+	err := <-ec
+	return err
 }
 
 //export importPhoto
@@ -69,4 +88,18 @@ func importPhoto(u *C.char) {
 	uc <- C.GoString(u)
 }
 
+//export exportPhoto
+func exportPhoto(errorMsg *C.char) {
+	if errorMsg == nil {
+		ec <- nil
+		return
+	}
+
+	// 有错误
+	defer C.free(unsafe.Pointer(errorMsg))
+	errStr := C.GoString(errorMsg)
+	ec <- errors.New(errStr)
+}
+
 var uc = make(chan string)
+var ec = make(chan error)
