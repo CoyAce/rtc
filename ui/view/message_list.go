@@ -17,6 +17,8 @@ import (
 	"gioui.org/io/key"
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/text"
+	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"gioui.org/x/component"
@@ -31,6 +33,7 @@ type MessageManager struct {
 	*MessageKeeper
 	*VoiceRecorder
 	*MessageEditor
+	*Hint
 	audioStack *IconStack
 	iconStack  *IconStack
 }
@@ -50,8 +53,15 @@ func (m *MessageManager) Process(window *app.Window, c *wi.Client) {
 	go ConsumeAudioData(m.StreamConfig)
 	go m.MessageKeeper.Loop()
 	go func() {
-		for range InvalidateRequest {
-			window.Invalidate()
+		for {
+			select {
+			case <-InvalidateRequest:
+				window.Invalidate()
+			case msg := <-HintRequest:
+				m.Hint.MSG = msg
+				m.Start(time.Now(), component.Forward, 1000*time.Millisecond)
+				window.Invalidate()
+			}
 		}
 	}()
 	// listen for events in the messages channel
@@ -172,6 +182,7 @@ func (m *MessageManager) Layout(gtx layout.Context) {
 		layout.Flexed(1, m.MessageList.Layout),
 		layout.Rigid(w),
 	)
+	m.Hint.Layout(gtx)
 	_, d := m.audioStack.Layout(gtx)
 	op.Offset(image.Pt(0, -d.Size.Y)).Add(gtx.Ops)
 	m.iconStack.Layout(gtx)
@@ -194,6 +205,7 @@ func NewMessageManager(streamConfig audio.StreamConfig) MessageManager {
 		audioStack:    NewAudioIconStack(streamConfig),
 		iconStack:     NewIconStack(mode.SwitchBetweenTextAndVoice, messageKeeper.AppendPublish),
 		VoiceMode:     mode,
+		Hint:          &Hint{MSG: "✅完成", Progress: &component.Progress{}},
 		VoiceRecorder: voiceRecorder,
 		MessageList:   messageList,
 		MessageKeeper: messageKeeper,
@@ -391,4 +403,37 @@ func (k *MessageKeeper) Messages(streamConfig audio.StreamConfig) []*Message {
 		ret = append(ret, &msg)
 	}
 	return ret
+}
+
+type Hint struct {
+	*component.Progress
+	MSG string
+}
+
+func (h *Hint) Layout(gtx layout.Context) layout.Dimensions {
+	if !h.Started() {
+		return layout.Dimensions{}
+	}
+	gtx.Execute(op.InvalidateCmd{})
+	h.Progress.Update(gtx.Now)
+	return layout.Stack{Alignment: layout.S}.Layout(gtx,
+		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+			offset := image.Pt(0, -gtx.Dp(57+4))
+			op.Offset(offset).Add(gtx.Ops)
+			macro := op.Record(gtx.Ops)
+			margins := layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(3), Left: unit.Dp(4), Right: unit.Dp(4)}
+			d := margins.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				label := material.Label(fonts.DefaultTheme, fonts.DefaultTheme.TextSize, h.MSG)
+				label.Color = fonts.DefaultTheme.ContrastFg
+				label.Alignment = text.Middle
+				return label.Layout(gtx)
+			})
+			call := macro.Stop()
+			bgColor := fonts.DefaultTheme.ContrastBg
+			bgColor.A = 160
+			component.Rect{Color: bgColor, Size: d.Size, Radii: gtx.Dp(4)}.Layout(gtx)
+			call.Add(gtx.Ops)
+			return d
+		}),
+	)
 }

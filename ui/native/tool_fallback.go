@@ -3,6 +3,8 @@
 package native
 
 import (
+	"errors"
+
 	"gioui.org/app"
 	"gioui.org/io/event"
 )
@@ -27,4 +29,8 @@ func (r *PlatformTool) BrowseFile(path string) {
 
 func (r *PlatformTool) ChoosePhoto() (string, error) {
 	return "", errors.New("not supported")
+}
+
+func (r *PlatformTool) SavePhoto(path string) error {
+	return errors.New("not supported")
 }

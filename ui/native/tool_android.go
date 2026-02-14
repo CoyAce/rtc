@@ -86,6 +86,10 @@ func (r *PlatformTool) ChoosePhoto() (string, error) {
 	return "", errors.New("not supported")
 }
 
+func (r *PlatformTool) SavePhoto(path string) error {
+	return errors.New("not supported")
+}
+
 func (r *PlatformTool) GetExternalDir() string {
 	if externalDir != "" {
 		return externalDir

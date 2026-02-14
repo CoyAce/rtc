@@ -340,7 +340,10 @@ func (f *FileControl) processPhotoSave(gtx layout.Context, path string) {
 		err := native.Tool.SavePhoto(path)
 		if err != nil {
 			log.Printf("Save photo failed: %v", err)
+			return
 		}
+		log.Printf("send hint request")
+		HintRequest <- "✅完成"
 	}()
 }
 
@@ -366,6 +369,7 @@ func (f *FileControl) processFileSave(gtx layout.Context, path string) {
 			log.Printf("Save file %s failed: %s", path, err)
 			return
 		}
+		HintRequest <- "✅完成"
 	}()
 }
 
@@ -990,3 +994,4 @@ func (m *Message) drawName(gtx layout.Context) layout.Dimensions {
 
 var MessageBox = make(chan *Message, 10)
 var InvalidateRequest = make(chan struct{}, 1)
+var HintRequest = make(chan string, 1)
