@@ -12,7 +12,7 @@ require (
 	git.wow.st/gmp/jni v0.0.0-20260127013417-d142949d346a
 	github.com/CoyAce/apm v0.1.4
 	github.com/CoyAce/opus v0.1.8
-	github.com/CoyAce/wi v0.1.12
+	github.com/CoyAce/wi v0.1.13
 	github.com/gen2brain/malgo v0.11.24
 	golang.org/x/exp/shiny v0.0.0-20260212183809-81e46e3db34a
 	golang.org/x/image v0.36.0

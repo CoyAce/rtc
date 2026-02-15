@@ -6,6 +6,7 @@ import (
 	ui "rtc/ui/layout"
 	"rtc/ui/native"
 	"rtc/ui/view"
+	"runtime"
 
 	"gioui.org/app"
 	"gioui.org/io/event"
@@ -43,6 +44,13 @@ func Draw(window *app.Window, c *wi.Client) error {
 			if e.Config.Focused == false {
 				wi.DefaultClient.Store()
 				m.MessageKeeper.Flush()
+			}
+			if runtime.GOOS == "android" || runtime.GOOS == "ios" {
+				if e.Config.Focused == false {
+					wi.DefaultClient.SignOut()
+				} else {
+					wi.DefaultClient.SendSign()
+				}
 			}
 		// this is sent when the application should re-render.
 		case app.FrameEvent:
