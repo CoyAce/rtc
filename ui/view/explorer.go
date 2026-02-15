@@ -38,7 +38,7 @@ type FileDescription struct {
 // OpenInFinder 在Finder中打开指定路径
 func OpenInFinder(path string) error {
 	switch runtime.GOOS {
-	case "android":
+	case "android", "ios":
 		native.Tool.BrowseFile(path)
 		return nil
 	case "darwin": // macOS

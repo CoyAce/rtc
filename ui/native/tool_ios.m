@@ -2,6 +2,7 @@
 
 //go:build ios
 
+#import <UIKit/UIKit.h>
 #import <PhotosUI/PhotosUI.h>
 #import <Photos/Photos.h>
 #import <ImageIO/ImageIO.h>
@@ -152,4 +153,45 @@ NSString* getDocumentsDirectory(void) {
 const char* getDocDir(void) {
     NSString *docDir = getDocumentsDirectory();
     return strdup([docDir UTF8String]);
+}
+
+void browseFile(CFTypeRef controllerRef, const char* path) {
+    UIViewController *controller = (__bridge UIViewController *)controllerRef;
+    NSString *pathString = [NSString stringWithUTF8String:path];
+    NSURL *fileURL = [NSURL fileURLWithPath:pathString];
+
+    // 检查文件是否存在
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    if (![fileManager fileExistsAtPath:pathString]) {
+        NSLog(@"文件不存在: %@", pathString);
+        return;
+    }
+
+    // 使用 UIActivityViewController
+    UIActivityViewController *activityVC =
+        [[UIActivityViewController alloc] initWithActivityItems:@[fileURL]
+                                          applicationActivities:nil];
+
+    // iPad 需要设置弹出位置
+    if ([[UIDevice currentDevice] userInterfaceIdiom] == UIUserInterfaceIdiomPad) {
+        activityVC.popoverPresentationController.sourceView = controller.view;
+        activityVC.popoverPresentationController.sourceRect = CGRectMake(
+            controller.view.bounds.size.width / 2,
+            controller.view.bounds.size.height / 2,
+            0, 0
+        );
+        activityVC.popoverPresentationController.permittedArrowDirections = 0;
+    }
+
+    // 处理完成事件
+    activityVC.completionWithItemsHandler = ^(NSString *activityType,
+                                              BOOL completed,
+                                              NSArray *returnedItems,
+                                              NSError *error) {
+        if (error) {
+            NSLog(@"分享错误: %@", error.localizedDescription);
+        }
+    };
+
+    [controller presentViewController:activityVC animated:YES completion:nil];
 }

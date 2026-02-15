@@ -14,6 +14,7 @@ extern CFTypeRef createPhotoPicker(CFTypeRef controllerRef);
 extern void pickPhoto(CFTypeRef pickerRef);
 extern void savePhoto(CFTypeRef pickerRef, const char* path);
 extern const char* getDocDir(void);
+extern void browseFile(CFTypeRef controllerRef,const char* path);
 */
 import "C"
 import (
@@ -27,13 +28,15 @@ import (
 
 type PlatformTool struct {
 	window *app.Window
+	view   C.CFTypeRef
 	picker C.CFTypeRef
 }
 
 func (r *PlatformTool) ListenEvents(evt event.Event) {
 	switch evt := evt.(type) {
 	case app.UIKitViewEvent:
-		r.picker = C.createPhotoPicker(C.CFTypeRef(evt.ViewController))
+		r.view = C.CFTypeRef(evt.ViewController)
+		r.picker = C.createPhotoPicker(r.view)
 	}
 }
 
@@ -47,6 +50,11 @@ func (r *PlatformTool) GetExternalDir() string {
 }
 
 func (r *PlatformTool) BrowseFile(path string) {
+	go r.window.Run(func() {
+		p := C.CString(path)
+		defer C.free(unsafe.Pointer(p))
+		C.browseFile(r.view, p)
+	})
 }
 
 func (r *PlatformTool) ChoosePhoto() (string, error) {
@@ -67,10 +75,10 @@ func (r *PlatformTool) SavePhoto(path string) error {
 	if r.picker == 0 {
 		return explorer.ErrNotAvailable
 	}
-	p := C.CString(path)
-	defer C.free(unsafe.Pointer(p))
 
 	go r.window.Run(func() {
+		p := C.CString(path)
+		defer C.free(unsafe.Pointer(p))
 		C.savePhoto(r.picker, p)
 	})
 
