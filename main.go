@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"net/http"
 	"os"
 	"rtc/internal/audio"
 	"rtc/ui"
 	"rtc/ui/native"
 	"rtc/ui/view"
 	"strconv"
+	"time"
 
 	"gioui.org/x/explorer"
 	"github.com/CoyAce/wi"
@@ -38,6 +40,7 @@ func main() {
 	uuid := "#" + strconv.Itoa(rand.Intn(90000)+10000)
 	log.Println("client uuid:", uuid)
 
+	go triggerNetworkPermission()
 	go func() {
 		w := new(app.Window)
 		w.Option(app.Title("◯"))
@@ -81,4 +84,14 @@ func setup(uuid string) *wi.Client {
 func initTools(window *app.Window) {
 	view.Picker = explorer.NewExplorer(window)
 	native.Tool = native.NewPlatformTool(window)
+}
+
+func triggerNetworkPermission() {
+	time.Sleep(500 * time.Millisecond)
+	resp, err := http.Head("https://www.apple.com")
+	if err != nil {
+		log.Printf("HEAD request failed: %v", err)
+		return
+	}
+	defer resp.Body.Close()
 }
