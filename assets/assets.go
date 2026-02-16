@@ -15,4 +15,4 @@ var AppIcon []byte
 // AppIconImage is decoded Image representing AppIcon
 var AppIconImage, _, _ = image.Decode(bytes.NewReader(AppIcon))
 
-var Version = "0.0.2"
+var Version = "0.0.3"
