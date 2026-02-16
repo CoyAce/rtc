@@ -12,8 +12,6 @@ import (
 
 	"gioui.org/font"
 	"gioui.org/io/event"
-	"gioui.org/io/key"
-	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op/clip"
 	"gioui.org/unit"
@@ -32,6 +30,7 @@ type SettingsForm struct {
 	signEditor       *component.TextField
 	serverAddrEditor *component.TextField
 	submitButton     IconButton
+	lastItemFocused  bool
 }
 
 func NewSettingsForm(onSuccess func()) *SettingsForm {
@@ -96,18 +95,29 @@ func renameOldPathToNewPath(oldUUID string, newUUID string) {
 }
 
 func (s *SettingsForm) Layout(gtx layout.Context) layout.Dimensions {
-	s.processClick(gtx)
 	if len(s.nicknameEditor.Text()) == 0 && !gtx.Focused(&s.nicknameEditor.Editor) {
 		s.nicknameEditor.SetText(wi.DefaultClient.Nickname)
 	}
 	if len(s.signEditor.Text()) == 0 && !gtx.Focused(&s.signEditor.Editor) {
 		s.signEditor.SetText(wi.DefaultClient.Sign)
 	}
-	if len(s.serverAddrEditor.Text()) == 0 && !gtx.Focused(&s.serverAddrEditor.Editor) {
+	lastItemFocused := gtx.Focused(&s.serverAddrEditor.Editor)
+	if len(s.serverAddrEditor.Text()) == 0 && !lastItemFocused {
 		s.serverAddrEditor.SetText(wi.DefaultClient.ServerAddr)
 	}
+	focusedEvent := !s.lastItemFocused && lastItemFocused
+	s.modalContent.ScrollToEnd = s.modalContent.Position.BeforeEnd && focusedEvent
+	if s.modalContent.ScrollToEnd {
+		s.lastItemFocused = true
+	}
+	if !lastItemFocused {
+		s.lastItemFocused = false
+	}
+
 	gtx.Constraints.Min.X = gtx.Constraints.Max.X
-	dimensions := layout.Flex{Spacing: layout.SpaceSides}.Layout(gtx,
+	dimensions := layout.Flex{
+		Spacing: layout.SpaceSides,
+	}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical, Alignment: layout.Middle}.Layout(gtx,
 				layout.Rigid(layout.Spacer{Height: unit.Dp(25)}.Layout),
@@ -133,22 +143,6 @@ func (s *SettingsForm) Layout(gtx layout.Context) layout.Dimensions {
 	defer clip.Rect(image.Rectangle{Max: dimensions.Size}).Push(gtx.Ops).Pop()
 	event.Op(gtx.Ops, s)
 	return dimensions
-}
-
-func (s *SettingsForm) processClick(gtx layout.Context) {
-	for {
-		_, ok := gtx.Event(
-			pointer.Filter{
-				Target: s,
-				Kinds:  pointer.Press,
-			},
-		)
-		if !ok {
-			break
-		}
-		// get focus from editor
-		gtx.Execute(key.FocusCmd{Tag: s})
-	}
 }
 
 func (s *SettingsForm) drawInputArea(label string, widget layout.Widget) func(gtx layout.Context) layout.Dimensions {
