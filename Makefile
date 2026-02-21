@@ -39,7 +39,7 @@ windows-arm64:
 	rm -f *.syso
 
 ios:
-	gogio -x -work -target ios -appid coyace.rtc -arch arm64 -minsdk 15 -tags=timetzdata -version $(VERSION).3 -name $(NAME) -adaptive -safe-ratio=0.85 -o $(BIN_DIR)/$(NAME)-$(VERSION)-$@.ipa .
+	gogio -x -work -target ios -appid coyace.rtc -arch arm64 -minsdk 15 -tags=timetzdata -signid 2D3F82DA1E1B3B894CA0D99673F034B3D5D50209 -version $(VERSION).3 -name $(NAME) -adaptive -safe-ratio=0.85 -o $(BIN_DIR)/$(NAME)-$(VERSION)-$@.ipa .
 
 # go install gioui.org/cmd/gogio@latest
 android:
