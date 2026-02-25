@@ -520,7 +520,7 @@ func (f *FileControl) toHumanReadable(v float32) string {
 
 type MediaControl struct {
 	audio.StreamConfig `json:"-"`
-	Duration           uint64
+	Duration           uint32
 	playButton         widget.Clickable
 	animation          *component.Progress
 	pauseButton        widget.Clickable

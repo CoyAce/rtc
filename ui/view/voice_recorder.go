@@ -109,7 +109,7 @@ func (v *VoiceRecorder) encodeAndSendAsync() {
 			log.Printf("encode file %s failed, %s", filePath, err)
 		}
 		v.buf = nil
-		duration := uint64(ogg.GetDuration(samples) / time.Millisecond)
+		duration := uint32(ogg.GetDuration(samples) / time.Millisecond)
 		message := Message{
 			State: Stateless,
 			MessageStyle: MessageStyle{
