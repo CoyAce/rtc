@@ -44,7 +44,7 @@ ios:
 
 # go install gioui.org/cmd/gogio@latest
 android:
-	gogio -x -work -target android -arch arm64,amd64 -ldflags ${LDFLAGS} -version $(VERSION).3 -name $(NAME) -adaptive -safe-ratio=0.58 -appid coyace.rtc -o $(BIN_DIR)/$(NAME)-$(VERSION).apk .
+	gogio -x -work -target android -arch arm64 -ldflags ${LDFLAGS} -version $(VERSION).3 -name $(NAME) -adaptive -safe-ratio=0.58 -appid coyace.rtc -o $(BIN_DIR)/$(NAME)-$(VERSION).apk .
 
 gz_releases=$(addsuffix .gz, $(PLATFORM_LIST))
 zip_releases=$(addsuffix .zip, $(WINDOWS_ARCH_LIST))

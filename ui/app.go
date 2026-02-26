@@ -48,8 +48,6 @@ func Draw(window *app.Window, c *wi.Client) error {
 			if runtime.GOOS == "android" || runtime.GOOS == "ios" {
 				if e.Config.Focused == false {
 					wi.DefaultClient.SignOut()
-				} else {
-					wi.DefaultClient.SendSign()
 				}
 			}
 		// this is sent when the application should re-render.

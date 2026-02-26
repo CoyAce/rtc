@@ -53,6 +53,7 @@ func main() {
 		go func() {
 			c.ListenAndServe("0.0.0.0:")
 		}()
+		c.Ready()
 		if err := ui.Draw(w, c); err != nil {
 			log.Fatal(err)
 		}
