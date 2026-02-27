@@ -2,7 +2,7 @@ module rtc
 
 go 1.25.0
 
-replace gioui.org/x v0.9.0 => github.com/CoyAce/gio-x v0.9.9
+replace gioui.org/x v0.9.0 => github.com/CoyAce/gio-x v0.9.10
 
 replace gioui.org => github.com/CoyAce/gio v0.9.3
 
