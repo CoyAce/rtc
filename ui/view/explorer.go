@@ -29,7 +29,7 @@ var Picker *explorer.Explorer
 
 type FileDescription struct {
 	ID   uint32
-	File io.ReadCloser `json:"-"`
+	File io.ReadSeekCloser `json:"-"`
 	Name string
 	Path string
 	Size int64
@@ -70,11 +70,11 @@ func ResolveFileDescription(file io.ReadCloser) (FileDescription, error) {
 	}
 	if f, ok := file.(*os.File); ok {
 		fileInfo, _ := f.Stat()
-		return FileDescription{File: file, Name: fileInfo.Name(), Path: f.Name(), Size: fileInfo.Size()}, nil
+		return FileDescription{File: f, Name: fileInfo.Name(), Path: f.Name(), Size: fileInfo.Size()}, nil
 	}
 	if runtime.GOOS == "android" || runtime.GOOS == "ios" {
 		if f, ok := file.(*explorer.File); ok {
-			return FileDescription{File: file, Name: f.Name(), Path: f.URI(), Size: f.Size()}, nil
+			return FileDescription{File: f, Name: f.Name(), Path: f.URI(), Size: f.Size()}, nil
 		}
 	}
 	return FileDescription{}, errors.New("unsupported file type")
@@ -93,9 +93,9 @@ func ChooseImage() (FileDescription, error) {
 		file, err = os.Open(path)
 	} else {
 		file, err = Picker.ChooseFile(".jpg", ".jpeg", ".png", ".webp", ".gif")
-	}
-	if err != nil {
-		return FileDescription{}, err
+		if err != nil {
+			return FileDescription{}, err
+		}
 	}
 	return ResolveFileDescription(file)
 }

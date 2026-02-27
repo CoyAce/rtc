@@ -52,11 +52,11 @@ func ChooseAndSendFile(appendFile func(description *FileDescription)) func() {
 
 func PublishContent(fd *FileDescription) {
 	r, err := Picker.ReadFile(fd.Path)
-	f, ok := r.(io.ReadSeekCloser)
 	if err != nil {
 		log.Printf("Load file failed %v", err)
 		return
 	}
+	f, ok := r.(io.ReadSeekCloser)
 	if !ok {
 		log.Printf("Current os not support")
 		return

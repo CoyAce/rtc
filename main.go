@@ -74,7 +74,7 @@ func setup(uuid string) *wi.Client {
 	c.DataDir = view.GetDataDir()
 	c.ExternalDir = view.GetExternalDir()
 	c.ConfigName = *config
-	c.SyncFunc = view.SyncCachedIcon
+	c.SyncFunc = view.SyncIcon
 	// save client to global pointer
 	wi.DefaultClient = c
 	wi.Mkdir(view.GetDir(c.FullID()))
