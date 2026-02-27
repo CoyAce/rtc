@@ -36,7 +36,7 @@ type SettingsForm struct {
 func NewSettingsForm(onSuccess func()) *SettingsForm {
 	s := &SettingsForm{
 		Theme:            fonts.NewTheme(),
-		avatar:           Avatar{UUID: wi.DefaultClient.FullID(), Size: 64, Editable: true, Theme: fonts.DefaultTheme, OnChange: SyncSelectedIcon},
+		avatar:           Avatar{UUID: wi.DefaultClient.FullID(), Size: 64, Editable: true, Theme: fonts.DefaultTheme, OnChange: SyncIcon},
 		onSuccess:        onSuccess,
 		nicknameEditor:   &component.TextField{Editor: widget.Editor{}},
 		signEditor:       &component.TextField{Editor: widget.Editor{}},
@@ -60,13 +60,7 @@ func NewSettingsForm(onSuccess func()) *SettingsForm {
 		wi.DefaultClient.SendSign()
 		if nicknameChanged && s.avatar.AvatarType != Default {
 			// then sync icon
-			if s.avatar.AvatarType == IMG {
-				if *s.avatar.Image != nil {
-					SyncSelectedIcon(*s.avatar.Image, nil)
-				}
-			} else {
-				SyncSelectedIcon(nil, s.avatar.GIF)
-			}
+			SyncIcon()
 		}
 		wi.DefaultClient.Store()
 		s.onSuccess()

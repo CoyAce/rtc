@@ -1,6 +1,7 @@
 package view
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"rtc/assets/fonts"
@@ -51,15 +52,19 @@ func ChooseAndSendFile(appendFile func(description *FileDescription)) func() {
 }
 
 func PublishContent(fd *FileDescription) {
-	r, err := Picker.ReadFile(fd.Path)
-	if err != nil {
-		log.Printf("Load file failed %v", err)
-		return
+	_ = wi.DefaultClient.PublishContent(Content(fd.Path), fd.Name, uint64(fd.Size), fd.ID)
+}
+
+func Content(path string) func() (io.ReadSeekCloser, error) {
+	return func() (io.ReadSeekCloser, error) {
+		r, err := Picker.ReadFile(path)
+		if err != nil {
+			return nil, err
+		}
+		f, ok := r.(io.ReadSeekCloser)
+		if !ok {
+			return nil, fmt.Errorf("current os not support io.ReadSeekCloser")
+		}
+		return f, nil
 	}
-	f, ok := r.(io.ReadSeekCloser)
-	if !ok {
-		log.Printf("Current os not support")
-		return
-	}
-	_ = wi.DefaultClient.PublishContent(fd.Name, uint64(fd.Size), fd.ID, f)
 }

@@ -1,11 +1,11 @@
 package view
 
 import (
-	"image"
-	"image/gif"
 	"log"
-
+	"os"
+	"path/filepath"
 	modal "rtc/ui/layout"
+	"unsafe"
 
 	"github.com/CoyAce/wi"
 )
@@ -13,38 +13,20 @@ import (
 var OnSettingsSubmit = func() {
 	modal.DefaultModal.Dismiss(nil)
 }
-var SyncCachedIcon = func() {
-	avatar := AvatarCache.LoadOrElseNew(wi.DefaultClient.FullID())
-	switch avatar.AvatarType {
-	case Default:
-		if avatar.Gif != nil {
-			SyncSelectedIcon(nil, avatar.GIF)
-		}
-		fallthrough
-	case IMG:
-		if avatar.Image == nil || *avatar.Image == nil {
+var SyncIcon = func() {
+	path := GetPath(wi.DefaultClient.FullID(), "icon.png")
+	i, err := os.Stat(path)
+	if err != nil {
+		log.Printf("%v stat failed, %v", path, err)
+		path = GetPath(wi.DefaultClient.FullID(), "icon.gif")
+		i, err = os.Stat(path)
+		if err != nil {
+			log.Printf("%v stat failed, %v", path, err)
 			return
-		}
-		SyncSelectedIcon(*avatar.Image, nil)
-	case GIF_IMG:
-		if avatar.Gif != nil {
-			SyncSelectedIcon(nil, avatar.GIF)
 		}
 	}
-}
-
-var SyncSelectedIcon = func(img image.Image, gifImg *gif.GIF) {
-	go func() {
-		if img == nil {
-			err := wi.DefaultClient.SyncGif(gifImg)
-			if err != nil {
-				log.Printf("Failed to sync icon: %v", err)
-			}
-			return
-		}
-		err := wi.DefaultClient.SyncIcon(img)
-		if err != nil {
-			log.Printf("Failed to sync icon: %v", err)
-		}
-	}()
+	err = wi.DefaultClient.SendFile(Content(path), wi.OpSyncIcon, wi.Hash(unsafe.Pointer(&i)), filepath.Base(path), uint64(i.Size()), 0)
+	if err != nil {
+		log.Printf("SyncIcon failed, %v", err)
+	}
 }

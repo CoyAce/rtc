@@ -2,7 +2,6 @@ package view
 
 import (
 	"image"
-	"image/gif"
 	"log"
 	"path/filepath"
 	"rtc/assets"
@@ -31,7 +30,7 @@ type Avatar struct {
 	Size       int
 	Editable   bool
 	EditButton IconButton
-	OnChange   func(img image.Image, gif *gif.GIF)
+	OnChange   func()
 	point      image.Point
 	Image      *image.Image
 	*Gif
@@ -71,10 +70,6 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 				avatar.AvatarType = GIF_IMG
 				SaveGif(gifImg, "icon.gif", true)
 				wi.RemoveFile(GetPath(v.UUID, "icon.png"))
-				// sync to server
-				if v.OnChange != nil {
-					v.OnChange(nil, gifImg)
-				}
 			} else {
 				img, err := decodeImage(fd.File)
 				if err != nil {
@@ -91,10 +86,10 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 				avatar.AvatarType = IMG
 				SaveImg(img, "icon.png", true)
 				wi.RemoveFile(GetPath(v.UUID, "icon.gif"))
-				// sync to server
-				if v.OnChange != nil {
-					v.OnChange(img, nil)
-				}
+			}
+			// sync to server
+			if v.OnChange != nil {
+				v.OnChange()
 			}
 			InvalidateRequest <- struct{}{}
 		}()

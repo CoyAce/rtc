@@ -17,6 +17,7 @@ func ChooseAndSendPhoto() {
 			log.Printf("choose image failed, %v", err)
 			return
 		}
+		defer fd.File.Close()
 		mType := Image
 		opCode := wi.OpSendImage
 		isGif := filepath.Ext(fd.Name) == ".gif"
@@ -35,7 +36,7 @@ func ChooseAndSendPhoto() {
 			CreatedAt:   time.Now(),
 		}
 		MessageBox <- message
-		err = wi.DefaultClient.SendFile(fd.File, opCode, wi.Hash(unsafe.Pointer(&fd)), fd.Name, uint64(fd.Size), 0)
+		err = wi.DefaultClient.SendFile(Content(fd.Path), opCode, wi.Hash(unsafe.Pointer(&fd)), fd.Name, uint64(fd.Size), 0)
 		if err != nil {
 			log.Printf("send image failed, %v", err)
 			message.State = Failed
