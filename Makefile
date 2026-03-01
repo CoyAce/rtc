@@ -12,6 +12,10 @@ WINDOWS_ARCH_LIST = \
 	windows-amd64 \
 	windows-arm64
 
+MACOS_ARCH_LIST = \
+	macos-amd64 \
+	macos-arm64
+
 all: clean release
 
 #linux-amd64:
@@ -40,24 +44,27 @@ windows-arm64:
 
 ios:
 	$(eval CODESIGN_ID := $(shell security find-identity -v -p codesigning | grep -o "[0-9A-F]\{40\}" | head -1))
-	gogio -x -work -target ios -appid coyace.rtc -arch arm64 -minsdk 15 -tags=timetzdata -signid $(CODESIGN_ID) -version $(VERSION).3 -name $(NAME) -adaptive -safe-ratio=0.85 -o $(BIN_DIR)/$(NAME)-$(VERSION)-$@.ipa .
+	gogio -x -work -target ios -appid coyace.rtc -arch arm64 -minsdk 15 -tags=timetzdata -signid $(CODESIGN_ID) -version $(VERSION).3 -name $(NAME) -adaptive -safe-ratio=0.85 -o $(BIN_DIR)/$(VERSION)/$(NAME)-$(VERSION).ipa .
 
 # go install gioui.org/cmd/gogio@latest
 android:
-	gogio -x -work -target android -arch arm64 -ldflags ${LDFLAGS} -version $(VERSION).3 -name $(NAME) -adaptive -safe-ratio=0.58 -appid coyace.rtc -o $(BIN_DIR)/$(NAME)-$(VERSION).apk .
+	gogio -x -work -target android -arch arm64 -ldflags ${LDFLAGS} -version $(VERSION).3 -name $(NAME) -adaptive -safe-ratio=0.58 -appid coyace.rtc -o $(BIN_DIR)/$(VERSION)/$(NAME)-$(VERSION).apk .
 
 gz_releases=$(addsuffix .gz, $(PLATFORM_LIST))
-zip_releases=$(addsuffix .zip, $(WINDOWS_ARCH_LIST))
+win_zip_releases=$(addsuffix .zip, $(WINDOWS_ARCH_LIST))
+mac_zip_releases=$(addsuffix .zip, $(MACOS_ARCH_LIST))
 
 $(gz_releases): %.gz : %
 	chmod +x $(BIN_DIR)/$(NAME)-$(VERSION)-$(basename $@)
 	gzip -f -S .gz $(BIN_DIR)/$(NAME)-$(VERSION)-$(basename $@)
 
-$(zip_releases): %.zip : %
+$(win_zip_releases): %.zip : %
 	zip -m -j $(BIN_DIR)/$(VERSION)/$(NAME)-$(VERSION)-$(basename $@).zip $(BIN_DIR)/$(VERSION)/$(basename $@)/$(NAME).exe
 
+$(mac_zip_releases): %.zip : %
+	zip -r -j $(BIN_DIR)/$(VERSION)/$(basename $@).zip "$(BIN_DIR)/$(VERSION)/$(basename $@)/$(NAME).app"
 
-release: $(gz_releases) $(zip_releases) android macos-amd64 macos-arm64
+release: $(mac_zip_releases) android ios
 
 clean:
 	rm -f *.syso
