@@ -8,9 +8,9 @@ import (
 	"io"
 	"log"
 	"math"
-	"rtc/assets/fonts"
-	"rtc/assets/icons"
-	"rtc/internal/audio"
+	"mushin/assets/fonts"
+	"mushin/assets/icons"
+	"mushin/internal/audio"
 	"time"
 	"unsafe"
 

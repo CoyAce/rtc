@@ -3,8 +3,8 @@ package view
 import (
 	"image"
 	"image/color"
-	"rtc/assets/fonts"
-	"rtc/assets/icons"
+	"mushin/assets/fonts"
+	"mushin/assets/icons"
 	"time"
 
 	"gioui.org/io/event"

@@ -10,10 +10,10 @@ import (
 	"io"
 	"log"
 	"math/rand"
+	"mushin/ui/native"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"rtc/ui/native"
 	"runtime"
 	"strings"
 	"time"
@@ -413,7 +413,7 @@ func GetDataDir() string {
 	if runtime.GOOS == "android" {
 		return dir + "/"
 	}
-	return dir + "/coyace.rtc/"
+	return dir + "/mushin.zone/"
 }
 
 func GetExternalDir() string {
@@ -421,7 +421,7 @@ func GetExternalDir() string {
 	if runtime.GOOS == "android" || runtime.GOOS == "ios" {
 		return dir + "/"
 	}
-	return dir + "/coyace.rtc/"
+	return dir + "/mushin.zone/"
 }
 
 func GetDir(uuid string) string {

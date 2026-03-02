@@ -1,7 +1,7 @@
 package view
 
 import (
-	"rtc/internal/audio"
+	"mushin/internal/audio"
 	"testing"
 
 	"github.com/CoyAce/wi"

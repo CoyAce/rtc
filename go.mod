@@ -1,4 +1,4 @@
-module rtc
+module mushin
 
 go 1.25.0
 

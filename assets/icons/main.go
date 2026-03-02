@@ -2,7 +2,7 @@
 
 package main
 
-import "rtc/assets/icons"
+import "mushin/assets/icons"
 
 func main() {
 	icons.Generate()

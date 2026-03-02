@@ -3,10 +3,10 @@ package fonts
 import (
 	_ "embed"
 	"log"
+	"mushin/assets/fonts/notoemoji"
+	"mushin/assets/fonts/notosanssc"
+	"mushin/assets/fonts/roboto"
 	"os"
-	"rtc/assets/fonts/notoemoji"
-	"rtc/assets/fonts/notosanssc"
-	"rtc/assets/fonts/roboto"
 	"runtime"
 
 	"gioui.org/font"

@@ -3,12 +3,12 @@ package view
 import (
 	"image"
 	"log"
+	"mushin/assets/fonts"
+	"mushin/assets/icons"
 	"os"
-	"rtc/assets/fonts"
-	"rtc/assets/icons"
 	"time"
 
-	modal "rtc/ui/layout"
+	modal "mushin/ui/layout"
 
 	"gioui.org/font"
 	"gioui.org/io/event"

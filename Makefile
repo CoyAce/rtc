@@ -1,5 +1,5 @@
 # https://gioui.org/doc/install
-NAME=◯
+NAME=Mushin
 BIN_DIR=bin
 VERSION=$(shell cat assets/assets.go | grep 'Version =' | sed 's/.*\"\(.*\)\".*/\1/g')
 LDFLAGS='-extldflags "-nostdlib++ -Wl,-Bstatic -lc++ -Wl,-Bdynamic"'
@@ -44,11 +44,11 @@ windows-arm64:
 
 ios:
 	$(eval CODESIGN_ID := $(shell security find-identity -v -p codesigning | grep -o "[0-9A-F]\{40\}" | head -1))
-	gogio -x -work -target ios -appid coyace.rtc -arch arm64 -minsdk 15 -tags=timetzdata -signid $(CODESIGN_ID) -version $(VERSION).3 -name $(NAME) -adaptive -safe-ratio=0.85 -o $(BIN_DIR)/$(VERSION)/$(NAME)-$(VERSION).ipa .
+	gogio -x -work -target ios -appid mushin.zone -arch arm64 -minsdk 15 -tags=timetzdata -signid $(CODESIGN_ID) -version $(VERSION).3 -name $(NAME) -adaptive -safe-ratio=1.61 -o $(BIN_DIR)/$(VERSION)/$(NAME)-$(VERSION).ipa .
 
 # go install gioui.org/cmd/gogio@latest
 android:
-	gogio -x -work -target android -arch arm64 -ldflags ${LDFLAGS} -version $(VERSION).3 -name $(NAME) -adaptive -safe-ratio=0.58 -appid coyace.rtc -o $(BIN_DIR)/$(VERSION)/$(NAME)-$(VERSION).apk .
+	gogio -x -work -target android -arch arm64 -ldflags ${LDFLAGS} -version $(VERSION).3 -name $(NAME) -appid mushin.zone -o $(BIN_DIR)/$(VERSION)/$(NAME)-$(VERSION).apk .
 
 gz_releases=$(addsuffix .gz, $(PLATFORM_LIST))
 win_zip_releases=$(addsuffix .zip, $(WINDOWS_ARCH_LIST))

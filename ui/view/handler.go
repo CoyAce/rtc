@@ -2,9 +2,9 @@ package view
 
 import (
 	"log"
+	modal "mushin/ui/layout"
 	"os"
 	"path/filepath"
-	modal "rtc/ui/layout"
 	"unsafe"
 
 	"github.com/CoyAce/wi"

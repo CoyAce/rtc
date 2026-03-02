@@ -1,4 +1,4 @@
-package com.coyace.rtc.tool;
+package zone.mushin.tool;
 
 import android.Manifest;
 import android.app.Activity;

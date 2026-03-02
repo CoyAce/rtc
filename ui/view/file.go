@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"rtc/assets/fonts"
+	"mushin/assets/fonts"
 	"time"
 	"unsafe"
 

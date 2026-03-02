@@ -2,10 +2,10 @@ package ui
 
 import (
 	"log"
-	"rtc/internal/audio"
-	ui "rtc/ui/layout"
-	"rtc/ui/native"
-	"rtc/ui/view"
+	"mushin/internal/audio"
+	ui "mushin/ui/layout"
+	"mushin/ui/native"
+	"mushin/ui/view"
 	"runtime"
 
 	"gioui.org/app"

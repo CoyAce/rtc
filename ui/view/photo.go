@@ -2,8 +2,8 @@ package view
 
 import (
 	"log"
+	"mushin/assets/fonts"
 	"path/filepath"
-	"rtc/assets/fonts"
 	"time"
 	"unsafe"
 

@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"mushin/internal/audio"
+	"mushin/ui"
+	"mushin/ui/native"
+	"mushin/ui/view"
 	"net/http"
 	"os"
-	"rtc/internal/audio"
-	"rtc/ui"
-	"rtc/ui/native"
-	"rtc/ui/view"
 	"strconv"
 	"time"
 
@@ -24,7 +24,7 @@ import (
 )
 
 var (
-	address          = flag.String("a", "0.0.0.0:52000", "listen address")
+	address          = flag.String("a", "mushin.zone:52000", "listen address")
 	config           = flag.String("c", "config.json", "config file")
 	testAudioLatency = flag.Bool("t", false, "test audio latency")
 )
@@ -43,7 +43,7 @@ func main() {
 	go triggerNetworkPermission()
 	go func() {
 		w := new(app.Window)
-		w.Option(app.Title("◯"))
+		w.Option(app.Title("Mushin"))
 		w.Option(app.Size(unit.Dp(463), unit.Dp(750)))
 		w.Option(app.MinSize(unit.Dp(463)/1.5, unit.Dp(750)/1.5))
 		initTools(w)

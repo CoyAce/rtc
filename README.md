@@ -1,6 +1,6 @@
-# 💬 实时聊天工具
 
 <div align="center">
+<h1> 💬 Mushin - 实时聊天工具 </h1>
 
 [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://golang.org/)
 [![Gio UI](https://img.shields.io/badge/UI-Gio-3B82F6?style=flat)](https://github.com/gioui/gio)

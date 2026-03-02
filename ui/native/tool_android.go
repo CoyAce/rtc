@@ -18,7 +18,7 @@ import (
 	"git.wow.st/gmp/jni"
 )
 
-//go:generate javac --release 11  -classpath $ANDROID_HOME/platforms/android-36/android.jar:./file-provider_android.jar -d /tmp/tool_android/classes tool_android.java
+//go:generate javac --release 11  -classpath $ANDROID_HOME/platforms/android-36.1/android.jar:./file-provider_android.jar -d /tmp/tool_android/classes tool_android.java
 //go:generate jar cf tool_android.jar -C /tmp/tool_android/classes .
 
 type PlatformTool struct {
@@ -35,7 +35,7 @@ func (r *PlatformTool) init(env jni.Env) error {
 		return nil // Already initialized
 	}
 
-	class, err := jni.LoadClass(env, jni.ClassLoaderFor(env, jni.Object(app.AppContext())), "com/coyace/rtc/tool/tool_android")
+	class, err := jni.LoadClass(env, jni.ClassLoaderFor(env, jni.Object(app.AppContext())), "zone/mushin/tool/tool_android")
 	if err != nil {
 		return err
 	}

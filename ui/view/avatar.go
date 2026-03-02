@@ -3,8 +3,8 @@ package view
 import (
 	"image"
 	"log"
+	"mushin/assets"
 	"path/filepath"
-	"rtc/assets"
 
 	"gioui.org/layout"
 	"gioui.org/op"
