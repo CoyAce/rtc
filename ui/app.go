@@ -46,13 +46,14 @@ func Draw(window *app.Window, c *wi.Client) error {
 				wi.DefaultClient.Store()
 				m.MessageKeeper.Flush()
 			}
-			if runtime.GOOS == "android" || runtime.GOOS == "ios" {
-				if e.Config.Focused == false {
+			if e.Config.Focused == false {
+				if runtime.GOOS == "android" || runtime.GOOS == "ios" {
 					wi.DefaultClient.SignOut()
-				} else {
-					go wi.DefaultClient.SignIn()
 				}
+			} else {
+				go wi.DefaultClient.SignIn()
 			}
+
 		// this is sent when the application should re-render.
 		case app.FrameEvent:
 			// This graphics context is used for managing the rendering state.
