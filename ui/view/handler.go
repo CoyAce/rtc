@@ -28,3 +28,19 @@ var SyncIcon = func() {
 		}
 	}
 }
+
+var PublishIcon = func() {
+	paths := []string{
+		GetPath(wi.DefaultClient.ID(), "icon.png"), GetPath(wi.DefaultClient.ID(), "icon.gif"),
+	}
+	for _, path := range paths {
+		i, err := os.Stat(path)
+		if err != nil {
+			continue
+		}
+		err = wi.DefaultClient.PublishContent(Content(path), filepath.Base(path), uint64(i.Size()), 0)
+		if err != nil {
+			log.Printf("Publish icon failed, %v", err)
+		}
+	}
+}

@@ -5,6 +5,7 @@ import (
 	"log"
 	"mushin/assets"
 	"path/filepath"
+	"sync"
 
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -33,10 +34,24 @@ type Avatar struct {
 	OnChange   func()
 	point      image.Point
 	Image      *image.Image
+	sync.Once
 	*Gif
 	AvatarType
 	widget.Clickable
 	*material.Theme
+}
+
+func (v *Avatar) Load() {
+	v.Once.Do(func() {
+		if v.AvatarType == Default {
+			go func() {
+				err := wi.DefaultClient.ReadIcon(v.UUID)
+				if err != nil {
+					log.Printf("read icon of %v failed, %v", v.UUID, err)
+				}
+			}()
+		}
+	})
 }
 
 func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
@@ -154,13 +169,14 @@ func (v *Avatar) Reload(avatarType AvatarType) {
 		}
 	}
 
+	v.AvatarType = IMG
 	imgPath := GetPath(v.UUID, "icon.png")
 	img := LoadAvatar(imgPath, true)
 	if *img == nil {
+		v.AvatarType = Default
 		*img = assets.AppIconImage
 	}
 	v.Image = img
-	v.AvatarType = IMG
 	wi.RemoveFile(GetPath(v.UUID, "icon.gif"))
 }
 

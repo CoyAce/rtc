@@ -67,30 +67,6 @@ func (m *MessageManager) Process(window *app.Window, c *wi.Client) {
 	}()
 	// listen for events in the messages channel
 	go func() {
-		handleOp := func(req wi.WriteReq) {
-			switch req.Code {
-			case wi.OpSyncIcon:
-				avatar := AvatarCache.LoadOrElseNew(req.UUID)
-				if filepath.Ext(req.Filename) == ".gif" {
-					avatar.Reload(GIF_IMG)
-				} else {
-					avatar.Reload(IMG)
-				}
-			case wi.OpAudioCall:
-				ShowIncomingCall(req)
-			case wi.OpAcceptAudioCall:
-				go PostAudioCallAccept(m.StreamConfig)
-			case wi.OpEndAudioCall:
-				EndIncomingCall()
-			case wi.OpContent:
-				fd := m.findDownloadableFile(req.FileId)
-				if fd != nil {
-					m.MessageKeeper.AppendDownloaded(fd)
-					_ = wi.DefaultClient.UnsubscribeFile(req.FileId, req.UUID)
-				}
-			default:
-			}
-		}
 		for {
 			var message *Message
 			select {
@@ -101,6 +77,7 @@ func (m *MessageManager) Process(window *app.Window, c *wi.Client) {
 				}
 				message = msg
 			case msg := <-c.SignedMessages:
+				AvatarCache.LoadOrElseNew(msg.Sign.UUID).Load()
 				message = &Message{
 					State:       Sent,
 					TextControl: NewTextControl(string(msg.Payload)),
@@ -151,7 +128,7 @@ func (m *MessageManager) Process(window *app.Window, c *wi.Client) {
 					message.MessageType = File
 					message.FileControl = fileControl
 				default:
-					handleOp(msg)
+					m.handleOp(msg)
 					continue
 				}
 			}
@@ -162,9 +139,48 @@ func (m *MessageManager) Process(window *app.Window, c *wi.Client) {
 		}
 	}()
 }
+func (m *MessageManager) handleOp(req wi.WriteReq) {
+	switch req.Code {
+	case wi.OpSyncIcon:
+		m.reloadAvatar(req)
+	case wi.OpAudioCall:
+		ShowIncomingCall(req)
+	case wi.OpAcceptAudioCall:
+		go PostAudioCallAccept(m.StreamConfig)
+	case wi.OpEndAudioCall:
+		EndIncomingCall()
+	case wi.OpContent:
+		if req.FileId == 0 {
+			_ = wi.DefaultClient.UnsubscribeFile(0, req.UUID)
+			// update icon
+			m.reloadAvatar(req)
+			return
+		}
+		fd := m.findDownloadableFile(req.FileId)
+		if fd != nil {
+			m.MessageKeeper.AppendDownloaded(fd)
+			_ = wi.DefaultClient.UnsubscribeFile(req.FileId, req.UUID)
+		}
+	default:
+	}
+}
+
+func (m *MessageManager) reloadAvatar(req wi.WriteReq) {
+	avatar := AvatarCache.LoadOrElseNew(req.UUID)
+	if filepath.Ext(req.Filename) == ".gif" {
+		avatar.Reload(GIF_IMG)
+	} else {
+		avatar.Reload(IMG)
+	}
+}
 
 func (m *MessageManager) publishContent(msg wi.ReadReq) {
 	log.Printf("subscribe req received %v", msg)
+	if msg.FileId == 0 {
+		//send icon
+		PublishIcon()
+		return
+	}
 	fd := m.findPublishedFile(msg.FileId)
 	if fd != nil {
 		PublishContent(fd)
