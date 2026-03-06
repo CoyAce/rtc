@@ -30,12 +30,17 @@ func TestMessagePersistence(t *testing.T) {
 }
 
 func TestMessageOrder(t *testing.T) {
-	list := MessageList{Messages: make([]*Message, 0)}
+	messages := make([]*Message, 0)
+	list := MessageList{}
+	list.Messages.Store(&messages)
 	m2 := &Message{TextControl: NewTextControl("hello world"), Contacts: Contacts{Sender: "test#00001", UUID: "#00001"}, CreatedAt: time.Now()}
 	m1 := &Message{TextControl: NewTextControl("hello beautiful world"), Contacts: Contacts{Sender: "test#00001", UUID: "#00001"}, CreatedAt: time.Now()}
 	m1.AddTo(&list)
 	m2.AddTo(&list)
-	if list.Messages[0].Text != m2.Text || list.Messages[1].Text != m1.Text {
+	m3 := &Message{TextControl: NewTextControl("hello wonderful world"), Contacts: Contacts{Sender: "test#00001", UUID: "#00001"}, CreatedAt: time.Now()}
+	m3.AddTo(&list)
+	messages = *list.Messages.Load()
+	if messages[0].Text != m2.Text || messages[1].Text != m1.Text || messages[2].Text != m3.Text {
 		t.Errorf("messages should be ordered by CreatedAt time")
 	}
 }

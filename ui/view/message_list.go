@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"gioui.org/app"
@@ -78,14 +79,14 @@ func (m *MessageManager) Process(window *app.Window, c *wi.Client) {
 				}
 				message = msg
 			case msg := <-c.SignedMessages:
-				AvatarCache.LoadOrElseNew(msg.Sign.UUID).Load()
+				AvatarCache.LoadOrElseNew(msg.UUID).Load()
 				message = &Message{
 					State:       Sent,
 					TextControl: NewTextControl(string(msg.Payload)),
 					MessageStyle: MessageStyle{
 						Theme: fonts.DefaultTheme,
 					},
-					Contacts:    FromSender(msg.Sign.UUID),
+					Contacts:    FromSender(msg.UUID),
 					MessageType: Text,
 					CreatedAt:   time.UnixMilli(msg.CreatedAt),
 				}
@@ -222,10 +223,11 @@ func NewMessageManager(streamConfig audio.StreamConfig) MessageManager {
 		MessageChannel: make(chan *Message, 1),
 	}
 	messageList := &MessageList{
-		List:     layout.List{Axis: layout.Vertical, ScrollToEnd: true},
-		Theme:    fonts.DefaultTheme,
-		Messages: messageKeeper.Messages(streamConfig),
+		List:  layout.List{Axis: layout.Vertical, ScrollToEnd: true},
+		Theme: fonts.DefaultTheme,
 	}
+	messages := messageKeeper.Messages(streamConfig)
+	messageList.Messages.Store(&messages)
 	inputField := component.TextField{Editor: widget.Editor{Submit: true}}
 	messageEditor := &MessageEditor{InputField: &inputField, Theme: fonts.DefaultTheme}
 	return MessageManager{
@@ -244,15 +246,16 @@ type MessageList struct {
 	layout.List
 	*material.Theme
 	widget.Clickable
-	Messages []*Message
+	Messages atomic.Pointer[[]*Message]
 }
 
 func (l *MessageList) Layout(gtx layout.Context) layout.Dimensions {
 	l.getFocusAndResetIconStackIfClicked(gtx)
 	// We visualize the text using a list where each paragraph is a separate item.
+	messages := *l.Messages.Load()
 	dimensions := l.Clickable.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return l.List.Layout(gtx, len(l.Messages), func(gtx layout.Context, index int) layout.Dimensions {
-			return l.Messages[index].Layout(gtx)
+		return l.List.Layout(gtx, len(messages), func(gtx layout.Context, index int) layout.Dimensions {
+			return messages[index].Layout(gtx)
 		})
 	})
 	l.scrollToEndIfFirstAndLastItemVisible()
@@ -267,7 +270,8 @@ func (l *MessageList) scrollToEndIfFirstAndLastItemVisible() {
 		l.ScrollToEnd = l.Position.First == 0
 		l.Position.BeforeEnd = true
 		// received new message, not displayed
-		if l.Position.First+l.Position.Count < len(l.Messages) {
+		messages := *l.Messages.Load()
+		if l.Position.First+l.Position.Count < len(messages) {
 			l.ScrollToEnd = true
 		}
 	}

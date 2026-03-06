@@ -636,16 +636,19 @@ func (m *Message) isMe() bool {
 }
 
 func (m *Message) AddTo(list *MessageList) {
-	n := len(list.Messages)
+	messages := list.Messages.Load()
+	n := len(*messages)
 	i := sort.Search(n, func(i int) bool {
-		return !list.Messages[i].CreatedAt.Before(m.CreatedAt)
+		return !(*messages)[i].CreatedAt.Before(m.CreatedAt)
 	})
 	if i == n {
-		list.Messages = append(list.Messages, m)
+		*messages = append(*messages, m)
 	} else {
-		list.Messages = append(list.Messages, new(Message)) // 扩容
-		copy(list.Messages[i+1:], list.Messages[i:])        // 移动元素
-		list.Messages[i] = m                                // 插入新消息
+		ret := make([]*Message, n+1)
+		copy(ret, (*messages)[:i])
+		copy(ret[i+1:], (*messages)[i:])
+		ret[i] = m
+		list.Messages.Store(&ret)
 	}
 }
 
