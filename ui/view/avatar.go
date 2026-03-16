@@ -43,14 +43,15 @@ type Avatar struct {
 
 func (v *Avatar) Load() {
 	v.Once.Do(func() {
-		if v.AvatarType == Default {
-			go func() {
+		go func() {
+			v.Reload(Default)
+			if v.AvatarType == Default {
 				err := wi.DefaultClient.ReadIcon(v.UUID)
 				if err != nil {
 					log.Printf("read icon of %v failed, %v", v.UUID, err)
 				}
-			}()
-		}
+			}
+		}()
 	})
 }
 

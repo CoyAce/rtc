@@ -299,7 +299,7 @@ type MessageKeeper struct {
 }
 
 func (k *MessageKeeper) Loop() {
-	flushFreq := 1 * time.Second
+	const flushFreq = 1 * time.Minute
 	timer := time.NewTimer(flushFreq)
 	for {
 		select {
