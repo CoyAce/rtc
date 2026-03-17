@@ -207,6 +207,7 @@ type Message struct {
 type MessageStyle struct {
 	*material.Theme    `json:"-"`
 	layout.Constraints `json:"-"`
+	Primary            bool
 }
 
 func (m *MessageStyle) getBaseWidth() float32 {
@@ -611,17 +612,13 @@ func (m *Message) Layout(gtx layout.Context) (d layout.Dimensions) {
 			layout.Rigid(m.drawMessage),
 			layout.Rigid(layout.Spacer{Width: unit.Dp(2)}.Layout),
 		}
-		var avatar layout.FlexChild
-		if m.isMe() {
+		avatar := layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return m.drawAvatar(gtx, m.Sender)
+		})
+		if m.Primary {
 			flex.Spacing = layout.SpaceStart
-			avatar = layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return m.drawAvatar(gtx, m.UUID)
-			})
 			message = append(message, avatar)
 		} else {
-			avatar = layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return m.drawAvatar(gtx, m.Sender)
-			})
 			message = append([]layout.FlexChild{avatar}, message...)
 		}
 		return flex.Layout(gtx, message...)
@@ -637,19 +634,41 @@ func (m *Message) isMe() bool {
 	return m.UUID == m.Sender
 }
 
+func (m *Message) isPrimary() bool {
+	return m.Primary
+}
+
 func (m *Message) AddTo(list *MessageList) {
 	messages := list.Messages.Load()
 	n := len(*messages)
+	if n == 0 {
+		m.Primary = m.isMe()
+		*messages = append(*messages, m)
+		return
+	}
 	i := sort.Search(n, func(i int) bool {
 		return !(*messages)[i].CreatedAt.Before(m.CreatedAt)
 	})
 	if i == n {
-		*messages = append(*messages, m)
+		if m.isMe() {
+			m.Primary = true
+			*messages = append(*messages, m)
+		} else if last := (*messages)[n-1]; last.Sender == m.Sender || last.isMe() {
+			m.Primary = false
+			*messages = append(*messages, m)
+		} else {
+			ret := append(*messages, m)
+			adjustPrimaryForAll(ret)
+			*messages = ret
+		}
 	} else {
 		ret := make([]*Message, n+1)
 		copy(ret, (*messages)[:i])
 		copy(ret[i+1:], (*messages)[i:])
 		ret[i] = m
+		for ; i >= 0; i-- {
+			adjustPrimary(ret, i)
+		}
 		list.Messages.Store(&ret)
 	}
 }
@@ -663,7 +682,7 @@ func (m *Message) drawMessage(gtx layout.Context) layout.Dimensions {
 	m.processFileViewAndSave(gtx)
 	m.getFocusIfClickedToEnableFocusLostEvent(gtx)
 	flex := layout.Flex{Axis: layout.Vertical, Alignment: layout.Start}
-	if m.isMe() {
+	if m.isPrimary() {
 		flex.Alignment = layout.End
 	}
 	return flex.Layout(gtx,
@@ -724,7 +743,7 @@ func (m *Message) drawStateAndContent(gtx layout.Context) layout.Dimensions {
 		}
 		return m.drawState(gtx)
 	})
-	if m.isMe() {
+	if m.isPrimary() {
 		contents = append([]layout.FlexChild{stateOrOperationBar}, contents...)
 		flex.Spacing = layout.SpaceStart
 	} else {
@@ -935,7 +954,7 @@ func (m *Message) drawBorder(gtx layout.Context, d layout.Dimensions, call op.Ca
 	bgColor.A = 128
 	radius := gtx.Dp(16)
 	sE, sW, nW, nE := radius, radius, radius, radius
-	if m.isMe() {
+	if m.isPrimary() {
 		nE = 0
 	} else {
 		nW = 0
@@ -985,7 +1004,7 @@ func (m *Message) drawName(gtx layout.Context) layout.Dimensions {
 	}
 	timeMsg := timeVal.In(loc).Format("01/02 15:04")
 	var msg string
-	if m.isMe() {
+	if m.isPrimary() {
 		msg = timeMsg + " " + m.Sender
 	} else {
 		msg = m.Sender + " " + timeMsg
@@ -999,7 +1018,7 @@ func (m *Message) drawName(gtx layout.Context) layout.Dimensions {
 	margins := layout.Inset{Bottom: unit.Dp(8.0)}
 	return margins.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		flex := layout.Flex{Spacing: layout.SpaceEnd}
-		if m.isMe() {
+		if m.isPrimary() {
 			flex.Spacing = layout.SpaceStart
 		}
 		return flex.Layout(gtx,

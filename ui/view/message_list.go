@@ -457,7 +457,26 @@ func (k *MessageKeeper) Messages(streamConfig audio.StreamConfig) []*Message {
 			return 0
 		}
 	})
+	adjustPrimaryForAll(ret)
 	return ret
+}
+
+func adjustPrimaryForAll(ret []*Message) {
+	for i := len(ret) - 1; i >= 0; i-- {
+		if i == len(ret)-1 {
+			ret[i].Primary = ret[i].isMe()
+			continue
+		}
+		adjustPrimary(ret, i)
+	}
+}
+
+func adjustPrimary(ret []*Message, i int) {
+	if ret[i].Sender == ret[i+1].Sender {
+		ret[i].Primary = ret[i+1].Primary
+	} else {
+		ret[i].Primary = !ret[i+1].Primary
+	}
 }
 
 type Hint struct {
