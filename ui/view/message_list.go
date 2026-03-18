@@ -220,6 +220,7 @@ func (m *MessageManager) Layout(gtx layout.Context) {
 	}
 	layout.Flex{Axis: layout.Vertical, Spacing: layout.SpaceBetween}.Layout(gtx,
 		layout.Flexed(1, m.MessageList.Layout),
+		layout.Rigid(layout.Spacer{Height: unit.Dp(7)}.Layout),
 		layout.Rigid(w),
 	)
 	m.Hint.Layout(gtx)
@@ -239,8 +240,7 @@ func NewMessageManager(streamConfig audio.StreamConfig) MessageManager {
 		Theme: fonts.DefaultTheme,
 	}
 	messageList.Messages.Store(new(messageKeeper.Messages(streamConfig)))
-	inputField := component.TextField{Editor: widget.Editor{Submit: true}}
-	messageEditor := &MessageEditor{InputField: &inputField, Theme: fonts.DefaultTheme}
+	messageEditor := &MessageEditor{Editor: widget.Editor{Submit: true}, Theme: fonts.DefaultTheme}
 	return MessageManager{
 		audioStack:    NewAudioIconStack(streamConfig),
 		iconStack:     NewIconStack(mode.SwitchBetweenTextAndVoice, messageKeeper.AppendPublish),

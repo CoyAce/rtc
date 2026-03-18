@@ -20,7 +20,6 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
-	"gioui.org/x/component"
 	"github.com/CoyAce/wi"
 )
 
@@ -29,7 +28,7 @@ type MessageEditor struct {
 	InteractiveSpan
 	EditorOperator
 	ExpandButton
-	InputField   *component.TextField
+	widget.Editor
 	submitButton widget.Clickable
 }
 
@@ -38,18 +37,24 @@ func (e *MessageEditor) Layout(gtx layout.Context) layout.Dimensions {
 	if e.operationBarNeeded(gtx) {
 		e.EditorOperator.Layout(gtx)
 	}
-	defer clip.Rect(image.Rectangle{Max: gtx.Constraints.Max}).Push(gtx.Ops).Pop()
+	//defer clip.Rect(image.Rectangle{Max: gtx.Constraints.Max}).Push(gtx.Ops).Pop()
 	e.InteractiveSpan.Layout(gtx)
+
+	// Draw rounded background with geek-style gradient border effect at outer layer
+	macro := op.Record(gtx.Ops)
 	margins := layout.Inset{Top: unit.Dp(8.0), Left: unit.Dp(8.0), Right: unit.Dp(8), Bottom: unit.Dp(15)}
-	return margins.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+	dimensions := margins.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{
 			Axis:      layout.Horizontal,
 			Spacing:   layout.SpaceBetween,
-			Alignment: layout.End,
+			Alignment: layout.Middle,
 		}.Layout(gtx,
 			// text input
 			layout.Flexed(1.0, func(gtx layout.Context) layout.Dimensions {
-				return e.InputField.Layout(gtx, e.Theme, "Message")
+				innerMargins := layout.Inset{Left: unit.Dp(20), Right: unit.Dp(12)}
+				return innerMargins.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return material.Editor(e.Theme, &e.Editor, "Messages").Layout(gtx)
+				})
 			}),
 			// submit button
 			layout.Rigid(e.drawSubmitButton),
@@ -57,6 +62,62 @@ func (e *MessageEditor) Layout(gtx layout.Context) layout.Dimensions {
 			layout.Rigid(e.ExpandButton.Layout),
 		)
 	})
+	call := macro.Stop()
+		
+	// Draw rounded background with geek-style gradient and glow effects
+	radius := gtx.Dp(20)
+		
+	// Main background with subtle vertical gradient (deep space blue to darker blue)
+	bgColorTop := color.NRGBA{R: 12, G: 18, B: 35, A: 220}
+	bgColorBottom := color.NRGBA{R: 8, G: 12, B: 25, A: 230}
+		
+	defer clip.RRect{
+		Rect: image.Rectangle{Max: dimensions.Size},
+		NE:   radius, NW: radius, SE: radius, SW: radius,
+	}.Push(gtx.Ops).Pop()
+		
+	// Render gradient background
+	const stepHeight = 3
+	numSteps := (dimensions.Size.Y + stepHeight - 1) / stepHeight
+	for i := 0; i < numSteps; i++ {
+		ratio := float32(i) / float32(numSteps-1)
+		gradientColor := color.NRGBA{
+			R: uint8(float32(bgColorTop.R)*(1-ratio) + float32(bgColorBottom.R)*ratio),
+			G: uint8(float32(bgColorTop.G)*(1-ratio) + float32(bgColorBottom.G)*ratio),
+			B: uint8(float32(bgColorTop.B)*(1-ratio) + float32(bgColorBottom.B)*ratio),
+			A: uint8(float32(bgColorTop.A)*(1-ratio) + float32(bgColorBottom.A)*ratio),
+		}
+		yStart := i * stepHeight
+		yEnd := yStart + stepHeight
+		if yEnd > dimensions.Size.Y {
+			yEnd = dimensions.Size.Y
+		}
+		paint.FillShape(gtx.Ops, gradientColor, clip.Rect{
+			Min: image.Point{Y: yStart},
+			Max: image.Point{X: dimensions.Size.X, Y: yEnd},
+		}.Op())
+	}
+		
+	// Add cyan glow line at top edge for cyberpunk feel
+	glowLineHeight := gtx.Dp(1)
+	glowColor := fonts.DefaultTheme.ContrastBg
+	glowColor.A = 100
+	paint.FillShape(gtx.Ops, glowColor, clip.Rect{
+		Min: image.Point{Y: 0},
+		Max: image.Point{X: dimensions.Size.X, Y: glowLineHeight},
+	}.Op())
+		
+	// Add stronger cyan glow at bottom edge
+	glowHeight := gtx.Dp(3)
+	bottomGlowColor := fonts.DefaultTheme.ContrastBg
+	bottomGlowColor.A = 140
+	paint.FillShape(gtx.Ops, bottomGlowColor, clip.Rect{
+		Min: image.Point{Y: dimensions.Size.Y - glowHeight},
+		Max: dimensions.Size,
+	}.Op())
+
+	call.Add(gtx.Ops)
+	return dimensions
 }
 
 func (e *MessageEditor) update(gtx layout.Context) {
@@ -67,15 +128,15 @@ func (e *MessageEditor) update(gtx layout.Context) {
 }
 
 func (e *MessageEditor) operationBarNeeded(gtx layout.Context) bool {
-	return e.longPressed && gtx.Focused(&e.InputField.Editor) || e.InputField.SelectionLen() > 0
+	return e.longPressed && gtx.Focused(&e.Editor) || e.Editor.SelectionLen() > 0
 }
 
 func (e *MessageEditor) processCut(gtx layout.Context) {
 	if e.cutButton.Clicked(gtx) {
-		if e.InputField.Editor.SelectionLen() > 0 {
-			textForCopy := e.InputField.Editor.SelectedText()
+		if e.Editor.SelectionLen() > 0 {
+			textForCopy := e.Editor.SelectedText()
 			gtx.Execute(clipboard.WriteCmd{Type: "application/text", Data: io.NopCloser(strings.NewReader(textForCopy))})
-			e.InputField.Editor.Delete(1)
+			e.Editor.Delete(1)
 		}
 		e.hideOperationBar()
 	}
@@ -83,19 +144,19 @@ func (e *MessageEditor) processCut(gtx layout.Context) {
 
 func (e *MessageEditor) processPaste(gtx layout.Context) {
 	if e.pasteButton.Clicked(gtx) {
-		if e.InputField.Editor.SelectionLen() > 0 {
-			e.InputField.Editor.Delete(1)
+		if e.Editor.SelectionLen() > 0 {
+			e.Editor.Delete(1)
 		}
-		gtx.Execute(clipboard.ReadCmd{Tag: &e.InputField.Editor})
+		gtx.Execute(clipboard.ReadCmd{Tag: &e.Editor})
 		e.hideOperationBar()
 	}
 }
 
 func (e *MessageEditor) processCopy(gtx layout.Context) {
 	if e.copyButton.Clicked(gtx) {
-		textForCopy := e.InputField.Text()
-		if e.InputField.Editor.SelectionLen() > 0 {
-			textForCopy = e.InputField.Editor.SelectedText()
+		textForCopy := e.Editor.Text()
+		if e.Editor.SelectionLen() > 0 {
+			textForCopy = e.Editor.SelectedText()
 		}
 		gtx.Execute(clipboard.WriteCmd{Type: "application/text", Data: io.NopCloser(strings.NewReader(textForCopy))})
 		e.hideOperationBar()
@@ -104,23 +165,44 @@ func (e *MessageEditor) processCopy(gtx layout.Context) {
 
 func (e *MessageEditor) hideOperationBar() {
 	e.longPressed = false
-	if e.InputField.Editor.SelectionLen() > 0 {
-		e.InputField.Editor.ClearSelection()
+	if e.Editor.SelectionLen() > 0 {
+		e.Editor.ClearSelection()
 	}
 }
 
 func (e *MessageEditor) drawSubmitButton(gtx layout.Context) layout.Dimensions {
-	margins := layout.Inset{Left: unit.Dp(8.0)}
+	margins := layout.Inset{Left: unit.Dp(4.0), Right: unit.Dp(4)}
 	return margins.Layout(gtx,
 		func(gtx layout.Context) layout.Dimensions {
-			return material.IconButtonStyle{
-				Background: e.Theme.ContrastBg,
-				Color:      e.Theme.ContrastFg,
-				Icon:       icons.SubmitIcon,
-				Size:       unit.Dp(24.0),
-				Button:     &e.submitButton,
-				Inset:      layout.UniformInset(unit.Dp(9)),
-			}.Layout(gtx)
+			// Draw circular background for submit button with glow effect
+			btnSize := gtx.Dp(40)
+			gtx.Constraints.Min = image.Point{X: btnSize, Y: btnSize}
+			gtx.Constraints.Max = gtx.Constraints.Min
+
+			// Outer glow
+			glowRadius := gtx.Dp(20)
+			glowColor := e.Theme.ContrastBg
+			glowColor.A = 100
+			defer clip.RRect{
+				Rect: image.Rectangle{Max: gtx.Constraints.Max},
+				NE:   glowRadius, NW: glowRadius, SE: glowRadius, SW: glowRadius,
+			}.Push(gtx.Ops).Pop()
+			paint.Fill(gtx.Ops, glowColor)
+
+			// Inner button with higher opacity
+			bgColor := e.Theme.ContrastBg
+			bgColor.A = 220
+			defer clip.RRect{
+				Rect: image.Rectangle{Max: gtx.Constraints.Max},
+				NE:   btnSize / 2, NW: btnSize / 2, SE: btnSize / 2, SW: btnSize / 2,
+			}.Push(gtx.Ops).Pop()
+			paint.Fill(gtx.Ops, bgColor)
+
+			// Center the icon
+			iconMargin := layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(8), Left: unit.Dp(8), Right: unit.Dp(8)}
+			return iconMargin.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return icons.SubmitIcon.Layout(gtx, e.Theme.ContrastFg)
+			})
 		},
 	)
 }
@@ -131,7 +213,7 @@ func (e *MessageEditor) Submitted(gtx layout.Context) bool {
 
 func (e *MessageEditor) submittedByCarriageReturn(gtx layout.Context) (submit bool) {
 	for {
-		ev, ok := e.InputField.Editor.Update(gtx)
+		ev, ok := e.Editor.Update(gtx)
 		if _, submit = ev.(widget.SubmitEvent); submit {
 			break
 		}
@@ -145,8 +227,8 @@ func (e *MessageEditor) submittedByCarriageReturn(gtx layout.Context) (submit bo
 func (e *MessageEditor) processSubmit(gtx layout.Context) {
 	// ---------- Handle input ----------
 	if e.Submitted(gtx) {
-		msg := strings.TrimSpace(e.InputField.Text())
-		e.InputField.Clear()
+		msg := strings.TrimSpace(e.Editor.Text())
+		e.Editor.SetText("")
 		if msg == "" {
 			return
 		}
@@ -177,7 +259,7 @@ type EditorOperator struct {
 
 func (e *EditorOperator) Layout(gtx layout.Context) {
 	centerOffset, iconSize, margin := 54, 28, 8
-	defer op.Offset(image.Point{Y: -gtx.Dp(unit.Dp(iconSize + 10))}).Push(gtx.Ops).Pop()
+	defer op.Offset(image.Point{Y: -gtx.Dp(unit.Dp(iconSize + 24))}).Push(gtx.Ops).Pop()
 	macro := op.Record(gtx.Ops)
 	icons := layout.UniformInset(unit.Dp(margin)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Stack{Alignment: layout.Center}.Layout(gtx,
@@ -233,11 +315,11 @@ func (e *EditorOperator) drawBorder(gtx layout.Context, icons layout.Dimensions,
 	p := clip.Path{}
 	p.Begin(gtx.Ops)
 	p.MoveTo(f32.Point{X: minX + nw, Y: minY})
-	p.LineTo(f32.Point{X: maxX - ne, Y: minY}) // N
+	p.LineTo(f32.Point{X: maxX - ne, Y: minY})    // N
 	p.CubeTo(f32.Point{X: maxX - ne*iq, Y: minY}, // NE
 		f32.Point{X: maxX, Y: minY + ne*iq},
 		f32.Point{X: maxX, Y: minY + ne})
-	p.LineTo(f32.Point{X: maxX, Y: maxY - se}) // E
+	p.LineTo(f32.Point{X: maxX, Y: maxY - se})    // E
 	p.CubeTo(f32.Point{X: maxX, Y: maxY - se*iq}, // SE
 		f32.Point{X: maxX - se*iq, Y: maxY},
 		f32.Point{X: maxX - se, Y: maxY})
@@ -245,10 +327,10 @@ func (e *EditorOperator) drawBorder(gtx layout.Context, icons layout.Dimensions,
 	p.LineTo(f32.Point{X: midX, Y: maxY + perpendicular})       // S
 	p.LineTo(f32.Point{X: midX - triangleLegHalfSize, Y: maxY}) // S
 	p.LineTo(f32.Point{X: minX + sw, Y: maxY})                  // S
-	p.CubeTo(f32.Point{X: minX + sw*iq, Y: maxY}, // SW
+	p.CubeTo(f32.Point{X: minX + sw*iq, Y: maxY},               // SW
 		f32.Point{X: minX, Y: maxY - sw*iq},
 		f32.Point{X: minX, Y: maxY - sw})
-	p.LineTo(f32.Point{X: minX, Y: minY + nw}) // W
+	p.LineTo(f32.Point{X: minX, Y: minY + nw})    // W
 	p.CubeTo(f32.Point{X: minX, Y: minY + nw*iq}, // NW
 		f32.Point{X: minX + nw*iq, Y: minY},
 		f32.Point{X: minX + nw, Y: minY})
