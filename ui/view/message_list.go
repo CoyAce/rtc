@@ -19,6 +19,8 @@ import (
 	"gioui.org/io/key"
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/op/clip"
+	"gioui.org/op/paint"
 	"gioui.org/text"
 	"gioui.org/unit"
 	"gioui.org/widget"
@@ -208,6 +210,10 @@ func (m *MessageManager) findDownloadableFile(id uint32) *FileDescription {
 }
 
 func (m *MessageManager) Layout(gtx layout.Context) {
+	// Draw dark geek-themed background
+	defer clip.Rect{Max: gtx.Constraints.Max}.Push(gtx.Ops).Pop()
+	paint.FillShape(gtx.Ops, m.MessageList.Bg, clip.Rect{Max: gtx.Constraints.Max}.Op())
+
 	w := m.MessageEditor.Layout
 	if *m.VoiceMode {
 		w = m.VoiceRecorder.Layout
