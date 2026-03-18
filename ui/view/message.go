@@ -1006,7 +1006,7 @@ func (m *Message) drawShadow(gtx layout.Context, size image.Point, sE, sW, nW, n
 	offset := image.Pt(2, 4)
 	// Create shadow with blue-cyan tint to match geek theme
 	shadowColor := color.NRGBA{R: 0, G: 100, B: 180, A: 60}
-	
+
 	// Draw multiple shadow layers for softer effect
 	for i := 4; i > 0; i-- {
 		// Calculate shadow radius for each corner independently
@@ -1027,10 +1027,10 @@ func (m *Message) drawShadow(gtx layout.Context, size image.Point, sE, sW, nW, n
 		if nE > 0 {
 			shadowNE = shadowRadius + i*gtx.Dp(2)
 		}
-		
+
 		// Softer shadow offset
 		shadowOffset := image.Pt(offset.X*i/3, offset.Y*i/3)
-		
+
 		path := clip.RRect{
 			Rect: image.Rectangle{
 				Min: shadowOffset,
@@ -1038,7 +1038,7 @@ func (m *Message) drawShadow(gtx layout.Context, size image.Point, sE, sW, nW, n
 			},
 			SE: shadowSE, SW: shadowSW, NW: shadowNW, NE: shadowNE,
 		}.Push(gtx.Ops)
-		
+
 		paint.FillShape(gtx.Ops, shadowColor, clip.Rect{
 			Max: size.Add(shadowOffset),
 		}.Op())
@@ -1049,6 +1049,11 @@ func (m *Message) drawShadow(gtx layout.Context, size image.Point, sE, sW, nW, n
 func (m *Message) drawGradientBackground(gtx layout.Context, size image.Point) {
 	// Get base color from theme
 	baseColor := m.Theme.ContrastBg
+
+	// For received messages, use neutral white as base for proper purple neon effect
+	if !m.isPrimary() {
+		baseColor = color.NRGBA{R: 255, G: 255, B: 255, A: baseColor.A}
+	}
 
 	// Create smooth vertical gradient using thin rectangles
 	// Fixed 2px height per step for smooth transitions regardless of message length
@@ -1063,7 +1068,7 @@ func (m *Message) drawGradientBackground(gtx layout.Context, size image.Point) {
 		// Features: Subtle scanline pattern and digital color shift
 
 		// Base linear brightness gradient - moderate range for smooth gradient
-		baseBrightness := 0.70 + ratio*0.4 // 0.70 -> 1.10 (moderate range)
+		baseBrightness := 0.75 + ratio*0.25 // 0.75 -> 1.0 (subtle brightening)
 
 		// Add very subtle scanline effect (high frequency, very low amplitude)
 		scanlineFreq := float64(size.Y) / 2.0 // Frequency adapts to height
@@ -1085,15 +1090,16 @@ func (m *Message) drawGradientBackground(gtx layout.Context, size image.Point) {
 			// Secondary (received): Purple-magenta neon cyberpunk theme
 			// Enhanced RGB separation for neon glow effect
 			// Boost red and blue, suppress green for purple-neon look
-			gradientColor.R = uint8(math.Max(0, math.Min(255, float64(gradientColor.R)*float64(brightness)*1.25)))
-			gradientColor.G = uint8(math.Max(0, math.Min(255, float64(gradientColor.G)*float64(brightness)*0.75)))
-			gradientColor.B = uint8(math.Max(0, math.Min(255, float64(gradientColor.B)*float64(brightness)*1.4)))
+			// Keep colors more balanced for aesthetics while maintaining readability
+			gradientColor.R = uint8(math.Max(0, math.Min(255, float64(gradientColor.R)*float64(brightness)*1.15)))
+			gradientColor.G = uint8(math.Max(0, math.Min(255, float64(gradientColor.G)*float64(brightness)*0.70)))
+			gradientColor.B = uint8(math.Max(0, math.Min(255, float64(gradientColor.B)*float64(brightness)*1.20)))
 		}
 
 		// Dynamic alpha with subtle variation
 		// Keep high opacity throughout for visible gradient
 		alphaBase := 180.0 + ratio*40.0
-		gradientColor.A = uint8(float32(alphaBase))
+		gradientColor.A = uint8(alphaBase)
 
 		yStart := i * stepHeight
 		yEnd := yStart + stepHeight
@@ -1149,7 +1155,7 @@ func (m *Message) drawName(gtx layout.Context) layout.Dimensions {
 	}
 	label := material.Label(m.Theme, m.Theme.TextSize*0.70, msg)
 	label.MaxLines = 1
-	label.Color = m.Theme.ContrastBg
+	// Theme Fg color is cyan-tinted white for gradient contrast
 	label.Color.A = uint8(int(math.Abs(float64(label.Color.A)-50)) % 256)
 	label.Font.Weight = font.Bold
 	label.Font.Style = font.Italic
