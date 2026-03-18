@@ -465,6 +465,7 @@ func adjustPrimaryForAll(ret []*Message) {
 	for i := len(ret) - 1; i >= 0; i-- {
 		if i == len(ret)-1 {
 			ret[i].Primary = ret[i].isMe()
+			ret[i].nextSame = false
 			continue
 		}
 		adjustPrimary(ret, i)
@@ -474,8 +475,10 @@ func adjustPrimaryForAll(ret []*Message) {
 func adjustPrimary(ret []*Message, i int) {
 	if ret[i].Sender == ret[i+1].Sender {
 		ret[i].Primary = ret[i+1].Primary
+		ret[i].nextSame = true
 	} else {
 		ret[i].Primary = !ret[i+1].Primary
+		ret[i].nextSame = false
 	}
 }
 
