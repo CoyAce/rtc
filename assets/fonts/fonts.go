@@ -41,14 +41,14 @@ func NewTheme() *material.Theme {
 	th.Bg.R = 15    // Dark background (nearly black)
 	th.Bg.G = 15
 	th.Bg.B = 25
-	th.Fg.R = 220   // Bright cyan-foreground for better readability
-	th.Fg.G = 245
+	th.Fg.R = 235   // Cyan-tinted white for better gradient contrast
+	th.Fg.G = 248
 	th.Fg.B = 255
 	th.ContrastBg.R = 0     // Deep blue for contrast elements
 	th.ContrastBg.G = 180
 	th.ContrastBg.B = 255
-	th.ContrastFg.R = 255   // Pure white for maximum contrast
-	th.ContrastFg.G = 255
+	th.ContrastFg.R = 235   // Match Fg for consistency
+	th.ContrastFg.G = 248
 	th.ContrastFg.B = 255
 	return th
 }
