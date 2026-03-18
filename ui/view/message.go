@@ -212,11 +212,11 @@ type MessageStyle struct {
 }
 
 func (m *MessageStyle) getBaseWidth() float32 {
-	return float32(m.Max.X) * 0.618
+	return float32(m.Max.X) * 0.75
 }
 
 func (m *MessageStyle) getReverseBaseWidth() float32 {
-	return float32(m.Max.X) * 0.382
+	return float32(m.Max.X) * 0.25
 }
 
 type Contacts struct {
@@ -850,7 +850,7 @@ func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
 		macro := op.Record(gtx.Ops)
 		d := layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Min.X = 0
-			gtx.Constraints.Max.X = int(float32(gtx.Constraints.Max.X) / 1.5)
+			gtx.Constraints.Max.X = int(m.getBaseWidth())
 			return material.Editor(m.Theme, m.Editor, "hint").Layout(gtx)
 		})
 		call := macro.Stop()
