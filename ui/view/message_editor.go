@@ -2,6 +2,7 @@ package view
 
 import (
 	"image"
+	"image/color"
 	"io"
 	"math"
 	"mushin/assets/fonts"
@@ -36,9 +37,6 @@ func (e *MessageEditor) Layout(gtx layout.Context) layout.Dimensions {
 	e.update(gtx)
 	if e.operationBarNeeded(gtx) {
 		e.EditorOperator.Layout(gtx)
-	}
-	if !gtx.Focused(&e.InputField.Editor) {
-		e.hideOperationBar()
 	}
 	defer clip.Rect(image.Rectangle{Max: gtx.Constraints.Max}).Push(gtx.Ops).Pop()
 	e.InteractiveSpan.Layout(gtx)
@@ -178,8 +176,8 @@ type EditorOperator struct {
 }
 
 func (e *EditorOperator) Layout(gtx layout.Context) {
-	centerOffset, iconSize, margin := 54, 24, 4
-	defer op.Offset(image.Point{Y: -gtx.Dp(unit.Dp(iconSize))}).Push(gtx.Ops).Pop()
+	centerOffset, iconSize, margin := 54, 28, 8
+	defer op.Offset(image.Point{Y: -gtx.Dp(unit.Dp(iconSize + 10))}).Push(gtx.Ops).Pop()
 	macro := op.Record(gtx.Ops)
 	icons := layout.UniformInset(unit.Dp(margin)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Stack{Alignment: layout.Center}.Layout(gtx,
@@ -211,9 +209,15 @@ func (e *EditorOperator) Layout(gtx layout.Context) {
 }
 
 func (e *EditorOperator) drawBorder(gtx layout.Context, icons layout.Dimensions, call op.CallOp) {
-	centerOffset, iconSize, margin := gtx.Dp(54), gtx.Dp(24), gtx.Dp(4)
+	centerOffset, iconSize, margin := gtx.Dp(54), gtx.Dp(28), gtx.Dp(8)
 	bgColor := fonts.DefaultTheme.ContrastBg
-	bgColor.A = 192
+	bgColor.A = 220
+
+	// Draw shadow first
+	shadowColor := color.NRGBA{R: 0, G: 0, B: 0, A: 60}
+	shadowRadius := gtx.Dp(8)
+	e.drawShadowPath(gtx, icons, shadowColor, shadowRadius)
+
 	// https://pomax.github.io/bezierinfo/#circles_cubic.
 	const q = 4 * (math.Sqrt2 - 1) / 3
 	const iq = 1 - q
@@ -223,17 +227,17 @@ func (e *EditorOperator) drawBorder(gtx layout.Context, icons layout.Dimensions,
 	minY := float32(0)
 	maxY := float32(iconSize) + float32(margin)*2
 	se, sw, nw, ne := float32(margin), float32(margin), float32(margin), float32(margin)
-	triangleLegHalfSize := float32(gtx.Dp(3))
+	triangleLegHalfSize := float32(gtx.Dp(4))
 	perpendicular := float32(float64(triangleLegHalfSize*2) * math.Sin(math.Pi/3))
 
 	p := clip.Path{}
 	p.Begin(gtx.Ops)
 	p.MoveTo(f32.Point{X: minX + nw, Y: minY})
-	p.LineTo(f32.Point{X: maxX - ne, Y: minY})    // N
+	p.LineTo(f32.Point{X: maxX - ne, Y: minY}) // N
 	p.CubeTo(f32.Point{X: maxX - ne*iq, Y: minY}, // NE
 		f32.Point{X: maxX, Y: minY + ne*iq},
 		f32.Point{X: maxX, Y: minY + ne})
-	p.LineTo(f32.Point{X: maxX, Y: maxY - se})    // E
+	p.LineTo(f32.Point{X: maxX, Y: maxY - se}) // E
 	p.CubeTo(f32.Point{X: maxX, Y: maxY - se*iq}, // SE
 		f32.Point{X: maxX - se*iq, Y: maxY},
 		f32.Point{X: maxX - se, Y: maxY})
@@ -241,10 +245,10 @@ func (e *EditorOperator) drawBorder(gtx layout.Context, icons layout.Dimensions,
 	p.LineTo(f32.Point{X: midX, Y: maxY + perpendicular})       // S
 	p.LineTo(f32.Point{X: midX - triangleLegHalfSize, Y: maxY}) // S
 	p.LineTo(f32.Point{X: minX + sw, Y: maxY})                  // S
-	p.CubeTo(f32.Point{X: minX + sw*iq, Y: maxY},               // SW
+	p.CubeTo(f32.Point{X: minX + sw*iq, Y: maxY}, // SW
 		f32.Point{X: minX, Y: maxY - sw*iq},
 		f32.Point{X: minX, Y: maxY - sw})
-	p.LineTo(f32.Point{X: minX, Y: minY + nw})    // W
+	p.LineTo(f32.Point{X: minX, Y: minY + nw}) // W
 	p.CubeTo(f32.Point{X: minX, Y: minY + nw*iq}, // NW
 		f32.Point{X: minX + nw*iq, Y: minY},
 		f32.Point{X: minX + nw, Y: minY})
@@ -253,5 +257,50 @@ func (e *EditorOperator) drawBorder(gtx layout.Context, icons layout.Dimensions,
 	defer clip.Outline{Path: path}.Op().Push(gtx.Ops).Pop()
 	paint.Fill(gtx.Ops, bgColor)
 	pointer.CursorPointer.Add(gtx.Ops)
+	defer pointer.StopOp{}.Push(gtx.Ops).Pop()
 	call.Add(gtx.Ops)
+}
+
+func (e *EditorOperator) drawShadowPath(gtx layout.Context, icons layout.Dimensions, shadowColor color.NRGBA, shadowRadius int) {
+	margin := gtx.Dp(8)
+	iconSize := gtx.Dp(28)
+	centerOffset := gtx.Dp(54)
+
+	const q = 4 * (math.Sqrt2 - 1) / 3
+	const iq = 1 - q
+	midX := float32(icons.Size.X)/2 - float32(centerOffset)
+	minX := midX - float32(iconSize)*float32(1.5) - float32(margin)*2
+	maxX := midX + float32(iconSize)*float32(1.5) + float32(margin)*2
+	minY := float32(shadowRadius)
+	maxY := float32(iconSize) + float32(margin)*2 + float32(shadowRadius)
+	se, sw, nw, ne := float32(margin)+float32(shadowRadius), float32(margin)+float32(shadowRadius), float32(margin)+float32(shadowRadius), float32(margin)+float32(shadowRadius)
+	triangleLegHalfSize := float32(gtx.Dp(4))
+	perpendicular := float32(float64(triangleLegHalfSize*2) * math.Sin(math.Pi/3))
+
+	p := clip.Path{}
+	p.Begin(gtx.Ops)
+	p.MoveTo(f32.Point{X: minX + nw, Y: minY})
+	p.LineTo(f32.Point{X: maxX - ne, Y: minY})
+	p.CubeTo(f32.Point{X: maxX - ne*iq, Y: minY},
+		f32.Point{X: maxX, Y: minY + ne*iq},
+		f32.Point{X: maxX, Y: minY + ne})
+	p.LineTo(f32.Point{X: maxX, Y: maxY - se})
+	p.CubeTo(f32.Point{X: maxX, Y: maxY - se*iq},
+		f32.Point{X: maxX - se*iq, Y: maxY},
+		f32.Point{X: maxX - se, Y: maxY})
+	p.LineTo(f32.Point{X: midX + triangleLegHalfSize, Y: maxY})
+	p.LineTo(f32.Point{X: midX, Y: maxY + perpendicular})
+	p.LineTo(f32.Point{X: midX - triangleLegHalfSize, Y: maxY})
+	p.LineTo(f32.Point{X: minX + sw, Y: maxY})
+	p.CubeTo(f32.Point{X: minX + sw*iq, Y: maxY},
+		f32.Point{X: minX, Y: maxY - sw*iq},
+		f32.Point{X: minX, Y: maxY - sw})
+	p.LineTo(f32.Point{X: minX, Y: minY + nw})
+	p.CubeTo(f32.Point{X: minX, Y: minY + nw*iq},
+		f32.Point{X: minX + nw*iq, Y: minY},
+		f32.Point{X: minX + nw, Y: minY})
+	path := p.End()
+
+	defer clip.Outline{Path: path}.Op().Push(gtx.Ops).Pop()
+	paint.Fill(gtx.Ops, shadowColor)
 }
