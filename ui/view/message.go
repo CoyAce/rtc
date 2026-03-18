@@ -1147,11 +1147,16 @@ func (m *Message) drawName(gtx layout.Context) layout.Dimensions {
 		loc = ShanghaiLoc
 	}
 	timeMsg := timeVal.In(loc).Format("01/02 15:04")
+	// Extract nickname from sender (part before #)
+	nickname := m.Sender
+	if idx := strings.Index(m.Sender, "#"); idx != -1 {
+		nickname = m.Sender[:idx]
+	}
 	var msg string
 	if m.isPrimary() {
-		msg = timeMsg + " " + m.Sender
+		msg = timeMsg + " " + nickname
 	} else {
-		msg = m.Sender + " " + timeMsg
+		msg = nickname + " " + timeMsg
 	}
 	label := material.Label(m.Theme, m.Theme.TextSize*0.70, msg)
 	label.MaxLines = 1
