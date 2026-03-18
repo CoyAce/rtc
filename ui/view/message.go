@@ -202,6 +202,7 @@ type Message struct {
 	CreatedAt time.Time
 	Sign      string // sign code
 	Block     uint32 // block number
+	nextSame  bool   // indicates if next message is from same sender
 }
 
 type MessageStyle struct {
@@ -650,10 +651,15 @@ func (m *Message) AddTo(list *MessageList) {
 		return !(*messages)[i].CreatedAt.Before(m.CreatedAt)
 	})
 	if i == n {
+		last := (*messages)[n-1]
 		if m.isMe() {
+			if last.isMe() {
+				last.nextSame = true
+			}
 			m.Primary = true
 			*messages = append(*messages, m)
-		} else if last := (*messages)[n-1]; last.Sender == m.Sender || last.isMe() {
+		} else if last.Sender == m.Sender || last.isMe() {
+			last.nextSame = true
 			m.Primary = false
 			*messages = append(*messages, m)
 		} else {
@@ -949,22 +955,41 @@ func (m *Message) drawImage(gtx layout.Context, img image.Image) layout.Dimensio
 }
 
 func (m *Message) drawBorder(gtx layout.Context, d layout.Dimensions, call op.CallOp) {
-	// draw border
-	bgColor := m.Theme.ContrastBg
-	bgColor.A = 128
+	// Draw gradient background with shadow
 	radius := gtx.Dp(16)
+
+	// Adjust corner radius for consecutive messages from same sender
 	sE, sW, nW, nE := radius, radius, radius, radius
 	if m.isPrimary() {
 		nE = 0
+		// If next message is also from me, reduce bottom-right corner
+		if !m.nextSame {
+			sE = 0
+		}
 	} else {
 		nW = 0
+		// If next message is also from others, reduce bottom-left corner
+		if !m.nextSame {
+			sW = 0
+		}
 	}
-	defer clip.RRect{Rect: image.Rectangle{
-		Max: d.Size,
-	}, SE: sE, SW: sW, NW: nW, NE: nE}.Push(gtx.Ops).Pop()
+
+	m.drawShadow(gtx, d.Size, sE, sW, nW, nE)
+
+	// Draw gradient background
+	// Create rounded rectangle path
+	defer clip.RRect{
+		Rect: image.Rectangle{
+			Max: d.Size,
+		},
+		SE: sE, SW: sW, NW: nW, NE: nE,
+	}.Push(gtx.Ops).Pop()
+	m.drawGradientBackground(gtx, d.Size)
+
+	// Add interactive span
 	m.addInteractiveSpan(gtx)
-	component.Rect{Color: bgColor, Size: d.Size}.Layout(gtx)
-	// draw text
+
+	// Draw text/content
 	call.Add(gtx.Ops)
 }
 
@@ -973,6 +998,119 @@ func (m *Message) addInteractiveSpan(gtx layout.Context) {
 		defer pointer.StopOp{}.Push(gtx.Ops).Pop()
 	}
 	m.InteractiveSpan.Layout(gtx)
+}
+
+func (m *Message) drawShadow(gtx layout.Context, size image.Point, sE, sW, nW, nE int) {
+	// Add shadow effect
+	shadowRadius := gtx.Dp(8)
+	offset := image.Pt(2, 4)
+	// Create shadow with blue-cyan tint to match geek theme
+	shadowColor := color.NRGBA{R: 0, G: 100, B: 180, A: 60}
+	
+	// Draw multiple shadow layers for softer effect
+	for i := 4; i > 0; i-- {
+		// Calculate shadow radius for each corner independently
+		baseShadowRadius := gtx.Dp(1) * i
+		shadowSE := baseShadowRadius
+		if sE > 0 {
+			shadowSE = shadowRadius + i*gtx.Dp(2)
+		}
+		shadowSW := baseShadowRadius
+		if sW > 0 {
+			shadowSW = shadowRadius + i*gtx.Dp(2)
+		}
+		shadowNW := baseShadowRadius
+		if nW > 0 {
+			shadowNW = shadowRadius + i*gtx.Dp(2)
+		}
+		shadowNE := baseShadowRadius
+		if nE > 0 {
+			shadowNE = shadowRadius + i*gtx.Dp(2)
+		}
+		
+		// Softer shadow offset
+		shadowOffset := image.Pt(offset.X*i/3, offset.Y*i/3)
+		
+		path := clip.RRect{
+			Rect: image.Rectangle{
+				Min: shadowOffset,
+				Max: size.Add(shadowOffset),
+			},
+			SE: shadowSE, SW: shadowSW, NW: shadowNW, NE: shadowNE,
+		}.Push(gtx.Ops)
+		
+		paint.FillShape(gtx.Ops, shadowColor, clip.Rect{
+			Max: size.Add(shadowOffset),
+		}.Op())
+		path.Pop()
+	}
+}
+
+func (m *Message) drawGradientBackground(gtx layout.Context, size image.Point) {
+	// Get base color from theme
+	baseColor := m.Theme.ContrastBg
+
+	// Create smooth vertical gradient using thin rectangles
+	// Fixed 2px height per step for smooth transitions regardless of message length
+	const stepHeight = 2
+	numSteps := (size.Y + stepHeight - 1) / stepHeight // Round up
+
+	for i := 0; i < numSteps; i++ {
+		// Calculate position ratio (0.0 at top, 1.0 at bottom)
+		ratio := float32(i) / float32(numSteps-1)
+
+		// Geek-style gradient with tech-inspired effects
+		// Features: Subtle scanline pattern and digital color shift
+
+		// Base linear brightness gradient - moderate range for smooth gradient
+		baseBrightness := 0.70 + ratio*0.4 // 0.70 -> 1.10 (moderate range)
+
+		// Add very subtle scanline effect (high frequency, very low amplitude)
+		scanlineFreq := float64(size.Y) / 2.0 // Frequency adapts to height
+		scanline := math.Sin(float64(i)*math.Pi*2.0/scanlineFreq) * 0.015
+
+		// Combined brightness with subtle effects
+		brightness := float32(baseBrightness + float32(scanline))
+
+		gradientColor := baseColor
+
+		if m.isPrimary() {
+			// Primary (sent by me): Cyan-blue holographic theme
+			// Strong RGB channel separation for holographic display effect
+			// Reduce red, boost blue for cyan glow
+			gradientColor.R = uint8(math.Max(0, math.Min(255, float64(gradientColor.R)*float64(brightness)*0.7)))
+			gradientColor.G = uint8(math.Max(0, math.Min(255, float64(gradientColor.G)*float64(brightness)*1.1)))
+			gradientColor.B = uint8(math.Max(0, math.Min(255, float64(gradientColor.B)*float64(brightness)*1.35)))
+		} else {
+			// Secondary (received): Purple-magenta neon cyberpunk theme
+			// Enhanced RGB separation for neon glow effect
+			// Boost red and blue, suppress green for purple-neon look
+			gradientColor.R = uint8(math.Max(0, math.Min(255, float64(gradientColor.R)*float64(brightness)*1.25)))
+			gradientColor.G = uint8(math.Max(0, math.Min(255, float64(gradientColor.G)*float64(brightness)*0.75)))
+			gradientColor.B = uint8(math.Max(0, math.Min(255, float64(gradientColor.B)*float64(brightness)*1.4)))
+		}
+
+		// Dynamic alpha with subtle variation
+		// Keep high opacity throughout for visible gradient
+		alphaBase := 180.0 + ratio*40.0
+		gradientColor.A = uint8(float32(alphaBase))
+
+		yStart := i * stepHeight
+		yEnd := yStart + stepHeight
+		if yEnd > size.Y {
+			yEnd = size.Y
+		}
+
+		rect := clip.Rect{
+			Min: image.Point{Y: yStart},
+			Max: image.Point{X: size.X, Y: yEnd},
+		}.Push(gtx.Ops)
+		paint.FillShape(gtx.Ops, gradientColor, clip.Rect{
+			Min: image.Point{Y: yStart},
+			Max: image.Point{X: size.X, Y: yEnd},
+		}.Op())
+		rect.Pop()
+	}
 }
 
 func (m *Message) drawState(gtx layout.Context) layout.Dimensions {
