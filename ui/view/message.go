@@ -206,17 +206,8 @@ type Message struct {
 }
 
 type MessageStyle struct {
-	*material.Theme    `json:"-"`
-	layout.Constraints `json:"-"`
-	Primary            bool
-}
-
-func (m *MessageStyle) getBaseWidth() float32 {
-	return float32(m.Max.X) * 0.75
-}
-
-func (m *MessageStyle) getReverseBaseWidth() float32 {
-	return float32(m.Max.X) * 0.25
+	*material.Theme `json:"-"`
+	Primary         bool
 }
 
 type Contacts struct {
@@ -602,16 +593,13 @@ func (m *Message) Layout(gtx layout.Context) (d layout.Dimensions) {
 	if (m.MessageType == Image || m.MessageType == Voice) && m.fileNotExist() {
 		return d
 	}
-	m.Constraints = gtx.Constraints
 
-	margins := layout.Inset{Top: unit.Dp(24), Bottom: unit.Dp(0), Left: unit.Dp(8), Right: unit.Dp(8)}
+	margins := layout.Inset{Left: unit.Dp(8), Right: unit.Dp(8)}
 	return margins.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
-		flex := layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Spacing: layout.SpaceEnd}
+		flex := layout.Flex{WeightSum: 1.0, Axis: layout.Horizontal, Alignment: layout.Middle, Spacing: layout.SpaceAround}
 		message := []layout.FlexChild{
-			layout.Rigid(layout.Spacer{Width: unit.Dp(2)}.Layout),
-			layout.Rigid(m.drawMessage),
-			layout.Rigid(layout.Spacer{Width: unit.Dp(2)}.Layout),
+			layout.Flexed(1.0, m.drawMessage),
 		}
 		avatar := layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return m.drawAvatar(gtx, m.Sender)
@@ -737,10 +725,10 @@ func (m *Message) getFocusIfClickedToEnableFocusLostEvent(gtx layout.Context) {
 }
 
 func (m *Message) drawStateAndContent(gtx layout.Context) layout.Dimensions {
-	flex := layout.Flex{Spacing: layout.SpaceEnd, Alignment: layout.Middle}
+	flex := layout.Flex{WeightSum: 1.0, Spacing: layout.SpaceEnd, Alignment: layout.Middle}
 	contents := []layout.FlexChild{
 		layout.Rigid(layout.Spacer{Width: unit.Dp(4)}.Layout),
-		layout.Rigid(m.drawContent),
+		layout.Flexed(1.0, m.drawContent),
 		layout.Rigid(layout.Spacer{Width: unit.Dp(4)}.Layout),
 	}
 	stateOrOperationBar := layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -850,7 +838,6 @@ func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
 		macro := op.Record(gtx.Ops)
 		d := layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Min.X = 0
-			gtx.Constraints.Max.X = int(m.getBaseWidth())
 			return material.Editor(m.Theme, m.Editor, "hint").Layout(gtx)
 		})
 		call := macro.Stop()
@@ -862,7 +849,7 @@ func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
 			return m.drawBrokenImage(gtx)
 		}
 		if *img == nil {
-			return m.drawBlankBox()
+			return m.drawBlankBox(gtx)
 		}
 		return m.drawImage(gtx, *img)
 	case GIF:
@@ -880,9 +867,8 @@ func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
 }
 
 func (m *Message) drawFile(gtx layout.Context) layout.Dimensions {
-	v := m.getReverseBaseWidth()
-	gtx.Constraints.Min.X = int(m.getBaseWidth())
-	gtx.Constraints.Min.Y = int(v * 0.382)
+	gtx.Constraints.Min.X = gtx.Constraints.Max.X
+	gtx.Constraints.Min.Y = int(float32(gtx.Constraints.Max.X) * 0.382)
 	gtx.Constraints.Max.X = gtx.Constraints.Min.X
 	macro := op.Record(gtx.Ops)
 	d := m.FileControl.Layout(gtx, m.Theme)
@@ -891,8 +877,8 @@ func (m *Message) drawFile(gtx layout.Context) layout.Dimensions {
 	return d
 }
 
-func (m *Message) drawBlankBox() layout.Dimensions {
-	v := int(m.getBaseWidth())
+func (m *Message) drawBlankBox(gtx layout.Context) layout.Dimensions {
+	v := gtx.Constraints.Max.X
 	return layout.Dimensions{Size: image.Pt(v, v)}
 }
 
@@ -901,9 +887,8 @@ func (m *Message) fileNotExist() bool {
 }
 
 func (m *Message) drawVoice(gtx layout.Context) layout.Dimensions {
-	v := m.getReverseBaseWidth()
-	gtx.Constraints.Min.X = int(m.getBaseWidth())
-	gtx.Constraints.Min.Y = int(v * 0.382)
+	gtx.Constraints.Min.X = gtx.Constraints.Max.X
+	gtx.Constraints.Min.Y = int(float32(gtx.Constraints.Max.X) * 0.382)
 	macro := op.Record(gtx.Ops)
 	d := m.MediaControl.Layout(gtx, m.FilePath(), m.ContrastBg)
 	layout.Stack{Alignment: layout.E}.Layout(gtx,
@@ -920,8 +905,7 @@ func (m *Message) drawVoice(gtx layout.Context) layout.Dimensions {
 }
 
 func (m *Message) drawGif(gtx layout.Context, gif *Gif) layout.Dimensions {
-	v := m.getBaseWidth()
-	gtx.Constraints.Min.X = int(v)
+	gtx.Constraints.Min.X = gtx.Constraints.Max.X
 	macro := op.Record(gtx.Ops)
 	d := gif.Layout(gtx, WidthFixed)
 	call := macro.Stop()
@@ -931,7 +915,7 @@ func (m *Message) drawGif(gtx layout.Context, gif *Gif) layout.Dimensions {
 
 func (m *Message) drawBrokenImage(gtx layout.Context) layout.Dimensions {
 	m.imageBroken = true
-	v := m.getReverseBaseWidth()
+	v := float32(gtx.Constraints.Max.X) * 0.382
 	gtx.Constraints.Min.X = int(v)
 	macro := op.Record(gtx.Ops)
 	d := icons.ImageBrokenIcon.Layout(gtx, m.Theme.ContrastFg)
@@ -941,10 +925,10 @@ func (m *Message) drawBrokenImage(gtx layout.Context) layout.Dimensions {
 }
 
 func (m *Message) drawImage(gtx layout.Context, img image.Image) layout.Dimensions {
-	v := m.getBaseWidth()
+	v := gtx.Constraints.Max.X
 	dx := img.Bounds().Dx()
 	dy := img.Bounds().Dy()
-	point := image.Point{X: int(v), Y: int(float32(dy) / float32(dx) * v)}
+	point := image.Point{X: v, Y: int(float32(dy) / float32(dx) * float32(v))}
 	gtx.Constraints.Max = point
 	macro := op.Record(gtx.Ops)
 	imgOps := paint.NewImageOp(img)
@@ -1122,13 +1106,12 @@ func (m *Message) drawGradientBackground(gtx layout.Context, size image.Point) {
 func (m *Message) drawState(gtx layout.Context) layout.Dimensions {
 	if m.isMe() {
 		iconColor := m.ContrastBg
-		var icon *widget.Icon
+		var icon = icons.AlertErrorIcon
 		switch m.State {
 		case Stateless:
 			loader := material.LoaderStyle{Color: m.ContrastBg}
 			return loader.Layout(gtx)
 		case Failed:
-			icon = icons.AlertErrorIcon
 			iconColor = color.NRGBA(colornames.Red500)
 		case Sent:
 			icon = icons.ActionDoneIcon
@@ -1137,7 +1120,13 @@ func (m *Message) drawState(gtx layout.Context) layout.Dimensions {
 		}
 		return icon.Layout(gtx, iconColor)
 	}
-	return layout.Dimensions{}
+	return m.drawBlankIcon(gtx)
+}
+
+func (m *Message) drawBlankIcon(gtx layout.Context) layout.Dimensions {
+	const defaultIconSize = unit.Dp(24)
+	sz := gtx.Dp(defaultIconSize)
+	return layout.Dimensions{Size: gtx.Constraints.Constrain(image.Pt(sz, sz))}
 }
 
 func (m *Message) drawName(gtx layout.Context) layout.Dimensions {
