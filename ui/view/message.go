@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"math"
+	"mushin/assets/fonts"
 	"mushin/assets/icons"
 	"mushin/internal/audio"
 	"mushin/ui/native"
@@ -245,7 +246,8 @@ func (m *TextControl) processTextCopy(gtx layout.Context, textForCopy string) {
 }
 
 func NewTextControl(text string) TextControl {
-	ed := widget.Editor{ReadOnly: true}
+	// Configure editor with improved line height for better readability
+	ed := widget.Editor{ReadOnly: true, LineHeight: fonts.DefaultLineHeight}
 	ed.SetText(text)
 	return TextControl{Text: text, Editor: &ed}
 }

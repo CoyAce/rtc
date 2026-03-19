@@ -13,6 +13,7 @@ import (
 	"gioui.org/font/gofont"
 	"gioui.org/font/opentype"
 	"gioui.org/text"
+	"gioui.org/unit"
 	"gioui.org/widget/material"
 )
 
@@ -38,16 +39,16 @@ func NewTheme() *material.Theme {
 	th := material.NewTheme()
 	th.Shaper = text.NewShaper(text.WithCollection(collection))
 	// Geek-style dark theme with cyberpunk aesthetic
-	th.Bg.R = 15    // Dark background (nearly black)
+	th.Bg.R = 15 // Dark background (nearly black)
 	th.Bg.G = 15
 	th.Bg.B = 25
-	th.Fg.R = 235   // Cyan-tinted white for better gradient contrast
+	th.Fg.R = 235 // Cyan-tinted white for better gradient contrast
 	th.Fg.G = 248
 	th.Fg.B = 255
-	th.ContrastBg.R = 0     // Deep blue for contrast elements
+	th.ContrastBg.R = 0 // Deep blue for contrast elements
 	th.ContrastBg.G = 180
 	th.ContrastBg.B = 255
-	th.ContrastFg.R = 235   // Match Fg for consistency
+	th.ContrastFg.R = 235 // Match Fg for consistency
 	th.ContrastFg.G = 248
 	th.ContrastFg.B = 255
 	return th
@@ -156,3 +157,5 @@ func tryLoad(path string) []byte {
 
 // DefaultTheme defines the material design style
 var DefaultTheme = NewTheme()
+
+const DefaultLineHeight = unit.Sp(18) * 1.4
