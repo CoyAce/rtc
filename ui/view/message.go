@@ -843,7 +843,17 @@ func (m *Message) drawContent(gtx layout.Context) layout.Dimensions {
 		macro := op.Record(gtx.Ops)
 		d := layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Min.X = 0
-			return material.Editor(m.Theme, m.Editor, "hint").Layout(gtx)
+			// Create custom editor style with appropriate selection highlight color
+			editorStyle := material.Editor(m.Theme, m.Editor, "hint")
+			// Set selection color based on message type (sent vs received)
+			if m.isPrimary() {
+				// Sent messages: cyan-blue background, use darker blue for selection
+				editorStyle.SelectionColor = color.NRGBA{R: 0, G: 100, B: 200, A: 180}
+			} else {
+				// Received messages: purple background, use darker purple for selection
+				editorStyle.SelectionColor = color.NRGBA{R: 150, G: 50, B: 180, A: 180}
+			}
+			return editorStyle.Layout(gtx)
 		})
 		call := macro.Stop()
 		m.drawBorder(gtx, d, call)
