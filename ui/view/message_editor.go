@@ -30,6 +30,8 @@ type MessageEditor struct {
 	ExpandButton
 	widget.Editor
 	submitButton widget.Clickable
+	startTime    time.Time
+	focused      bool
 }
 
 func (e *MessageEditor) Layout(gtx layout.Context) layout.Dimensions {
@@ -66,37 +68,16 @@ func (e *MessageEditor) Layout(gtx layout.Context) layout.Dimensions {
 
 	// Draw rounded background with geek-style gradient and glow effects
 	radius := gtx.Dp(20)
-		
+
 	defer clip.RRect{
 		Rect: image.Rectangle{Max: dimensions.Size},
 		NE:   radius, NW: radius, SE: radius, SW: radius,
 	}.Push(gtx.Ops).Pop()
-		
-	// 1. Render gradient background first (top to bottom)
-	bgColorTop := color.NRGBA{R: 12, G: 18, B: 35, A: 220}
-	bgColorBottom := color.NRGBA{R: 8, G: 12, B: 25, A: 230}
-		
-	const stepHeight = 3
-	numSteps := (dimensions.Size.Y + stepHeight - 1) / stepHeight
-	for i := 0; i < numSteps; i++ {
-		ratio := float32(i) / float32(numSteps-1)
-		gradientColor := color.NRGBA{
-			R: uint8(float32(bgColorTop.R)*(1-ratio) + float32(bgColorBottom.R)*ratio),
-			G: uint8(float32(bgColorTop.G)*(1-ratio) + float32(bgColorBottom.G)*ratio),
-			B: uint8(float32(bgColorTop.B)*(1-ratio) + float32(bgColorBottom.B)*ratio),
-			A: uint8(float32(bgColorTop.A)*(1-ratio) + float32(bgColorBottom.A)*ratio),
-		}
-		yStart := i * stepHeight
-		yEnd := yStart + stepHeight
-		if yEnd > dimensions.Size.Y {
-			yEnd = dimensions.Size.Y
-		}
-		paint.FillShape(gtx.Ops, gradientColor, clip.Rect{
-			Min: image.Point{Y: yStart},
-			Max: image.Point{X: dimensions.Size.X, Y: yEnd},
-		}.Op())
-	}
-		
+
+	// 1. Render solid dark background (remove subtle gradient - not visible on black)
+	bgColor := color.NRGBA{R: 10, G: 15, B: 30, A: 220}
+	paint.FillShape(gtx.Ops, bgColor, clip.Rect{Max: dimensions.Size}.Op())
+
 	// 2. Add cyan glow line at top edge for cyberpunk feel
 	glowLineHeight := gtx.Dp(1)
 	topGlowColor := fonts.DefaultTheme.ContrastBg
@@ -105,14 +86,23 @@ func (e *MessageEditor) Layout(gtx layout.Context) layout.Dimensions {
 		Min: image.Point{Y: 0},
 		Max: image.Point{X: dimensions.Size.X, Y: glowLineHeight},
 	}.Op())
-		
-	// 3. Add stronger cyan glow at bottom edge - exactly aligned with bottom
-	glowHeight := gtx.Dp(3)
+
+	// 3. Add breathing glow effect at bottom
+	baseGlowHeight := gtx.Dp(3)
+
+	// Calculate breathing factor (sine wave, 2 second period)
+	if e.startTime.IsZero() {
+		e.startTime = time.Now()
+	}
+	elapsed := time.Now().Sub(e.startTime).Seconds()
+	breathFactor := (math.Sin(elapsed*math.Pi) + 1) / 2 // 0 to 1
+
+	breathingOpacity := uint8(float32(150) + float32(80)*float32(breathFactor))
 	bottomGlowColor := fonts.DefaultTheme.ContrastBg
-	bottomGlowColor.A = 140
+	bottomGlowColor.A = breathingOpacity
 	paint.FillShape(gtx.Ops, bottomGlowColor, clip.Rect{
-		Min: image.Point{Y: dimensions.Size.Y - glowHeight},
-		Max: image.Point{X: dimensions.Size.X, Y: dimensions.Size.Y}, // Exactly to the bottom edge
+		Min: image.Point{Y: dimensions.Size.Y - int(baseGlowHeight)},
+		Max: image.Point{X: dimensions.Size.X, Y: dimensions.Size.Y},
 	}.Op())
 
 	call.Add(gtx.Ops)
