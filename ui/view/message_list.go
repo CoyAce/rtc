@@ -240,7 +240,7 @@ func NewMessageManager(streamConfig audio.StreamConfig) MessageManager {
 		Theme: fonts.DefaultTheme,
 	}
 	messageList.Messages.Store(new(messageKeeper.Messages(streamConfig)))
-	messageEditor := &MessageEditor{Editor: widget.Editor{Submit: true}, Theme: fonts.DefaultTheme}
+	messageEditor := &MessageEditor{Editor: widget.Editor{Submit: true, LineHeight: fonts.DefaultLineHeight}, Theme: fonts.DefaultTheme}
 	return MessageManager{
 		audioStack:    NewAudioIconStack(streamConfig),
 		iconStack:     NewIconStack(mode.SwitchBetweenTextAndVoice, messageKeeper.AppendPublish),
