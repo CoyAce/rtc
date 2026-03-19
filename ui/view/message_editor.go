@@ -63,20 +63,19 @@ func (e *MessageEditor) Layout(gtx layout.Context) layout.Dimensions {
 		)
 	})
 	call := macro.Stop()
-		
+
 	// Draw rounded background with geek-style gradient and glow effects
 	radius := gtx.Dp(20)
-		
-	// Main background with subtle vertical gradient (deep space blue to darker blue)
-	bgColorTop := color.NRGBA{R: 12, G: 18, B: 35, A: 220}
-	bgColorBottom := color.NRGBA{R: 8, G: 12, B: 25, A: 230}
 		
 	defer clip.RRect{
 		Rect: image.Rectangle{Max: dimensions.Size},
 		NE:   radius, NW: radius, SE: radius, SW: radius,
 	}.Push(gtx.Ops).Pop()
 		
-	// Render gradient background
+	// 1. Render gradient background first (top to bottom)
+	bgColorTop := color.NRGBA{R: 12, G: 18, B: 35, A: 220}
+	bgColorBottom := color.NRGBA{R: 8, G: 12, B: 25, A: 230}
+		
 	const stepHeight = 3
 	numSteps := (dimensions.Size.Y + stepHeight - 1) / stepHeight
 	for i := 0; i < numSteps; i++ {
@@ -98,22 +97,22 @@ func (e *MessageEditor) Layout(gtx layout.Context) layout.Dimensions {
 		}.Op())
 	}
 		
-	// Add cyan glow line at top edge for cyberpunk feel
+	// 2. Add cyan glow line at top edge for cyberpunk feel
 	glowLineHeight := gtx.Dp(1)
-	glowColor := fonts.DefaultTheme.ContrastBg
-	glowColor.A = 100
-	paint.FillShape(gtx.Ops, glowColor, clip.Rect{
+	topGlowColor := fonts.DefaultTheme.ContrastBg
+	topGlowColor.A = 100
+	paint.FillShape(gtx.Ops, topGlowColor, clip.Rect{
 		Min: image.Point{Y: 0},
 		Max: image.Point{X: dimensions.Size.X, Y: glowLineHeight},
 	}.Op())
 		
-	// Add stronger cyan glow at bottom edge
+	// 3. Add stronger cyan glow at bottom edge - exactly aligned with bottom
 	glowHeight := gtx.Dp(3)
 	bottomGlowColor := fonts.DefaultTheme.ContrastBg
 	bottomGlowColor.A = 140
 	paint.FillShape(gtx.Ops, bottomGlowColor, clip.Rect{
 		Min: image.Point{Y: dimensions.Size.Y - glowHeight},
-		Max: dimensions.Size,
+		Max: image.Point{X: dimensions.Size.X, Y: dimensions.Size.Y}, // Exactly to the bottom edge
 	}.Op())
 
 	call.Add(gtx.Ops)

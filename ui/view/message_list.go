@@ -236,7 +236,7 @@ func NewMessageManager(streamConfig audio.StreamConfig) MessageManager {
 		MessageChannel: make(chan *Message, 1),
 	}
 	messageList := &MessageList{
-		List:  layout.List{Axis: layout.Vertical, ScrollToEnd: true},
+		List:  layout.List{Axis: layout.Vertical, ScrollToEnd: true, Gap: int(unit.Dp(24))},
 		Theme: fonts.DefaultTheme,
 	}
 	messageList.Messages.Store(new(messageKeeper.Messages(streamConfig)))
