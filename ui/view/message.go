@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -208,6 +209,8 @@ type Message struct {
 type MessageStyle struct {
 	*material.Theme `json:"-"`
 	Primary         bool
+	timestamp       *material.LabelStyle
+	nickname        *material.LabelStyle
 }
 
 type Contacts struct {
@@ -1130,40 +1133,64 @@ func (m *Message) drawBlankIcon(gtx layout.Context) layout.Dimensions {
 }
 
 func (m *Message) drawName(gtx layout.Context) layout.Dimensions {
+	// Adjusted spacing for better breathing room
+	margins := layout.Inset{Bottom: unit.Dp(6.0), Top: unit.Dp(2.0)}
+	return margins.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		flex := layout.Flex{Spacing: layout.SpaceEnd, Alignment: layout.Middle}
+		if m.isPrimary() {
+			flex.Spacing = layout.SpaceStart
+		}
+
+		if m.nickname == nil {
+			m.nickname = m.newNicknameLabel()
+		}
+		if m.timestamp == nil {
+			m.timestamp = m.newTimestampLabel()
+		}
+
+		// Add spacing between nickname and timestamp
+		spacer := layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout)
+		// Nickname + Time order for secondary (received from others)
+		contents := []layout.FlexChild{
+			layout.Rigid(m.nickname.Layout),
+			spacer,
+			layout.Rigid(m.timestamp.Layout),
+		}
+		if m.isPrimary() {
+			// Time + Nickname order for primary (sent by me)
+			slices.Reverse(contents)
+		}
+		return flex.Layout(gtx, contents...)
+	})
+}
+
+func (m *Message) newNicknameLabel() *material.LabelStyle {
+	// Extract nickname from sender (part before #)
+	nickname := m.Sender
+	if idx := strings.Index(m.Sender, "#"); idx != -1 {
+		nickname = m.Sender[:idx]
+	}
+	// Draw nickname with bold weight for prominence
+	nickLabel := material.Label(m.Theme, m.Theme.TextSize*0.65, nickname)
+	nickLabel.Font.Weight = font.Bold
+	nickLabel.Font.Style = font.Italic
+	nickLabel.Color.A = uint8(float32(nickLabel.Color.A) * 0.75)
+	return &nickLabel
+}
+
+func (m *Message) newTimestampLabel() *material.LabelStyle {
 	timeVal := m.CreatedAt
 	loc, err := time.LoadLocation("Asia/Shanghai")
 	if err != nil {
 		loc = ShanghaiLoc
 	}
 	timeMsg := timeVal.In(loc).Format("01/02 15:04")
-	// Extract nickname from sender (part before #)
-	nickname := m.Sender
-	if idx := strings.Index(m.Sender, "#"); idx != -1 {
-		nickname = m.Sender[:idx]
-	}
-	var msg string
-	if m.isPrimary() {
-		msg = timeMsg + " " + nickname
-	} else {
-		msg = nickname + " " + timeMsg
-	}
-	label := material.Label(m.Theme, m.Theme.TextSize*0.70, msg)
-	label.MaxLines = 1
-	// Theme Fg color is cyan-tinted white for gradient contrast
-	label.Color.A = uint8(int(math.Abs(float64(label.Color.A)-50)) % 256)
-	label.Font.Weight = font.Bold
-	label.Font.Style = font.Italic
-	margins := layout.Inset{Bottom: unit.Dp(8.0)}
-	return margins.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		flex := layout.Flex{Spacing: layout.SpaceEnd}
-		if m.isPrimary() {
-			flex.Spacing = layout.SpaceStart
-		}
-		return flex.Layout(gtx,
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return label.Layout(gtx)
-			}))
-	})
+	// Draw timestamp with lighter weight and lower opacity for subtlety
+	timeLabel := material.Label(m.Theme, m.Theme.TextSize*0.65, timeMsg)
+	timeLabel.Font.Weight = font.Medium
+	timeLabel.Font.Style = font.Italic
+	timeLabel.Color.A = uint8(float32(timeLabel.Color.A) * 0.45)
+	return &timeLabel
 }
 
 var MessageBox = make(chan *Message, 10)
