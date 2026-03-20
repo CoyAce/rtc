@@ -1365,7 +1365,7 @@ func (m *Message) drawName(gtx layout.Context) layout.Dimensions {
 func (m *Message) newNicknameLabel() *material.LabelStyle {
 	// Extract nickname from sender (part before #)
 	nickname := m.Sender
-	if idx := strings.Index(m.Sender, "#"); idx != -1 {
+	if idx := strings.Index(m.Sender, "#"); idx != -1 && idx != 0 {
 		nickname = m.Sender[:idx]
 	}
 	// Draw nickname with bold weight for prominence
