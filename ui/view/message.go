@@ -534,56 +534,74 @@ func (m *MediaControl) Layout(gtx layout.Context, filePath string, fgColor color
 	// Generate waveform if not already done
 	m.generateWaveform(filePath)
 
-	return layout.Flex{WeightSum: 1.0, Spacing: layout.SpaceAround, Alignment: layout.Middle}.Layout(gtx,
+	gtx.Constraints.Max.Y = int(float32(gtx.Constraints.Max.X) * 0.382)
+	return layout.Flex{WeightSum: 1.0, Spacing: layout.SpaceSides, Alignment: layout.Middle}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			btn := &m.playButton
-			icon := icons.PlayIcon
-			if m.animation == nil {
-				m.animation = &component.Progress{}
-			}
-			if m.playButton.Clicked(gtx) {
-				m.animation.Start(gtx.Now, component.Forward, time.Duration(m.Duration)*time.Millisecond)
-				m.playAudioAsync(filePath)
-			}
-			if m.pauseButton.Clicked(gtx) {
-				m.animation.Stop()
-				if m.cancel != nil {
-					m.cancel()
-				}
-			}
-			if m.animation.Started() {
-				gtx.Execute(op.InvalidateCmd{})
-				btn = &m.pauseButton
-				icon = icons.PauseIcon
-				// Auto-scroll waveform to follow playback progress
-				progress := m.animation.Progress()
-				// Scroll to show current position
-				if len(m.waveform) > 0 {
-					scrollOffset := int(float32(len(m.waveform)) * progress)
-					m.list.ScrollTo(scrollOffset)
-				}
-			}
-			m.animation.Update(gtx.Now)
-			return btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				// Set fixed button size for consistent appearance
-				const buttonSize = 36 // dp
-				gtx.Constraints.Min.X = gtx.Dp(buttonSize)
-				return icon.Layout(gtx, fgColor)
-			})
+			return m.drawController(gtx, filePath, fgColor)
 		}),
-		layout.Flexed(0.85, func(gtx layout.Context) layout.Dimensions {
+		layout.Flexed(0.95, func(gtx layout.Context) layout.Dimensions {
 			// Draw waveform visualization with timestamp overlay
-			return layout.Stack{Alignment: layout.W}.Layout(gtx,
-				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-					return m.drawWaveform(gtx, m.animation.Progress())
-				}),
-				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-					// Optional: Add timestamp at bottom-right corner in future enhancement
-					return layout.Dimensions{}
-				}),
-			)
+			return m.drawWaveform(gtx, m.animation.Progress())
 		}),
 	)
+}
+
+func (m *MediaControl) drawController(gtx layout.Context, filePath string, fgColor color.NRGBA) layout.Dimensions {
+	btn := &m.playButton
+	icon := icons.PlayIcon
+	if m.animation == nil {
+		m.animation = &component.Progress{}
+	}
+	if m.playButton.Clicked(gtx) {
+		m.animation.Start(gtx.Now, component.Forward, time.Duration(m.Duration)*time.Millisecond)
+		m.playAudioAsync(filePath)
+	}
+	if m.pauseButton.Clicked(gtx) {
+		m.animation.Stop()
+		if m.cancel != nil {
+			m.cancel()
+		}
+	}
+	if m.animation.Started() {
+		gtx.Execute(op.InvalidateCmd{})
+		btn = &m.pauseButton
+		icon = icons.PauseIcon
+		// Auto-scroll waveform to follow playback progress
+		progress := m.animation.Progress()
+		// Scroll to show current position
+		if len(m.waveform) > 0 {
+			scrollOffset := int(float32(len(m.waveform)) * progress)
+			m.list.ScrollTo(scrollOffset)
+		}
+	}
+	m.animation.Update(gtx.Now)
+
+	// Draw button with integrated time display
+	return btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		// Stack icon and time vertically
+		return layout.Flex{Axis: layout.Vertical, Alignment: layout.Middle, Spacing: layout.SpaceSides}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				// Set fixed button size for consistent appearance
+				const buttonSize = 48 // dp - slightly larger to accommodate time
+				gtx.Constraints.Min.X = gtx.Dp(buttonSize)
+				// Layout icon first
+				return icon.Layout(gtx, fgColor)
+			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				// Format time as MM:SS
+				currentSec := int(math.Ceil(m.getLeftDuration().Seconds()))
+				currentMin := currentSec / 60
+				currentSec = currentSec % 60
+
+				timeText := fmt.Sprintf("%d:%02d", currentMin, currentSec)
+
+				// Create time label with smaller font
+				timeLabel := material.Label(material.NewTheme(), unit.Sp(10), timeText)
+				timeLabel.Color = fonts.DimWhite
+				return layout.Inset{Top: unit.Dp(2)}.Layout(gtx, timeLabel.Layout)
+			}),
+		)
+	})
 }
 
 func (m *MediaControl) getLeftDuration() time.Duration {
@@ -591,7 +609,7 @@ func (m *MediaControl) getLeftDuration() time.Duration {
 	if !m.animation.Started() {
 		return size
 	}
-	return time.Duration(float32(size) * m.animation.Progress())
+	return time.Duration(float32(size) * (1 - m.animation.Progress()))
 }
 
 // generateWaveform extracts amplitude data from audio file
@@ -650,11 +668,11 @@ func (m *MediaControl) drawWaveform(gtx layout.Context, progress float32) layout
 	}
 
 	const (
-		maxHeight = 0.8 // Maximum height as ratio of container
+		maxHeight = 0.75 // Maximum height as ratio of container
 	)
 
 	totalBars := len(m.waveform)
-	containerHeight := int(float32(gtx.Constraints.Max.X) * 0.382)
+	containerHeight := gtx.Constraints.Max.Y
 
 	// Calculate bar width and spacing based on container width
 	// Use fixed bar width to allow horizontal scrolling
@@ -663,16 +681,37 @@ func (m *MediaControl) drawWaveform(gtx layout.Context, progress float32) layout
 
 	// Center the waveform vertically
 	availableHeight := int(float32(containerHeight) * maxHeight)
-	yOffset := (containerHeight - availableHeight) / 2
 
 	// Colors for played and unplayed portions
-	playedColor := color.NRGBA{R: 0, G: 200, B: 255, A: 220}    // Bright cyan
-	unplayedColor := color.NRGBA{R: 255, G: 255, B: 255, A: 80} // Dim white
+	playedColor := fonts.BrightCyan
+	unplayedColor := fonts.DimWhite
 
-	// Baseline for bottom alignment
-	baselineY := yOffset + availableHeight
+	// Find the maximum amplitude to calculate baseline position
+	var maxAmp float32
+	for _, amp := range m.waveform {
+		if amp > maxAmp {
+			maxAmp = amp
+		}
+	}
+
+	// Calculate the tallest bar height
+	const amplification = 1.0
+	tallestBarHeight := int(float32(availableHeight) * maxAmp * amplification)
+	if tallestBarHeight < 2 {
+		tallestBarHeight = 2
+	}
+	if tallestBarHeight > availableHeight {
+		tallestBarHeight = availableHeight
+	}
+
+	// Position baseline so that:
+	// Distance from baseline to bottom = Distance from the tallest bar top to container top
+	// Formula: baselineY - tallestBarHeight - yOffset = containerHeight - yOffset - baselineY
+	// Solving: baselineY = (containerHeight + tallestBarHeight) / 2
+	baselineY := (containerHeight + tallestBarHeight) / 2
 
 	// Use layout.List for horizontal scrolling
+	gtx.Constraints.Min.X = 0
 	return m.list.Layout(gtx, totalBars, func(gtx layout.Context, i int) layout.Dimensions {
 		amp := m.waveform[i]
 
@@ -701,12 +740,12 @@ func (m *MediaControl) drawWaveform(gtx layout.Context, progress float32) layout
 		// Draw rounded bar
 		radius := gtx.Dp(1)
 		path := clip.RRect{
-			Rect: image.Rect(0, y, gtx.Dp(barWidthDp), y+barHeight),
+			Rect: image.Rect(0, y, gtx.Dp(barWidthDp), baselineY),
 			NE:   radius, NW: radius, SE: radius, SW: radius,
 		}.Push(gtx.Ops)
 
 		paint.FillShape(gtx.Ops, barColor, clip.Rect{
-			Max: image.Point{X: gtx.Dp(barWidthDp), Y: y + barHeight},
+			Max: image.Point{X: gtx.Dp(barWidthDp), Y: baselineY},
 		}.Op())
 
 		path.Pop()
@@ -758,7 +797,6 @@ func (m *Message) Layout(gtx layout.Context) (d layout.Dimensions) {
 
 	margins := layout.Inset{Left: unit.Dp(8), Right: unit.Dp(8)}
 	return margins.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		gtx.Constraints.Min.X = gtx.Constraints.Max.X
 		flex := layout.Flex{WeightSum: 1.0, Axis: layout.Horizontal, Alignment: layout.Middle, Spacing: layout.SpaceAround}
 		message := []layout.FlexChild{
 			layout.Flexed(1.0, m.drawMessage),
@@ -1059,7 +1097,6 @@ func (m *Message) fileNotExist() bool {
 }
 
 func (m *Message) drawVoice(gtx layout.Context) layout.Dimensions {
-	gtx.Constraints.Min.X = gtx.Constraints.Max.X
 	gtx.Constraints.Min.Y = int(float32(gtx.Constraints.Max.X) * 0.382)
 	macro := op.Record(gtx.Ops)
 	d := m.MediaControl.Layout(gtx, m.FilePath(), m.ContrastBg)

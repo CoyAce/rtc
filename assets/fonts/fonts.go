@@ -2,6 +2,7 @@ package fonts
 
 import (
 	_ "embed"
+	"image/color"
 	"log"
 	"mushin/assets/fonts/notoemoji"
 	"mushin/assets/fonts/notosanssc"
@@ -157,5 +158,7 @@ func tryLoad(path string) []byte {
 
 // DefaultTheme defines the material design style
 var DefaultTheme = NewTheme()
+var DimWhite = color.NRGBA{R: 255, G: 255, B: 255, A: 80}  // Dim white
+var BrightCyan = color.NRGBA{R: 0, G: 200, B: 255, A: 220} // Bright cyan
 
 const DefaultLineHeight = unit.Sp(18) * 1.4
