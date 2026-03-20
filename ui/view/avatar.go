@@ -6,6 +6,7 @@ import (
 	"mushin/assets"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -34,6 +35,7 @@ type Avatar struct {
 	OnChange   func()
 	point      image.Point
 	Image      *image.Image
+	loadState  int32
 	sync.Once
 	*Gif
 	AvatarType
@@ -159,6 +161,11 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 }
 
 func (v *Avatar) Reload(avatarType AvatarType) {
+	if !atomic.CompareAndSwapInt32(&v.loadState, 0, 1) {
+		log.Printf("Reload already in progress, skipping")
+		return
+	}
+	defer atomic.StoreInt32(&v.loadState, 0)
 	if avatarType == GIF_IMG || avatarType == Default {
 		gifPath := GetPath(v.UUID, "icon.gif")
 		gifImg := LoadGif(gifPath, true)
