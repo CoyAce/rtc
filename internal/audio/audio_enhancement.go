@@ -388,7 +388,7 @@ func (ae *Enhancer) ProcessAudio(samples []float32) ([]float32, error) {
 	}
 
 	// Track output level
-	ae.metrics.OutputLevel = calculateRMS(output)
+	ae.metrics.OutputLevel = CalculateRMS(output)
 
 	return output, nil
 }
@@ -734,7 +734,7 @@ func (de *DeEsser) Process(samples []float32) []float32 {
 }
 
 // Helper function to calculate RMS
-func calculateRMS(samples []float32) float32 {
+func CalculateRMS(samples []float32) float32 {
 	sum := 0.0
 	for _, s := range samples {
 		sum += float64(s * s)

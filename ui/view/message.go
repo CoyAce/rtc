@@ -526,10 +526,15 @@ type MediaControl struct {
 	animation          *component.Progress
 	pauseButton        widget.Clickable
 	cancel             context.CancelFunc
+	waveform           []float32   // Audio waveform amplitudes
+	list               layout.List // Scrollable list for waveform
 }
 
 func (m *MediaControl) Layout(gtx layout.Context, filePath string, fgColor color.NRGBA) layout.Dimensions {
-	return layout.Flex{Spacing: layout.SpaceAround, Alignment: layout.Middle}.Layout(gtx,
+	// Generate waveform if not already done
+	m.generateWaveform(filePath)
+
+	return layout.Flex{WeightSum: 1.0, Spacing: layout.SpaceAround, Alignment: layout.Middle}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			btn := &m.playButton
 			icon := icons.PlayIcon
@@ -537,7 +542,7 @@ func (m *MediaControl) Layout(gtx layout.Context, filePath string, fgColor color
 				m.animation = &component.Progress{}
 			}
 			if m.playButton.Clicked(gtx) {
-				m.animation.Start(gtx.Now, component.Reverse, time.Duration(m.Duration)*time.Millisecond)
+				m.animation.Start(gtx.Now, component.Forward, time.Duration(m.Duration)*time.Millisecond)
 				m.playAudioAsync(filePath)
 			}
 			if m.pauseButton.Clicked(gtx) {
@@ -550,12 +555,33 @@ func (m *MediaControl) Layout(gtx layout.Context, filePath string, fgColor color
 				gtx.Execute(op.InvalidateCmd{})
 				btn = &m.pauseButton
 				icon = icons.PauseIcon
+				// Auto-scroll waveform to follow playback progress
+				progress := m.animation.Progress()
+				// Scroll to show current position
+				if len(m.waveform) > 0 {
+					scrollOffset := int(float32(len(m.waveform)) * progress)
+					m.list.ScrollTo(scrollOffset)
+				}
 			}
 			m.animation.Update(gtx.Now)
 			return btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				gtx.Constraints.Min.X = gtx.Constraints.Min.Y
+				// Set fixed button size for consistent appearance
+				const buttonSize = 36 // dp
+				gtx.Constraints.Min.X = gtx.Dp(buttonSize)
 				return icon.Layout(gtx, fgColor)
 			})
+		}),
+		layout.Flexed(0.85, func(gtx layout.Context) layout.Dimensions {
+			// Draw waveform visualization with timestamp overlay
+			return layout.Stack{Alignment: layout.W}.Layout(gtx,
+				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+					return m.drawWaveform(gtx, m.animation.Progress())
+				}),
+				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+					// Optional: Add timestamp at bottom-right corner in future enhancement
+					return layout.Dimensions{}
+				}),
+			)
 		}),
 	)
 }
@@ -568,16 +594,138 @@ func (m *MediaControl) getLeftDuration() time.Duration {
 	return time.Duration(float32(size) * m.animation.Progress())
 }
 
+// generateWaveform extracts amplitude data from audio file
+func (m *MediaControl) generateWaveform(filePath string) {
+	if len(m.waveform) > 0 {
+		return // Already generated
+	}
+
+	pcmBytes, _, err := m.readAudio(filePath)
+	if err != nil {
+		log.Printf("read audio failed, %v", err)
+		return
+	}
+
+	pcmInts := ogg.ToInts(pcmBytes)
+	// Generate waveform by sampling PCM data
+	const barCount = 100 // Number of bars in waveform
+	samplesPerBar := len(pcmInts) / barCount
+	m.waveform = make([]float32, barCount)
+
+	// Find maximum RMS for normalization
+	var maxRMS float32
+	rmsValues := make([]float32, barCount)
+
+	for i := 0; i < barCount; i++ {
+		start := i * samplesPerBar
+		end := start + samplesPerBar
+
+		rmsValues[i] = audio.CalculateRMS(audio.Int16ToFloat32(pcmInts[start:min(end, len(pcmInts))]))
+		if rmsValues[i] > maxRMS {
+			maxRMS = rmsValues[i]
+		}
+	}
+
+	// Normalize waveform with smoothstep interpolation
+	// Smoothstep: 3t² - 2t³ provides smooth S-curve that:
+	// - Compresses very quiet and very loud signals
+	// - Expands mid-range for better speech visibility
+	for i, rms := range rmsValues {
+		if maxRMS > 0 {
+			normalized := rms / maxRMS
+			// Apply smoothstep function for natural contrast enhancement
+			t := float64(normalized)
+			smoothed := t * t * (3 - 2*t) // Smoothstep: 3t² - 2t³
+			m.waveform[i] = float32(smoothed)
+		} else {
+			m.waveform[i] = 0
+		}
+	}
+}
+
+// drawWaveform renders the audio waveform visualization
+func (m *MediaControl) drawWaveform(gtx layout.Context, progress float32) layout.Dimensions {
+	if len(m.waveform) == 0 {
+		return layout.Dimensions{}
+	}
+
+	const (
+		maxHeight = 0.8 // Maximum height as ratio of container
+	)
+
+	totalBars := len(m.waveform)
+	containerHeight := int(float32(gtx.Constraints.Max.X) * 0.382)
+
+	// Calculate bar width and spacing based on container width
+	// Use fixed bar width to allow horizontal scrolling
+	barWidthDp := unit.Dp(3)   // Fixed 3dp per bar
+	barSpacingDp := unit.Dp(1) // Fixed 1dp spacing
+
+	// Center the waveform vertically
+	availableHeight := int(float32(containerHeight) * maxHeight)
+	yOffset := (containerHeight - availableHeight) / 2
+
+	// Colors for played and unplayed portions
+	playedColor := color.NRGBA{R: 0, G: 200, B: 255, A: 220}    // Bright cyan
+	unplayedColor := color.NRGBA{R: 255, G: 255, B: 255, A: 80} // Dim white
+
+	// Baseline for bottom alignment
+	baselineY := yOffset + availableHeight
+
+	// Use layout.List for horizontal scrolling
+	return m.list.Layout(gtx, totalBars, func(gtx layout.Context, i int) layout.Dimensions {
+		amp := m.waveform[i]
+
+		// Calculate bar position for color determination
+		barPosition := float32(i) / float32(totalBars)
+
+		// Determine color based on playback progress
+		barColor := unplayedColor
+		if barPosition <= progress {
+			barColor = playedColor // Already played
+		}
+
+		// Calculate bar height based on amplitude
+		const amplification = 1.0
+		barHeight := int(float32(availableHeight) * amp * amplification)
+		if barHeight < 2 {
+			barHeight = 2
+		}
+		if barHeight > availableHeight {
+			barHeight = availableHeight
+		}
+
+		// Calculate bar position (bottom-aligned from baseline)
+		y := baselineY - barHeight
+
+		// Draw rounded bar
+		radius := gtx.Dp(1)
+		path := clip.RRect{
+			Rect: image.Rect(0, y, gtx.Dp(barWidthDp), y+barHeight),
+			NE:   radius, NW: radius, SE: radius, SW: radius,
+		}.Push(gtx.Ops)
+
+		paint.FillShape(gtx.Ops, barColor, clip.Rect{
+			Max: image.Point{X: gtx.Dp(barWidthDp), Y: y + barHeight},
+		}.Op())
+
+		path.Pop()
+
+		// Return dimensions for this bar with spacing
+		return layout.Dimensions{
+			Size: image.Point{
+				X: gtx.Dp(barWidthDp + barSpacingDp),
+				Y: containerHeight,
+			},
+		}
+	})
+}
+
 func (m *MediaControl) playAudioAsync(filePath string) {
 	go func() {
-		file, err := os.Open(filePath)
+		pcm, channels, err := m.readAudio(filePath)
 		if err != nil {
-			log.Printf("open file failed, %v", err)
-			return
-		}
-		pcm, channels, err := ogg.Decode(file)
-		if err != nil {
-			log.Printf("decode file failed, %v", err)
+			log.Printf("read audio failed, %v", err)
 			return
 		}
 		m.StreamConfig.Channels = channels
@@ -589,6 +737,15 @@ func (m *MediaControl) playAudioAsync(filePath string) {
 		}
 		m.animation.Stop()
 	}()
+}
+
+func (m *MediaControl) readAudio(filePath string) ([]byte, int, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer file.Close()
+	return ogg.Decode(file)
 }
 
 func (m *Message) Layout(gtx layout.Context) (d layout.Dimensions) {
@@ -906,14 +1063,6 @@ func (m *Message) drawVoice(gtx layout.Context) layout.Dimensions {
 	gtx.Constraints.Min.Y = int(float32(gtx.Constraints.Max.X) * 0.382)
 	macro := op.Record(gtx.Ops)
 	d := m.MediaControl.Layout(gtx, m.FilePath(), m.ContrastBg)
-	layout.Stack{Alignment: layout.E}.Layout(gtx,
-		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-			left := m.getLeftDuration()
-			label := material.Label(m.Theme, m.TextSize*0.70, fmt.Sprintf("%.1fs", left.Seconds()))
-			label.Font.Weight = font.Bold
-			label.Color = m.ContrastFg
-			return layout.UniformInset(unit.Dp(8)).Layout(gtx, label.Layout)
-		}))
 	call := macro.Stop()
 	m.drawBorder(gtx, d, call)
 	return d

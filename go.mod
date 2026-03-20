@@ -2,7 +2,7 @@ module mushin
 
 go 1.26
 
-replace gioui.org/x v0.9.0 => github.com/CoyAce/gio-x v0.9.11
+replace gioui.org/x v0.9.0 => github.com/CoyAce/gio-x v0.9.12
 
 replace gioui.org => github.com/CoyAce/gio v0.9.4
 

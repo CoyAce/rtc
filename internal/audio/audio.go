@@ -301,8 +301,8 @@ func Float32ToInt16(floats []float32) []int16 {
 
 // 计算方法
 func calculateERLE(input, output []float32) float64 {
-	inputEnergy := calculateRMS(input)
-	outputEnergy := calculateRMS(output)
+	inputEnergy := CalculateRMS(input)
+	outputEnergy := CalculateRMS(output)
 
 	erleDb := 10 * math.Log10(float64(inputEnergy/outputEnergy))
 	return erleDb
