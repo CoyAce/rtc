@@ -158,7 +158,8 @@ func tryLoad(path string) []byte {
 
 // DefaultTheme defines the material design style
 var DefaultTheme = NewTheme()
-var DimWhite = color.NRGBA{R: 255, G: 255, B: 255, A: 80}  // Dim white
-var BrightCyan = color.NRGBA{R: 0, G: 200, B: 255, A: 220} // Bright cyan
+var DimWhite = color.NRGBA{R: 255, G: 255, B: 255, A: 80}
+var BrightCyan = color.NRGBA{R: 0, G: 200, B: 255, A: 220}
+var BrightPurple = color.NRGBA{R: 200, G: 100, B: 255, A: 220}
 
 const DefaultLineHeight = unit.Sp(18) * 1.4

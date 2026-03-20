@@ -530,23 +530,23 @@ type MediaControl struct {
 	list               layout.List // Scrollable list for waveform
 }
 
-func (m *MediaControl) Layout(gtx layout.Context, filePath string, fgColor color.NRGBA) layout.Dimensions {
+func (m *MediaControl) Layout(gtx layout.Context, filePath string, isPrimary bool) layout.Dimensions {
 	// Generate waveform if not already done
 	m.generateWaveform(filePath)
 
 	gtx.Constraints.Max.Y = int(float32(gtx.Constraints.Max.X) * 0.382)
 	return layout.Flex{WeightSum: 1.0, Spacing: layout.SpaceSides, Alignment: layout.Middle}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return m.drawController(gtx, filePath, fgColor)
+			return m.drawController(gtx, filePath, isPrimary)
 		}),
 		layout.Flexed(0.95, func(gtx layout.Context) layout.Dimensions {
 			// Draw waveform visualization with timestamp overlay
-			return m.drawWaveform(gtx, m.animation.Progress())
+			return m.drawWaveform(gtx, m.animation.Progress(), isPrimary)
 		}),
 	)
 }
 
-func (m *MediaControl) drawController(gtx layout.Context, filePath string, fgColor color.NRGBA) layout.Dimensions {
+func (m *MediaControl) drawController(gtx layout.Context, filePath string, isPrimary bool) layout.Dimensions {
 	btn := &m.playButton
 	icon := icons.PlayIcon
 	if m.animation == nil {
@@ -584,6 +584,11 @@ func (m *MediaControl) drawController(gtx layout.Context, filePath string, fgCol
 				// Set fixed button size for consistent appearance
 				const buttonSize = 48 // dp - slightly larger to accommodate time
 				gtx.Constraints.Min.X = gtx.Dp(buttonSize)
+				fgColor := fonts.BrightCyan
+				if !isPrimary {
+					fgColor = fonts.BrightPurple
+				}
+				fgColor.A = 255
 				// Layout icon first
 				return icon.Layout(gtx, fgColor)
 			}),
@@ -662,7 +667,7 @@ func (m *MediaControl) generateWaveform(filePath string) {
 }
 
 // drawWaveform renders the audio waveform visualization
-func (m *MediaControl) drawWaveform(gtx layout.Context, progress float32) layout.Dimensions {
+func (m *MediaControl) drawWaveform(gtx layout.Context, progress float32, isPrimary bool) layout.Dimensions {
 	if len(m.waveform) == 0 {
 		return layout.Dimensions{}
 	}
@@ -682,9 +687,16 @@ func (m *MediaControl) drawWaveform(gtx layout.Context, progress float32) layout
 	// Center the waveform vertically
 	availableHeight := int(float32(containerHeight) * maxHeight)
 
-	// Colors for played and unplayed portions
-	playedColor := fonts.BrightCyan
-	unplayedColor := fonts.DimWhite
+	// Colors for played and unplayed portions based on message owner
+	var playedColor, unplayedColor color.NRGBA
+	if isPrimary {
+		// Primary (sent by me): Cyan-blue theme
+		playedColor = fonts.BrightCyan
+	} else {
+		// Secondary (received from others): Purple-magenta theme
+		playedColor = fonts.BrightPurple
+	}
+	unplayedColor = fonts.DimWhite
 
 	// Find the maximum amplitude to calculate baseline position
 	var maxAmp float32
@@ -1099,7 +1111,7 @@ func (m *Message) fileNotExist() bool {
 func (m *Message) drawVoice(gtx layout.Context) layout.Dimensions {
 	gtx.Constraints.Min.Y = int(float32(gtx.Constraints.Max.X) * 0.382)
 	macro := op.Record(gtx.Ops)
-	d := m.MediaControl.Layout(gtx, m.FilePath(), m.ContrastBg)
+	d := m.MediaControl.Layout(gtx, m.FilePath(), m.isPrimary())
 	call := macro.Stop()
 	m.drawBorder(gtx, d, call)
 	return d
