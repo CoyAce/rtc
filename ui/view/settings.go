@@ -52,9 +52,13 @@ func NewSettingsForm(onSuccess func()) *SettingsForm {
 		nicknameChanged := s.nicknameEditor.Text() != wi.DefaultClient.Nickname
 		oldUUID := wi.DefaultClient.ID()
 		if nicknameChanged {
+			// Send invisible message to record nickname change.
+			MessageBox <- NewInvisibleMessage()
+			wi.DefaultClient.MultiTrack(&wi.SignBody{Sign: wi.DefaultClient.Sign, UUID: oldUUID}, wi.FullRange)
 			wi.DefaultClient.SetNickName(s.nicknameEditor.Text())
 			newUUID := wi.DefaultClient.ID()
 			renamePath(oldUUID, newUUID)
+			copyThenReloadIcon(newUUID, oldUUID)
 			// update cache
 			copyCacheEntry(oldUUID, newUUID)
 		}
@@ -86,7 +90,11 @@ func copyCacheEntry(oldUUID string, newUUID string) {
 func renamePath(oldUUID string, newUUID string) {
 	oldPath := GetDir(oldUUID)
 	newPath := GetDir(newUUID)
-	err := os.Rename(oldPath, newPath)
+	err := os.RemoveAll(newPath)
+	if err != nil {
+		log.Printf("Failed to rename: %v", err)
+	}
+	err = os.Rename(oldPath, newPath)
 	if err != nil {
 		log.Printf("Failed to rename: %v", err)
 	}

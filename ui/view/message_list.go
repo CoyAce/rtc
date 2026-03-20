@@ -450,6 +450,8 @@ func (k *MessageKeeper) Messages(streamConfig audio.StreamConfig) []*Message {
 		}
 		if !msg.isMe() {
 			wi.DefaultClient.Track(&wi.SignBody{Sign: msg.Sign, UUID: msg.Sender}, msg.Block)
+		} else {
+			wi.DefaultClient.MultiTrack(&wi.SignBody{Sign: msg.Sign, UUID: msg.Sender}, wi.FullRange)
 		}
 		ret = append(ret, &msg)
 	}
@@ -479,7 +481,7 @@ func adjustPrimaryForAll(ret []*Message) {
 }
 
 func adjustPrimary(ret []*Message, i int) {
-	if ret[i].Sender == ret[i+1].Sender {
+	if ret[i].Sender == ret[i+1].Sender || ret[i].isMe() && ret[i+1].isMe() {
 		ret[i].Primary = ret[i+1].Primary
 		ret[i].nextSame = true
 	} else {

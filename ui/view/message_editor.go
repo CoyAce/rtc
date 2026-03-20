@@ -195,15 +195,8 @@ func (e *MessageEditor) processSubmit(gtx layout.Context) {
 			return
 		}
 		go func() {
-			message := Message{State: Stateless,
-				TextControl: NewTextControl(msg),
-				MessageStyle: MessageStyle{
-					Theme: fonts.DefaultTheme,
-				},
-				Contacts:    FromMyself(),
-				MessageType: Text,
-				CreatedAt:   time.Now()}
-			MessageBox <- &message
+			message := NewTextMessage(msg)
+			MessageBox <- message
 			if wi.DefaultClient.SendText(msg) == nil {
 				message.State = Sent
 			} else {
@@ -211,6 +204,21 @@ func (e *MessageEditor) processSubmit(gtx layout.Context) {
 			}
 		}()
 	}
+}
+
+func NewTextMessage(msg string) *Message {
+	return &Message{State: Stateless,
+		TextControl: NewTextControl(msg),
+		MessageStyle: MessageStyle{
+			Theme: fonts.DefaultTheme,
+		},
+		Contacts:    FromMyself(),
+		MessageType: Text,
+		CreatedAt:   time.Now()}
+}
+
+func NewInvisibleMessage() *Message {
+	return NewTextMessage("")
 }
 
 type EditorOperator struct {
