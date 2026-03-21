@@ -390,10 +390,10 @@ func (f *FileControl) loadImage(filepath string) *image.Image {
 	return LoadImage(filepath, false)
 }
 
-func (f *FileControl) Layout(gtx layout.Context, theme *material.Theme) layout.Dimensions {
+func (f *FileControl) Layout(gtx layout.Context, theme *material.Theme, isPrimary bool) layout.Dimensions {
 	title, progress := f.compose(theme)
 	return layout.Flex{WeightSum: 1.0, Alignment: layout.Middle, Spacing: layout.SpaceEvenly}.Layout(gtx,
-		layout.Rigid(f.drawIcon(theme)),
+		layout.Rigid(f.drawIcon(isPrimary)),
 		layout.Flexed(0.618, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical, Spacing: layout.SpaceAround}.Layout(gtx,
 				title...,
@@ -440,11 +440,100 @@ func (f *FileControl) getSpeed() string {
 	return f.toHumanReadable(float32(f.speed)) + "/s"
 }
 
-func (f *FileControl) drawIcon(theme *material.Theme) func(gtx layout.Context) layout.Dimensions {
+func (f *FileControl) drawIcon(isPrimary bool) func(gtx layout.Context) layout.Dimensions {
 	return func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Min.Y
-		return f.getIconByMimeType().Layout(gtx, theme.ContrastFg)
+		baseColor := f.getFileIconColor(isPrimary)
+
+		// Layer 1: Bold drop shadow with color tint
+		// Use darker version of base color for colored shadow
+		for i := 4; i > 0; i-- {
+			gtx.Constraints.Min.X += 2
+			gtx.Constraints.Min.Y += 2
+			shadowAlpha := uint8(80 - i*15)
+			f.getIconByMimeType().Layout(gtx, color.NRGBA{
+				R: uint8(float32(baseColor.R) * 0.3),
+				G: uint8(float32(baseColor.G) * 0.3),
+				B: uint8(float32(baseColor.B) * 0.3),
+				A: shadowAlpha,
+			})
+		}
+
+		// Layer 2: Deep shadow close to icon
+		gtx.Constraints.Min.X += 1
+		gtx.Constraints.Min.Y += 1
+		f.getIconByMimeType().Layout(gtx, color.NRGBA{
+			R: uint8(float32(baseColor.R) * 0.5),
+			G: uint8(float32(baseColor.G) * 0.5),
+			B: uint8(float32(baseColor.B) * 0.5),
+			A: 100,
+		})
+
+		// Layer 3: Base icon (darker foundation)
+		gtx.Constraints.Min.X -= 9
+		gtx.Constraints.Min.Y -= 9
+		baseDark := color.NRGBA{
+			R: uint8(float32(baseColor.R) * 0.7),
+			G: uint8(float32(baseColor.G) * 0.7),
+			B: uint8(float32(baseColor.B) * 0.7),
+			A: 255,
+		}
+		f.getIconByMimeType().Layout(gtx, baseDark)
+
+		// Layer 4: Mid-tone gradient
+		midColor := color.NRGBA{
+			R: uint8(float32(baseColor.R) * 0.9),
+			G: uint8(float32(baseColor.G) * 0.9),
+			B: uint8(float32(baseColor.B) * 0.9),
+			A: 255,
+		}
+		gtx.Constraints.Min.X += 1
+		gtx.Constraints.Min.Y += 1
+		f.getIconByMimeType().Layout(gtx, midColor)
+
+		// Layer 5: Bright highlight for dramatic effect
+		highlightColor := color.NRGBA{
+			R: uint8(math.Min(255.0, float64(baseColor.R)*1.3)),
+			G: uint8(math.Min(255.0, float64(baseColor.G)*1.3)),
+			B: uint8(math.Min(255.0, float64(baseColor.B)*1.3)),
+			A: 220,
+		}
+		gtx.Constraints.Min.X += 1
+		gtx.Constraints.Min.Y += 1
+		return f.getIconByMimeType().Layout(gtx, highlightColor)
 	}
+}
+
+func (f *FileControl) getFileIconColor(isPrimary bool) color.NRGBA {
+	// Macaron-inspired pastel palette - soft and elegant
+	baseColors := map[Mime]color.NRGBA{
+		Picture: {R: 100, G: 181, B: 246, A: 255}, // Sky Blue
+		Music:   {R: 206, G: 147, B: 216, A: 255}, // Lavender Pink
+		Video:   {R: 255, G: 138, B: 101, A: 255}, // Coral Orange
+		Ebook:   {R: 165, G: 214, B: 167, A: 255}, // Sage Green
+		Apk:     {R: 255, G: 183, B: 77, A: 255},  // Amber Yellow
+	}
+
+	// Get base color
+	baseColor, ok := baseColors[f.Mime]
+	if !ok {
+		// Cool gray for unknown types
+		baseColor = color.NRGBA{R: 189, G: 195, B: 199, A: 255}
+	}
+
+	// Subtle adjustment based on message type
+	if isPrimary {
+		// Slightly cooler tone for sent messages
+		adjustment := float64(0.95)
+		baseColor.R = uint8(float64(baseColor.R) * adjustment)
+		baseColor.B = uint8(math.Min(255, float64(baseColor.B)*1.05))
+	} else {
+		// Slightly warmer tone for received messages
+		baseColor.R = uint8(math.Min(255, float64(baseColor.R)*1.05))
+		baseColor.G = uint8(math.Min(255, float64(baseColor.G)*1.02))
+	}
+
+	return baseColor
 }
 
 func (f *FileControl) drawProgress(theme *material.Theme) func(gtx layout.Context) layout.Dimensions {
@@ -1093,7 +1182,7 @@ func (m *Message) drawFile(gtx layout.Context) layout.Dimensions {
 	gtx.Constraints.Min.Y = int(float32(gtx.Constraints.Max.X) * 0.382)
 	gtx.Constraints.Max.X = gtx.Constraints.Min.X
 	macro := op.Record(gtx.Ops)
-	d := m.FileControl.Layout(gtx, m.Theme)
+	d := m.FileControl.Layout(gtx, m.Theme, m.isPrimary())
 	call := macro.Stop()
 	m.drawBorder(gtx, d, call)
 	return d
