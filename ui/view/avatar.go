@@ -119,7 +119,7 @@ func (v *Avatar) Layout(gtx layout.Context) layout.Dimensions {
 				macro := op.Record(gtx.Ops)
 				if v.AvatarType == IMG || v.AvatarType == Default {
 					imgOps := paint.NewImageOp(assets.AppIconImage)
-					if *v.Image != nil {
+					if v.Image != nil && *v.Image != nil {
 						imgOps = paint.NewImageOp(*v.Image)
 					}
 					imgWidget := widget.Image{Src: imgOps, Fit: widget.Fill, Position: layout.Center, Scale: 0}
