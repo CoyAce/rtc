@@ -8,6 +8,7 @@ import (
 	"mushin/assets/icons"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	modal "mushin/ui/layout"
@@ -58,7 +59,10 @@ func NewSettingsForm(onSuccess func()) *SettingsForm {
 			wi.DefaultClient.SetNickName(s.nicknameEditor.Text())
 			newUUID := wi.DefaultClient.ID()
 			renamePath(oldUUID, newUUID)
-			copyThenReloadIcon(newUUID, oldUUID)
+			go func() {
+				copyThenReloadIcon(newUUID, oldUUID)
+				CopyOpusFiles(oldUUID, newUUID)
+			}()
 			// update cache
 			copyCacheEntry(oldUUID, newUUID)
 		}
@@ -100,6 +104,56 @@ func renamePath(oldUUID string, newUUID string) {
 	}
 }
 
+// CopyOpusFiles copy opus files from newUUID to oldUUID
+func CopyOpusFiles(oldUUID string, newUUID string) {
+	src := GetDir(newUUID)
+	dst := GetDir(oldUUID)
+	if err := os.MkdirAll(dst, 0755); err != nil {
+		log.Printf("create destination dir failed: %v", err)
+	}
+
+	err := filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() {
+			return nil
+		}
+
+		if strings.HasSuffix(strings.ToLower(path), ".opus") {
+			fileName := filepath.Base(path)
+			dstPath := filepath.Join(dst, fileName)
+
+			if err = copyFile(path, dstPath); err != nil {
+				log.Printf("copy %s failed: %v", path, err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		log.Printf("walk %s failed: %v", src, err)
+	}
+}
+
+func copyFile(src, dst string) error {
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	dstFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer dstFile.Close()
+
+	_, err = io.Copy(dstFile, srcFile)
+	return err
+}
+
+// copyThenReloadIcon copy icon from oldUUID to newUUID
 func copyThenReloadIcon(oldUUID string, newUUID string) {
 	paths := []string{
 		GetPath(oldUUID, "icon.png"), GetPath(oldUUID, "icon.gif"),
@@ -109,25 +163,12 @@ func copyThenReloadIcon(oldUUID string, newUUID string) {
 		if err != nil {
 			continue
 		}
-		r, err := Open(path)
-		if err != nil {
-			log.Printf("Open file %s failed: %s", path, err)
-			continue
-		}
 		target := GetPath(newUUID, filepath.Base(path))
 		wi.Mkdir(filepath.Dir(target))
-		w, err := os.Create(target)
+		err = copyFile(path, target)
 		if err != nil {
-			log.Printf("Create file %s failed: %s", target, err)
-			_ = r.Close()
-			continue
+			log.Printf("copy %s failed: %v", path, err)
 		}
-		_, err = io.Copy(w, r)
-		if err != nil {
-			log.Printf("Save file %s failed: %s", path, err)
-		}
-		_ = r.Close()
-		_ = w.Close()
 		avatar := AvatarCache.LoadOrElseNew(newUUID)
 		if filepath.Ext(path) == ".gif" {
 			avatar.Reload(GIF_IMG)
