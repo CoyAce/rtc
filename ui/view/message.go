@@ -577,13 +577,13 @@ func (m *MediaControl) drawController(gtx layout.Context, filePath string, isPri
 	m.animation.Update(gtx.Now)
 
 	// Draw button with integrated time display
-	return btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		// Stack icon and time vertically
-		return layout.Flex{Axis: layout.Vertical, Alignment: layout.Middle, Spacing: layout.SpaceSides}.Layout(gtx,
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				// Set fixed button size for consistent appearance
-				const buttonSize = 48 // dp - slightly larger to accommodate time
-				gtx.Constraints.Min.X = gtx.Dp(buttonSize)
+	// Stack icon and time vertically
+	return layout.Flex{Axis: layout.Vertical, Alignment: layout.Middle, Spacing: layout.SpaceSides}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			// Set fixed button size for consistent appearance
+			const buttonSize = 48 // dp - slightly larger to accommodate time
+			gtx.Constraints.Min.X = gtx.Dp(buttonSize)
+			return btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				fgColor := fonts.BrightCyan
 				if !isPrimary {
 					fgColor = fonts.BrightPurple
@@ -591,22 +591,22 @@ func (m *MediaControl) drawController(gtx layout.Context, filePath string, isPri
 				fgColor.A = 255
 				// Layout icon first
 				return icon.Layout(gtx, fgColor)
-			}),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				// Format time as MM:SS
-				currentSec := int(math.Ceil(m.getLeftDuration().Seconds()))
-				currentMin := currentSec / 60
-				currentSec = currentSec % 60
+			})
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			// Format time as MM:SS
+			currentSec := int(math.Ceil(m.getLeftDuration().Seconds()))
+			currentMin := currentSec / 60
+			currentSec = currentSec % 60
 
-				timeText := fmt.Sprintf("%d:%02d", currentMin, currentSec)
+			timeText := fmt.Sprintf("%d:%02d", currentMin, currentSec)
 
-				// Create time label with smaller font
-				timeLabel := material.Label(material.NewTheme(), unit.Sp(10), timeText)
-				timeLabel.Color = fonts.DimWhite
-				return layout.Inset{Top: unit.Dp(2)}.Layout(gtx, timeLabel.Layout)
-			}),
-		)
-	})
+			// Create time label with smaller font
+			timeLabel := material.Label(fonts.DefaultTheme, unit.Sp(10), timeText)
+			timeLabel.Color = fonts.DimWhite
+			return layout.Inset{Top: unit.Dp(2)}.Layout(gtx, timeLabel.Layout)
+		}),
+	)
 }
 
 func (m *MediaControl) getLeftDuration() time.Duration {
