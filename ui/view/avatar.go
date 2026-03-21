@@ -209,6 +209,7 @@ func resizeImage(src image.Image, newWidth, newHeight int) image.Image {
 
 type avatarCache struct {
 	cache map[string]*Avatar
+	sync.RWMutex
 }
 
 func newAvatarCache() *avatarCache {
@@ -218,14 +219,20 @@ func newAvatarCache() *avatarCache {
 }
 
 func (c *avatarCache) Add(uuid string, avatar *Avatar) {
+	c.Lock()
+	defer c.Unlock()
 	c.cache[uuid] = avatar
 }
 
 func (c *avatarCache) LoadOrElseNew(uuid string) *Avatar {
+	c.RLock()
 	avatar := c.cache[uuid]
+	c.RUnlock()
 	if avatar == nil {
 		avatar = &Avatar{UUID: uuid}
+		c.Lock()
 		c.cache[uuid] = avatar
+		c.Unlock()
 	}
 	return avatar
 }
