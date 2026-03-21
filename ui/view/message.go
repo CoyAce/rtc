@@ -937,7 +937,7 @@ func (m *Message) AddTo(list *MessageList) {
 		return
 	}
 	i := sort.Search(n, func(i int) bool {
-		return !(*messages)[i].CreatedAt.Before(m.CreatedAt)
+		return (*messages)[i].CreatedAt.After(m.CreatedAt)
 	})
 	if i == n {
 		last := (*messages)[n-1]
