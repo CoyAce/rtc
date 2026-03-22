@@ -9,7 +9,6 @@ import (
 	"log"
 	"math"
 	"mushin/assets/fonts"
-	"mushin/assets/icons"
 	"mushin/internal/audio"
 	"mushin/ui/native"
 	"os"
@@ -101,18 +100,9 @@ func (v *VoiceRecorder) Layout(gtx layout.Context) layout.Dimensions {
 					// Show cancellation feedback
 					v.drawCancelledIndicator(gtx)
 				} else {
-					op.Offset(image.Pt(gtx.Dp(50/2), 0)).Add(gtx.Ops)
-					// Draw centered icon when not recording
-					layout.Inset{Top: unit.Dp(42 * 0.15 / 2)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						return layout.Stack{Alignment: layout.Center}.Layout(gtx,
-							layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-								gtx.Constraints.Min.X = int(float32(gtx.Constraints.Max.Y) * 0.85)
-								iconColor := fonts.DefaultTheme.ContrastFg
-								iconColor.A = 200
-								return icons.VoiceMessageIcon.Layout(gtx, iconColor)
-							}),
-						)
-					})
+					op.Offset(image.Pt(gtx.Dp(50/2), -gtx.Dp(5))).Add(gtx.Ops)
+					// Draw geek-style glitch microphone icon
+					v.drawGlitchMicrophoneIcon(gtx)
 				}
 
 				return layout.Dimensions{Size: gtx.Constraints.Max}
@@ -336,6 +326,138 @@ func (v *VoiceRecorder) drawCancelledIndicator(gtx layout.Context) {
 			Y: centerY + int(float32(bracketSize)*expandFactor),
 		},
 	}.Op())
+}
+
+func (v *VoiceRecorder) drawGlitchMicrophoneIcon(gtx layout.Context) {
+	// Draw a geek-style glitch microphone icon
+	// Use current time for idle animation (not dependent on startTime)
+	now := time.Now()
+	// Convert to seconds with high precision for smooth animation
+	elapsed := float32(now.Second()) + float32(now.Nanosecond())/1e9
+
+	// Subtle idle animation
+	pulseFactor := 0.7 + 0.3*float32(math.Abs(math.Sin(float64(elapsed*2))))
+
+	centerX := gtx.Constraints.Max.X / 2
+	centerY := gtx.Constraints.Max.Y / 2
+	iconSize := gtx.Dp(32)
+	_ = iconSize // unused for now
+
+	// Main microphone body (stylized rectangle with rounded top)
+	bodyWidth := gtx.Dp(16)
+	bodyHeight := gtx.Dp(24)
+
+	// Glitch offset for cyberpunk effect
+	glitchX := float32(math.Sin(float64(elapsed*5))) * 3
+	glitchY := float32(math.Cos(float64(elapsed*3))) * 2
+
+	// Draw glitch layers (chromatic aberration effect)
+	layerOffsets := []int{gtx.Dp(2), -gtx.Dp(2), gtx.Dp(1)}
+	layerColors := []color.NRGBA{
+		{R: 0, G: 200, B: 255, A: uint8(80 * pulseFactor)}, // Cyan
+		{R: 255, G: 0, B: 150, A: uint8(80 * pulseFactor)}, // Magenta
+		{R: 0, G: 255, B: 100, A: uint8(60 * pulseFactor)}, // Green
+	}
+
+	for i, offset := range layerOffsets {
+		layerColor := layerColors[i]
+		// Offset each layer slightly for glitch effect
+		x := int(float32(centerX) + glitchX + float32(offset))
+		y := int(float32(centerY) + glitchY)
+
+		// Microphone body
+		paint.FillShape(gtx.Ops, layerColor, clip.RRect{
+			Rect: image.Rect(
+				x-int(bodyWidth)/2,
+				y-int(bodyHeight)/2,
+				x+int(bodyWidth)/2,
+				y+int(bodyHeight)/2,
+			),
+			NE: gtx.Dp(8), NW: gtx.Dp(8), SE: gtx.Dp(4), SW: gtx.Dp(4),
+		}.Op(gtx.Ops))
+	}
+
+	// Main microphone silhouette (bright cyan)
+	mainColor := color.NRGBA{
+		R: uint8(200 * pulseFactor),
+		G: uint8(240 * pulseFactor),
+		B: 255,
+		A: uint8(220 * pulseFactor),
+	}
+
+	// Microphone body
+	paint.FillShape(gtx.Ops, mainColor, clip.RRect{
+		Rect: image.Rect(
+			centerX-int(bodyWidth)/2,
+			centerY-int(bodyHeight)/2,
+			centerX+int(bodyWidth)/2,
+			centerY+int(bodyHeight)/2,
+		),
+		NE: gtx.Dp(8), NW: gtx.Dp(8), SE: gtx.Dp(4), SW: gtx.Dp(4),
+	}.Op(gtx.Ops))
+
+	// Microphone stand/base
+	standColor := color.NRGBA{
+		R: uint8(150 * pulseFactor),
+		G: uint8(200 * pulseFactor),
+		B: 255,
+		A: uint8(180 * pulseFactor),
+	}
+
+	standWidth := gtx.Dp(6)
+	standHeight := gtx.Dp(8)
+	paint.FillShape(gtx.Ops, standColor, clip.Rect{
+		Min: image.Point{
+			X: centerX - int(standWidth)/2,
+			Y: centerY + int(bodyHeight)/2,
+		},
+		Max: image.Point{
+			X: centerX + int(standWidth)/2,
+			Y: centerY + int(bodyHeight)/2 + int(standHeight),
+		},
+	}.Op())
+
+	// Base platform
+	baseWidth := gtx.Dp(20)
+	baseHeight := gtx.Dp(4)
+	paint.FillShape(gtx.Ops, standColor, clip.Rect{
+		Min: image.Point{
+			X: centerX - int(baseWidth)/2,
+			Y: centerY + int(bodyHeight)/2 + int(standHeight),
+		},
+		Max: image.Point{
+			X: centerX + int(baseWidth)/2,
+			Y: centerY + int(bodyHeight)/2 + int(standHeight) + int(baseHeight),
+		},
+	}.Op())
+
+	// Sound wave lines around microphone (animated)
+	waveCount := 3
+	for i := 0; i < waveCount; i++ {
+		wavePhase := float32(i) * 0.3
+		waveOffset := float32(math.Sin(float64(elapsed*4)+float64(wavePhase))) * 5
+
+		waveColor := color.NRGBA{
+			R: uint8(100 * pulseFactor),
+			G: uint8(220 * pulseFactor),
+			B: uint8(255 * pulseFactor),
+			A: uint8(float32(100*(1-float32(i)/float32(waveCount))) * pulseFactor),
+		}
+
+		// Left wave arc
+		leftWaveX := centerX - int(bodyWidth)/2 - gtx.Dp(4) - int(waveOffset)
+		paint.FillShape(gtx.Ops, waveColor, clip.Rect{
+			Min: image.Point{X: leftWaveX - gtx.Dp(1), Y: centerY - gtx.Dp(6)},
+			Max: image.Point{X: leftWaveX, Y: centerY + gtx.Dp(6)},
+		}.Op())
+
+		// Right wave arc
+		rightWaveX := centerX + int(bodyWidth)/2 + gtx.Dp(4) + int(waveOffset)
+		paint.FillShape(gtx.Ops, waveColor, clip.Rect{
+			Min: image.Point{X: rightWaveX, Y: centerY - gtx.Dp(6)},
+			Max: image.Point{X: rightWaveX + gtx.Dp(1), Y: centerY + gtx.Dp(6)},
+		}.Op())
+	}
 }
 
 func (v *VoiceRecorder) encodeAndSendAsync() {
