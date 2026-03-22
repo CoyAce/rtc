@@ -1114,7 +1114,8 @@ func (m *Message) SendTo(messageAppender *MessageKeeper) {
 func (m *Message) drawMessage(gtx layout.Context) layout.Dimensions {
 	m.processTextCopy(gtx, m.Text)
 	m.processFileViewAndSave(gtx)
-	m.getFocusIfClickedToEnableFocusLostEvent(gtx)
+	// use defer to process long press release event after other components
+	defer m.processLongPressEvents(gtx)()
 	flex := layout.Flex{Axis: layout.Vertical, Alignment: layout.Start}
 	if m.isPrimary() {
 		flex.Alignment = layout.End
@@ -1145,7 +1146,8 @@ func (m *Message) processFileViewAndSave(gtx layout.Context) {
 	}
 }
 
-func (m *Message) getFocusIfClickedToEnableFocusLostEvent(gtx layout.Context) {
+func (m *Message) processLongPressEvents(gtx layout.Context) (releaseFunc func()) {
+	releaseFunc = func() {}
 	for {
 		e, ok := m.InteractiveSpan.Update(gtx)
 		if !ok {
@@ -1154,14 +1156,18 @@ func (m *Message) getFocusIfClickedToEnableFocusLostEvent(gtx layout.Context) {
 		if e.Type == LongPress {
 			if m.TextSelected() {
 				m.longPressed = false
-			} else {
-				gtx.Execute(key.FocusCmd{Tag: &m.InteractiveSpan})
 			}
-		}
-		if e.Type == Press {
-			gtx.Execute(key.FocusCmd{Tag: &m.InteractiveSpan})
+			gtx.Execute(op.InvalidateCmd{})
+		} else if e.Type == LongPressRelease {
+			releaseFunc = func() {
+				gtx.Execute(key.FocusCmd{Tag: &m.InteractiveSpan})
+				gtx.Execute(op.InvalidateCmd{})
+			}
+		} else if e.Type == Click || e.Type == Press {
+			gtx.Execute(op.InvalidateCmd{})
 		}
 	}
+	return
 }
 
 func (m *Message) drawStateAndContent(gtx layout.Context) layout.Dimensions {
@@ -1419,7 +1425,7 @@ func (m *Message) drawBorder(gtx layout.Context, d layout.Dimensions, call op.Ca
 }
 
 func (m *Message) addInteractiveSpan(gtx layout.Context) {
-	if m.InteractiveSpan.pressing {
+	if m.pressing {
 		defer pointer.StopOp{}.Push(gtx.Ops).Pop()
 	}
 	m.InteractiveSpan.Layout(gtx)
