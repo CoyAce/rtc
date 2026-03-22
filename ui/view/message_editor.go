@@ -101,7 +101,7 @@ func (e *MessageEditor) Layout(gtx layout.Context) layout.Dimensions {
 	bottomGlowColor := fonts.DefaultTheme.ContrastBg
 	bottomGlowColor.A = breathingOpacity
 	paint.FillShape(gtx.Ops, bottomGlowColor, clip.Rect{
-		Min: image.Point{Y: dimensions.Size.Y - int(baseGlowHeight)},
+		Min: image.Point{Y: dimensions.Size.Y - baseGlowHeight},
 		Max: image.Point{X: dimensions.Size.X, Y: dimensions.Size.Y},
 	}.Op())
 

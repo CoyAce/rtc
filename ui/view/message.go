@@ -81,6 +81,7 @@ const (
 	Click
 	Press
 	LongPressRelease
+	Cancel
 )
 
 // Event describes an interaction with rich text.
@@ -141,6 +142,7 @@ func (i *InteractiveSpan) Update(gtx layout.Context) (Event, bool) {
 			i.pressing = false
 			i.longPressing = false
 			i.longPressed = false
+			return Event{Type: Cancel}, true
 		}
 	}
 	if isHovered := i.click.Hovered(); isHovered != i.hovering {
