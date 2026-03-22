@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"image/draw"
 	"io"
 	"log"
 	"math"
@@ -39,11 +40,13 @@ import (
 	"gioui.org/x/component"
 	"github.com/CoyAce/opus/ogg"
 	"github.com/CoyAce/wi"
+	"golang.org/x/exp/shiny/iconvg"
 	"golang.org/x/exp/shiny/materialdesign/colornames"
+	mdicons "golang.org/x/exp/shiny/materialdesign/icons"
 )
 
 // ShanghaiLoc 上海时区（UTC+8）
-var ShanghaiLoc = time.FixedZone("Asia/Shanghai", 8*60*60) // 8小时 * 60分钟 * 60秒
+var ShanghaiLoc = time.FixedZone("Asia/Shanghai", 8*60*60) // 8 小时 * 60 分钟 * 60 秒
 
 type State uint16
 
@@ -444,63 +447,53 @@ func (f *FileControl) drawIcon(isPrimary bool) func(gtx layout.Context) layout.D
 	return func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Min.Y
 		baseColor := f.getFileIconColor(isPrimary)
+		iconSize := gtx.Constraints.Min.X
 
-		// Layer 1: Bold drop shadow with color tint
-		// Use darker version of base color for colored shadow
+		// Calculate shadow bounds: max offset + icon size
+		const (
+			maxShadowOffset = 4 // pixels (layer i=3 has offset 3px)
+			shadowPadding   = 2 // extra padding for soft edges
+		)
+		totalSize := iconSize + maxShadowOffset + shadowPadding
+
+		// Layer 1-4: Soft drop shadow with smooth gradient
+		// Offsets: 4px, 3px, 2px, 1px for layered shadow effect
 		for i := 4; i > 0; i-- {
-			gtx.Constraints.Min.X += 2
-			gtx.Constraints.Min.Y += 2
-			shadowAlpha := uint8(80 - i*15)
+			offsetX := i * 1 // 4, 3, 2, 1 pixels
+			offsetY := i * 1
+			// Gentler alpha gradient (25, 50, 75, 100)
+			shadowAlpha := uint8(i * 25)
+
+			// Apply offset to operations stack
+			save := op.Offset(image.Point{X: offsetX, Y: offsetY}).Push(gtx.Ops)
+
 			f.getIconByMimeType().Layout(gtx, color.NRGBA{
-				R: uint8(float32(baseColor.R) * 0.3),
-				G: uint8(float32(baseColor.G) * 0.3),
-				B: uint8(float32(baseColor.B) * 0.3),
+				R: uint8(float32(baseColor.R) * 0.2),
+				G: uint8(float32(baseColor.G) * 0.2),
+				B: uint8(float32(baseColor.B) * 0.2),
 				A: shadowAlpha,
 			})
+
+			// Restore operations stack
+			save.Pop()
 		}
 
-		// Layer 2: Deep shadow close to icon
-		gtx.Constraints.Min.X += 1
-		gtx.Constraints.Min.Y += 1
+		// Layer 5: Deep shadow close to icon (no offset, defines edge)
+		// Direct draw without offset to create sharp edge definition
 		f.getIconByMimeType().Layout(gtx, color.NRGBA{
-			R: uint8(float32(baseColor.R) * 0.5),
-			G: uint8(float32(baseColor.G) * 0.5),
-			B: uint8(float32(baseColor.B) * 0.5),
-			A: 100,
+			R: uint8(float32(baseColor.R) * 0.35),
+			G: uint8(float32(baseColor.G) * 0.35),
+			B: uint8(float32(baseColor.B) * 0.35),
+			A: 120,
 		})
 
-		// Layer 3: Base icon (darker foundation)
-		gtx.Constraints.Min.X -= 9
-		gtx.Constraints.Min.Y -= 9
-		baseDark := color.NRGBA{
-			R: uint8(float32(baseColor.R) * 0.7),
-			G: uint8(float32(baseColor.G) * 0.7),
-			B: uint8(float32(baseColor.B) * 0.7),
-			A: 255,
-		}
-		f.getIconByMimeType().Layout(gtx, baseDark)
+		// Draw icon with glitch gradient in real-time
+		finalImg := renderGlitchIcon(f.getIconVGData(), baseColor, iconSize)
+		imgOp := paint.NewImageOp(finalImg)
+		imgOp.Add(gtx.Ops)
+		paint.PaintOp{}.Add(gtx.Ops)
 
-		// Layer 4: Mid-tone gradient
-		midColor := color.NRGBA{
-			R: uint8(float32(baseColor.R) * 0.9),
-			G: uint8(float32(baseColor.G) * 0.9),
-			B: uint8(float32(baseColor.B) * 0.9),
-			A: 255,
-		}
-		gtx.Constraints.Min.X += 1
-		gtx.Constraints.Min.Y += 1
-		f.getIconByMimeType().Layout(gtx, midColor)
-
-		// Layer 5: Bright highlight for dramatic effect
-		highlightColor := color.NRGBA{
-			R: uint8(math.Min(255.0, float64(baseColor.R)*1.3)),
-			G: uint8(math.Min(255.0, float64(baseColor.G)*1.3)),
-			B: uint8(math.Min(255.0, float64(baseColor.B)*1.3)),
-			A: 220,
-		}
-		gtx.Constraints.Min.X += 1
-		gtx.Constraints.Min.Y += 1
-		return f.getIconByMimeType().Layout(gtx, highlightColor)
+		return layout.Dimensions{Size: image.Point{X: totalSize, Y: totalSize}}
 	}
 }
 
@@ -592,6 +585,152 @@ func (f *FileControl) getIconByMimeType() *widget.Icon {
 	default:
 		return icons.UnknownIcon
 	}
+}
+
+// getIconVGData returns the raw IconVG byte data for the icon
+func (f *FileControl) getIconVGData() []byte {
+	switch f.Mime {
+	case Apk:
+		return icons.Apk
+	case Music:
+		return icons.Audio
+	case Video:
+		return icons.Video
+	case Picture:
+		return mdicons.ImageImage
+	case Ebook:
+		return mdicons.ActionBook
+	default:
+		return mdicons.FileAttachment
+	}
+}
+
+// randInt returns a pseudo-random integer in range [min, max]
+func randInt(min, max int) int {
+	// Simple deterministic "random" based on position for reproducibility
+	return min + (max-min)%7
+}
+
+// renderGlitchIcon renders a glitch-style gradient icon from IconVG data
+// This function is CPU-intensive, so results should be cached
+func renderGlitchIcon(iconVGData []byte, baseColor color.NRGBA, iconSize int) *image.RGBA {
+	// Step 1: Rasterize icon to get alpha mask
+	maskImg := image.NewRGBA(image.Rect(0, 0, iconSize, iconSize))
+	var rasterizer iconvg.Rasterizer
+	rasterizer.SetDstImage(maskImg, maskImg.Bounds(), draw.Src)
+
+	metadata, err := iconvg.DecodeMetadata(iconVGData)
+	if err != nil {
+		return nil
+	}
+
+	// Use white color - we only need alpha channel
+	whitePalette := metadata.Palette
+	for i := range whitePalette {
+		whitePalette[i] = color.RGBA{R: 255, G: 255, B: 255, A: 255}
+	}
+
+	err = iconvg.Decode(&rasterizer, iconVGData, &iconvg.DecodeOptions{
+		Palette: &whitePalette,
+	})
+	if err != nil {
+		return nil
+	}
+
+	// Step 2: Create ULTRA glitch gradient (maximum cyberpunk chaos)
+	// OPTIMIZATION: Only process non-transparent pixels
+	gradientImg := image.NewRGBA(image.Rect(0, 0, iconSize, iconSize))
+
+	const (
+		blockSize   = 6    // Size of glitch blocks
+		rgbMaxShift = 12   // Maximum RGB channel separation
+		noiseMax    = 0.15 // Maximum noise intensity
+		scanlineW   = 3    // Scanline width
+	)
+
+	for y := 0; y < iconSize; y++ {
+		for x := 0; x < iconSize; x++ {
+			// Check alpha mask first - skip fully transparent pixels!
+			maskIdx := y*maskImg.Stride + x*4
+			alpha := maskImg.Pix[maskIdx+3]
+			if alpha == 0 {
+				// Fully transparent - no need to calculate glitch effect
+				continue
+			}
+
+			idx := y*gradientImg.Stride + x*4
+
+			// 1. Block-based random displacement (digital corruption)
+			blockX := x / blockSize
+			blockY := y / blockSize
+			blockSeed := float64((blockX*7 + blockY*13) % 100)
+
+			// Each block has independent horizontal shift
+			blockShift := int(math.Sin(blockSeed*2.7) * 10)
+			shiftedX := (x + blockShift + iconSize) % iconSize
+
+			// 2. Extreme RGB channel separation with wave distortion
+			rWave := math.Sin(float64(y)*0.08) * rgbMaxShift
+			gWave := math.Cos(float64(y)*0.12) * rgbMaxShift * 0.7
+			bWave := math.Sin(float64(y)*0.15) * rgbMaxShift * 0.5
+
+			rx := (shiftedX + int(rWave) + iconSize) % iconSize
+			gx := (shiftedX + int(gWave) + iconSize) % iconSize
+			bx := (shiftedX + int(bWave) + iconSize) % iconSize
+
+			// 3. Vertical scanlines for retro monitor effect
+			scanline := math.Sin(float64(x/scanlineW)*3.14159) * 0.3
+
+			// 4. Random horizontal glitch bands (every 5-8 rows)
+			glitchBand := 0.0
+			if y%randInt(5, 9) == 0 {
+				glitchBand = math.Sin(float64(x)*0.15+float64(y)*0.1) * 0.5
+			}
+
+			// 5. Per-pixel noise (salt & pepper)
+			noise := (math.Sin(float64(x*y)*0.01) + 1.0) * 0.5 * noiseMax
+
+			// Combine all effects per channel
+			rBright := 1.0 + scanline + glitchBand + noise + 0.4*math.Sin(float64(rx)*0.1)
+			gBright := 1.0 + scanline + glitchBand + noise + 0.3*math.Cos(float64(gx)*0.12)
+			bBright := 1.0 + scanline + glitchBand + noise + 0.5*math.Sin(float64(bx)*0.08)
+
+			// 6. Occasional bright spikes (signal overload)
+			if (x+y)%17 == 0 && blockSeed > 80 {
+				rBright += 0.6
+				gBright += 0.4
+				bBright += 0.5
+			}
+
+			// Clamp to valid range
+			rBright = math.Max(0.5, math.Min(1.8, rBright))
+			gBright = math.Max(0.5, math.Min(1.8, gBright))
+			bBright = math.Max(0.5, math.Min(1.8, bBright))
+
+			gradientImg.Pix[idx+0] = uint8(math.Min(255.0, float64(baseColor.R)*rBright))
+			gradientImg.Pix[idx+1] = uint8(math.Min(255.0, float64(baseColor.G)*gBright))
+			gradientImg.Pix[idx+2] = uint8(math.Min(255.0, float64(baseColor.B)*bBright))
+			gradientImg.Pix[idx+3] = 255
+		}
+	}
+
+	// Step 3: Composite gradient with icon alpha mask
+	finalImg := image.NewRGBA(image.Rect(0, 0, iconSize, iconSize))
+	for y := 0; y < iconSize; y++ {
+		for x := 0; x < iconSize; x++ {
+			maskIdx := y*maskImg.Stride + x*4
+			gradIdx := y*gradientImg.Stride + x*4
+			finalIdx := y*finalImg.Stride + x*4
+
+			alpha := uint16(maskImg.Pix[maskIdx+3])
+			finalImg.Pix[finalIdx+0] = uint8(uint16(gradientImg.Pix[gradIdx+0]) * alpha / 255)
+			finalImg.Pix[finalIdx+1] = uint8(uint16(gradientImg.Pix[gradIdx+1]) * alpha / 255)
+			finalImg.Pix[finalIdx+2] = uint8(uint16(gradientImg.Pix[gradIdx+2]) * alpha / 255)
+			finalImg.Pix[finalIdx+3] = uint8(alpha >> 8)
+		}
+	}
+
+	return finalImg
 }
 
 func (f *FileControl) toHumanReadable(v float32) string {
