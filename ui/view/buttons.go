@@ -131,8 +131,7 @@ func MulAlpha(c color.NRGBA, alpha uint8) color.NRGBA {
 type GlitchIconButtonStyle struct {
 	Background  color.NRGBA
 	Color       color.NRGBA
-	Icon        *widget.Icon
-	VGData      []byte // IconVG data for glitch rendering
+	Icon        []byte // IconVG data for glitch rendering
 	Size        unit.Dp
 	Inset       layout.Inset
 	Button      *widget.Clickable
@@ -180,10 +179,10 @@ func (b GlitchIconButtonStyle) Layout(gtx layout.Context) layout.Dimensions {
 					size := gtx.Dp(b.Size)
 					iconSize := size
 
-					// Use glitch-rendered icon if VGData is provided
-					if b.VGData != nil && useGlitchColor {
+					// Use glitch-rendered icon if Icon is provided
+					if b.Icon != nil && useGlitchColor {
 						// Render icon with ultra glitch effect
-						glitchImg := renderGlitchIcon(b.VGData, b.Color, iconSize)
+						glitchImg := renderGlitchIcon(b.Icon, b.Color, iconSize)
 						if glitchImg != nil {
 							paint.NewImageOp(glitchImg).Add(gtx.Ops)
 							paint.PaintOp{}.Add(gtx.Ops)
@@ -191,41 +190,42 @@ func (b GlitchIconButtonStyle) Layout(gtx layout.Context) layout.Dimensions {
 						}
 					}
 
-					if b.Icon != nil {
-						gtx.Constraints.Min = image.Point{X: size}
+					// Draw glitch layers if animating (RGB split with offset)
+					if useGlitchLayers {
+						buttonPhase := b.Phase
+						elapsed := b.ElapsedTime
 
-						// Draw glitch layers if animating (RGB split with offset)
-						if useGlitchLayers {
-							buttonPhase := b.Phase
-							elapsed := b.ElapsedTime
+						// RGB split layers - render icon with different colors and offsets
+						layerConfigs := []struct {
+							color   color.NRGBA
+							offsetX int
+							offsetY int
+						}{
+							{
+								color:   color.NRGBA{R: 255, G: 50, B: 100, A: uint8(150 * glitchIntensity)},
+								offsetX: int(float32(gtx.Dp(6)) * float32(math.Sin(float64(elapsed*25+buttonPhase)))),
+								offsetY: int(float32(gtx.Dp(4)) * float32(math.Cos(float64(elapsed*18+buttonPhase)))),
+							},
+							{
+								color:   color.NRGBA{R: 50, G: 255, B: 150, A: uint8(140 * glitchIntensity)},
+								offsetX: int(float32(gtx.Dp(5)) * float32(math.Cos(float64(elapsed*22+buttonPhase)))),
+								offsetY: int(float32(gtx.Dp(6)) * float32(math.Sin(float64(elapsed*15+buttonPhase)))),
+							},
+							{
+								color:   color.NRGBA{R: 50, G: 100, B: 255, A: uint8(160 * glitchIntensity)},
+								offsetX: int(float32(gtx.Dp(8)) * float32(math.Sin(float64(elapsed*30+buttonPhase)))),
+								offsetY: int(float32(gtx.Dp(3)) * float32(math.Cos(float64(elapsed*28+buttonPhase)))),
+							},
+						}
 
-							// RGB split layers
-							layerConfigs := []struct {
-								color   color.NRGBA
-								offsetX int
-								offsetY int
-							}{
-								{
-									color:   color.NRGBA{R: 255, G: 50, B: 100, A: uint8(150 * glitchIntensity)},
-									offsetX: int(float32(gtx.Dp(6)) * float32(math.Sin(float64(elapsed*25+buttonPhase)))),
-									offsetY: int(float32(gtx.Dp(4)) * float32(math.Cos(float64(elapsed*18+buttonPhase)))),
-								},
-								{
-									color:   color.NRGBA{R: 50, G: 255, B: 150, A: uint8(140 * glitchIntensity)},
-									offsetX: int(float32(gtx.Dp(5)) * float32(math.Cos(float64(elapsed*22+buttonPhase)))),
-									offsetY: int(float32(gtx.Dp(6)) * float32(math.Sin(float64(elapsed*15+buttonPhase)))),
-								},
-								{
-									color:   color.NRGBA{R: 50, G: 100, B: 255, A: uint8(160 * glitchIntensity)},
-									offsetX: int(float32(gtx.Dp(8)) * float32(math.Sin(float64(elapsed*30+buttonPhase)))),
-									offsetY: int(float32(gtx.Dp(3)) * float32(math.Cos(float64(elapsed*28+buttonPhase)))),
-								},
-							}
-
-							for _, layer := range layerConfigs {
-								if layer.color.A > 20 {
+						for _, layer := range layerConfigs {
+							if layer.color.A > 20 && b.Icon != nil {
+								// Render icon with layer color using Icon
+								glitchImg := renderGlitchIcon(b.Icon, layer.color, size)
+								if glitchImg != nil {
 									op.Offset(image.Pt(layer.offsetX, layer.offsetY)).Add(gtx.Ops)
-									b.Icon.Layout(gtx, layer.color)
+									paint.NewImageOp(glitchImg).Add(gtx.Ops)
+									paint.PaintOp{}.Add(gtx.Ops)
 									op.Offset(image.Pt(-layer.offsetX, -layer.offsetY)).Add(gtx.Ops)
 								}
 							}
@@ -303,7 +303,6 @@ const (
 
 type IconButton struct {
 	*material.Theme
-	Icon    *widget.Icon
 	VGData  []byte      // IconVG data for glitch rendering
 	Color   color.NRGBA // Custom icon color for glitch effects
 	Enabled bool
@@ -338,8 +337,7 @@ func (b *IconButton) Layout(gtx layout.Context, progress float32, phase float32,
 	return GlitchIconButtonStyle{
 		Background:  bg,
 		Color:       iconColor,
-		Icon:        b.Icon,
-		VGData:      b.VGData,
+		Icon:        b.VGData,
 		Size:        unit.Dp(24.0),
 		Button:      &b.button,
 		Inset:       layout.UniformInset(unit.Dp(9)),
@@ -518,7 +516,7 @@ var iconStackAnimation = component.VisibilityAnimation{
 func NewIconStack(modeSwitch func(*IconButton) func(), appendFile func(mapping *FileDescription)) *IconStack {
 	settings := NewSettingsForm(OnSettingsSubmit)
 	audioMakeButton.OnClick = MakeAudioCall(audioMakeButton)
-	voiceMessageSwitch := &IconButton{Theme: fonts.DefaultTheme, Icon: icons.VoiceMessageIcon, VGData: icons.AVMic, Enabled: true}
+	voiceMessageSwitch := &IconButton{Theme: fonts.DefaultTheme, VGData: icons.AVMic, Enabled: true}
 	voiceMessageSwitch.OnClick = modeSwitch(voiceMessageSwitch)
 
 	// Macaron-inspired cyberpunk color palette for glitch effects
@@ -530,10 +528,10 @@ func NewIconStack(modeSwitch func(*IconButton) func(), appendFile func(mapping *
 	videoColor := color.NRGBA{R: 171, G: 183, B: 183, A: 255}    // Cool Gray - connection & professionalism (Video Call)
 
 	// Create buttons with custom colors
-	settingsButton := &IconButton{Theme: fonts.DefaultTheme, Icon: icons.SettingsIcon, VGData: icons.ActionSettings, Enabled: true, OnClick: settings.ShowWithModal, Color: settingsColor}
-	filesButton := &IconButton{Theme: fonts.DefaultTheme, Icon: icons.FilesIcon, VGData: icons.FileFolder, Enabled: true, OnClick: ChooseAndSendFile(appendFile), Color: filesColor}
-	photoButton := &IconButton{Theme: fonts.DefaultTheme, Icon: icons.PhotoLibraryIcon, VGData: icons.ImagePhotoLibrary, Enabled: true, OnClick: ChooseAndSendPhoto, Color: photoColor}
-	videoButton := &IconButton{Theme: fonts.DefaultTheme, Icon: icons.VideoCallIcon, VGData: icons.AVVideoCall, Color: videoColor}
+	settingsButton := &IconButton{Theme: fonts.DefaultTheme, VGData: icons.ActionSettings, Enabled: true, OnClick: settings.ShowWithModal, Color: settingsColor}
+	filesButton := &IconButton{Theme: fonts.DefaultTheme, VGData: icons.FileFolder, Enabled: true, OnClick: ChooseAndSendFile(appendFile), Color: filesColor}
+	photoButton := &IconButton{Theme: fonts.DefaultTheme, VGData: icons.ImagePhotoLibrary, Enabled: true, OnClick: ChooseAndSendPhoto, Color: photoColor}
+	videoButton := &IconButton{Theme: fonts.DefaultTheme, VGData: icons.AVVideoCall, Color: videoColor}
 	audioMakeButton.Color = audioColor
 	voiceMessageSwitch.Color = voiceColor
 
@@ -563,7 +561,6 @@ func (e *ExpandButton) Layout(gtx layout.Context) layout.Dimensions {
 		gtx,
 		func(gtx layout.Context) layout.Dimensions {
 			btn := &e.expandButton
-			icon := icons.ExpandIcon
 			vgData := icons.NavigationUnfoldMore
 			if e.collapseButton.Clicked(gtx) {
 				iconStackAnimation.Disappear(gtx.Now)
@@ -574,13 +571,11 @@ func (e *ExpandButton) Layout(gtx layout.Context) layout.Dimensions {
 			if iconStackAnimation.Revealed(gtx) != 0 {
 				btn = &e.collapseButton
 				vgData = icons.NavigationUnfoldLess
-				icon = icons.CollapseIcon
 			}
 			return GlitchIconButtonStyle{
 				Background: fonts.DefaultTheme.ContrastBg,
 				Color:      fonts.DefaultTheme.ContrastFg,
-				Icon:       icon,
-				VGData:     vgData,
+				Icon:       vgData,
 				Size:       unit.Dp(24.0),
 				Button:     btn,
 				Inset:      layout.UniformInset(unit.Dp(9)),

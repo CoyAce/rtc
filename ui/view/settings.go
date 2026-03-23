@@ -44,7 +44,7 @@ func NewSettingsForm(onSuccess func()) *SettingsForm {
 		nicknameEditor:   &component.TextField{Editor: widget.Editor{}},
 		signEditor:       &component.TextField{Editor: widget.Editor{}},
 		serverAddrEditor: &component.TextField{Editor: widget.Editor{}},
-		submitButton:     IconButton{Theme: fonts.DefaultTheme, Icon: icons.ActionDoneIcon, VGData: icons.ActionDone, Enabled: true},
+		submitButton:     IconButton{Theme: fonts.DefaultTheme, VGData: icons.ActionDone, Enabled: true},
 	}
 	s.Theme.TextSize = 0.75 * s.Theme.TextSize
 	s.submitButton.OnClick = func() {

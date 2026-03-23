@@ -162,8 +162,7 @@ func (e *MessageEditor) drawSubmitButton(gtx layout.Context) layout.Dimensions {
 	return GlitchIconButtonStyle{
 		Background: e.Theme.ContrastBg,
 		Color:      e.Theme.ContrastFg,
-		Icon:       icons.SubmitIcon,
-		VGData:     icons.ContentSend,
+		Icon:       icons.ContentSend,
 		Size:       unit.Dp(24.0),
 		Button:     &e.submitButton,
 		Inset:      layout.UniformInset(unit.Dp(9)),
