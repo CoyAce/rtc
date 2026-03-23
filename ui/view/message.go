@@ -778,7 +778,7 @@ func (m *MediaControl) Layout(gtx layout.Context, filePath string, isPrimary boo
 
 func (m *MediaControl) drawController(gtx layout.Context, filePath string, isPrimary bool) layout.Dimensions {
 	btn := &m.playButton
-	icon := icons.PlayIcon
+	icon := icons.AVPlayArrow
 	if m.animation == nil {
 		m.animation = &component.Progress{}
 	}
@@ -795,7 +795,7 @@ func (m *MediaControl) drawController(gtx layout.Context, filePath string, isPri
 	if m.animation.Started() {
 		gtx.Execute(op.InvalidateCmd{})
 		btn = &m.pauseButton
-		icon = icons.PauseIcon
+		icon = icons.AVPause
 		// Auto-scroll waveform to follow playback progress
 		progress := m.animation.Progress()
 		// Scroll to show current position
@@ -812,15 +812,18 @@ func (m *MediaControl) drawController(gtx layout.Context, filePath string, isPri
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			// Set fixed button size for consistent appearance
 			const buttonSize = 48 // dp - slightly larger to accommodate time
-			gtx.Constraints.Min.X = gtx.Dp(buttonSize)
+			iconSize := gtx.Dp(buttonSize)
+			gtx.Constraints.Min.X = iconSize
 			return btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				fgColor := fonts.BrightCyan
 				if !isPrimary {
 					fgColor = fonts.BrightPurple
 				}
-				fgColor.A = 255
 				// Layout icon first
-				return icon.Layout(gtx, fgColor)
+				glitchImg := renderGlitchIcon(icon, fgColor, iconSize)
+				paint.NewImageOp(glitchImg).Add(gtx.Ops)
+				paint.PaintOp{}.Add(gtx.Ops)
+				return layout.Dimensions{Size: image.Point{X: iconSize, Y: iconSize}}
 			})
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
