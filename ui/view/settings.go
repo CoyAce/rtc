@@ -219,7 +219,9 @@ func (s *SettingsForm) Layout(gtx layout.Context) layout.Dimensions {
 					return s.serverAddrEditor.Layout(gtx, s.Theme, "")
 				})),
 				layout.Rigid(layout.Spacer{Height: unit.Dp(25)}.Layout),
-				layout.Rigid(s.submitButton.Layout),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return s.submitButton.Layout(gtx, 1.0, 0, 0)
+				}),
 				layout.Rigid(layout.Spacer{Height: unit.Dp(30)}.Layout),
 			)
 		}),
