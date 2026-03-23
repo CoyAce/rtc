@@ -564,6 +564,7 @@ func (e *ExpandButton) Layout(gtx layout.Context) layout.Dimensions {
 		func(gtx layout.Context) layout.Dimensions {
 			btn := &e.expandButton
 			icon := icons.ExpandIcon
+			vgData := icons.NavigationUnfoldMore
 			if e.collapseButton.Clicked(gtx) {
 				iconStackAnimation.Disappear(gtx.Now)
 			}
@@ -572,15 +573,18 @@ func (e *ExpandButton) Layout(gtx layout.Context) layout.Dimensions {
 			}
 			if iconStackAnimation.Revealed(gtx) != 0 {
 				btn = &e.collapseButton
+				vgData = icons.NavigationUnfoldLess
 				icon = icons.CollapseIcon
 			}
-			return material.IconButtonStyle{
+			return GlitchIconButtonStyle{
 				Background: fonts.DefaultTheme.ContrastBg,
 				Color:      fonts.DefaultTheme.ContrastFg,
 				Icon:       icon,
+				VGData:     vgData,
 				Size:       unit.Dp(24.0),
 				Button:     btn,
 				Inset:      layout.UniformInset(unit.Dp(9)),
+				Progress:   1.0,
 			}.Layout(gtx)
 		},
 	)
