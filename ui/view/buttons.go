@@ -156,7 +156,7 @@ func (b GlitchIconButtonStyle) Layout(gtx layout.Context) layout.Dimensions {
 		glitchIntensity := float32(math.Max(0, float64((1-b.Progress)*12)))
 		// Always use glitch for icon color layers, but reduce intensity after animation
 		useGlitchLayers := b.Progress < 1.0 && glitchIntensity > 0.1
-		useGlitchColor := true // Always apply glitch color effect
+		useGlitchColor := !useGlitchLayers // Only apply static glitch when not animating
 
 		return layout.Background{}.Layout(gtx,
 			func(gtx layout.Context) layout.Dimensions {
@@ -179,7 +179,7 @@ func (b GlitchIconButtonStyle) Layout(gtx layout.Context) layout.Dimensions {
 				return b.Inset.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					size := gtx.Dp(b.Size)
 					iconSize := size
-									
+
 					// Use glitch-rendered icon if VGData is provided
 					if b.VGData != nil && useGlitchColor {
 						// Render icon with ultra glitch effect
@@ -190,15 +190,15 @@ func (b GlitchIconButtonStyle) Layout(gtx layout.Context) layout.Dimensions {
 							return layout.Dimensions{Size: image.Point{X: size, Y: size}}
 						}
 					}
-									
+
 					if b.Icon != nil {
 						gtx.Constraints.Min = image.Point{X: size}
-										
+
 						// Draw glitch layers if animating (RGB split with offset)
 						if useGlitchLayers {
 							buttonPhase := b.Phase
 							elapsed := b.ElapsedTime
-												
+
 							// RGB split layers
 							layerConfigs := []struct {
 								color   color.NRGBA
@@ -221,7 +221,7 @@ func (b GlitchIconButtonStyle) Layout(gtx layout.Context) layout.Dimensions {
 									offsetY: int(float32(gtx.Dp(3)) * float32(math.Cos(float64(elapsed*28+buttonPhase)))),
 								},
 							}
-												
+
 							for _, layer := range layerConfigs {
 								if layer.color.A > 20 {
 									op.Offset(image.Pt(layer.offsetX, layer.offsetY)).Add(gtx.Ops)
@@ -229,31 +229,6 @@ func (b GlitchIconButtonStyle) Layout(gtx layout.Context) layout.Dimensions {
 									op.Offset(image.Pt(-layer.offsetX, -layer.offsetY)).Add(gtx.Ops)
 								}
 							}
-						}
-											
-						// Draw main icon with glitch color effect (cyberpunk style)
-						if useGlitchColor {
-							// Apply subtle RGB tint to icon for cyberpunk feel
-							glitchColor := b.Color
-							// Add slight cyan/magenta tint based on phase
-							if int(b.Phase)%2 == 0 {
-								glitchColor = color.NRGBA{
-									R: uint8(float32(b.Color.R) * 0.9),
-									G: uint8(float32(b.Color.G) * 1.05),
-									B: uint8(float32(b.Color.B) * 1.1),
-									A: b.Color.A,
-								}
-							} else {
-								glitchColor = color.NRGBA{
-									R: uint8(float32(b.Color.R) * 1.05),
-									G: uint8(float32(b.Color.G) * 0.95),
-									B: uint8(float32(b.Color.B) * 1.05),
-									A: b.Color.A,
-								}
-							}
-							b.Icon.Layout(gtx, glitchColor)
-						} else {
-							b.Icon.Layout(gtx, b.Color)
 						}
 					}
 					return layout.Dimensions{
@@ -329,7 +304,8 @@ const (
 type IconButton struct {
 	*material.Theme
 	Icon    *widget.Icon
-	VGData  []byte // IconVG data for glitch rendering
+	VGData  []byte      // IconVG data for glitch rendering
+	Color   color.NRGBA // Custom icon color for glitch effects
 	Enabled bool
 	Hidden  bool
 	Mode
@@ -352,9 +328,16 @@ func (b *IconButton) Layout(gtx layout.Context, progress float32, phase float32,
 		bg = color.NRGBA(colornames.Red400)
 	default:
 	}
+
+	// Use custom color if provided, otherwise use theme's ContrastFg
+	iconColor := b.Color
+	if iconColor == (color.NRGBA{}) {
+		iconColor = b.Theme.ContrastFg
+	}
+
 	return GlitchIconButtonStyle{
 		Background:  bg,
-		Color:       b.Theme.ContrastFg,
+		Color:       iconColor,
 		Icon:        b.Icon,
 		VGData:      b.VGData,
 		Size:        unit.Dp(24.0),
@@ -396,6 +379,43 @@ func (s *IconStack) drawIconStackItemsWithGlitch(gtx layout.Context, progress fl
 		if buttonProgress > 0 {
 			// Each button takes buttonSize + spacing between buttons
 			totalHeight += buttonSize + spacing
+		}
+	}
+
+	// Draw horizontal scanlines for retro monitor effect (across entire control panel)
+	if totalHeight > 0 {
+		scanlineCount := 30
+		scanlineSpacing := totalHeight / scanlineCount
+		scanlineHeight := scanlineSpacing / 4
+
+		for i := 0; i < scanlineCount; i++ {
+			y := i * scanlineSpacing
+			// Animate scanlines: slow downward scroll + subtle vibration
+			baseOffset := int(float32(y)+elapsed*float32(totalHeight)*0.3)%(totalHeight+scanlineSpacing) - scanlineSpacing
+			vibration := int(math.Sin(float64(elapsed*15+float32(i)*0.5)) * 1.5) // Subtle jitter
+			offsetY := baseOffset + vibration
+
+			// Alternating scanline colors (cyan and magenta)
+			// Use minimum opacity during animation, fade out when fully expanded
+			scanlineAlpha := uint8(100) // Base alpha for visibility
+			if progress > 0.8 {
+				// Fade out when almost fully expanded
+				scanlineAlpha = uint8(100 * (1.0 - progress))
+			}
+
+			scanlineColor := color.NRGBA{}
+			if i%2 == 0 {
+				scanlineColor = color.NRGBA{R: 0, G: 255, B: 255, A: scanlineAlpha}
+			} else {
+				scanlineColor = color.NRGBA{R: 255, G: 0, B: 255, A: scanlineAlpha}
+			}
+
+			if scanlineColor.A > 20 {
+				paint.FillShape(gtx.Ops, scanlineColor, clip.Rect{
+					Min: image.Point{X: 0, Y: offsetY},
+					Max: image.Point{X: buttonSize, Y: offsetY + scanlineHeight},
+				}.Op())
+			}
 		}
 	}
 
@@ -498,17 +518,34 @@ var iconStackAnimation = component.VisibilityAnimation{
 func NewIconStack(modeSwitch func(*IconButton) func(), appendFile func(mapping *FileDescription)) *IconStack {
 	settings := NewSettingsForm(OnSettingsSubmit)
 	audioMakeButton.OnClick = MakeAudioCall(audioMakeButton)
-	voiceMessageSwitch := &IconButton{Theme: fonts.DefaultTheme, Icon: icons.VoiceMessageIcon, Enabled: true}
+	voiceMessageSwitch := &IconButton{Theme: fonts.DefaultTheme, Icon: icons.VoiceMessageIcon, VGData: icons.AVMic, Enabled: true}
 	voiceMessageSwitch.OnClick = modeSwitch(voiceMessageSwitch)
+
+	// Macaron-inspired cyberpunk color palette for glitch effects
+	settingsColor := color.NRGBA{R: 100, G: 181, B: 246, A: 255} // Sky Blue - tech & wisdom (Settings)
+	audioColor := color.NRGBA{R: 255, G: 138, B: 101, A: 255}    // Coral Orange - energy & communication (Audio Call)
+	voiceColor := color.NRGBA{R: 206, G: 147, B: 216, A: 255}    // Lavender Pink - creativity & expression (Voice Message)
+	filesColor := color.NRGBA{R: 165, G: 214, B: 167, A: 255}    // Sage Green - organization & growth (Files)
+	photoColor := color.NRGBA{R: 255, G: 183, B: 77, A: 255}     // Amber Yellow - creativity & memories (Photos)
+	videoColor := color.NRGBA{R: 171, G: 183, B: 183, A: 255}    // Cool Gray - connection & professionalism (Video Call)
+
+	// Create buttons with custom colors
+	settingsButton := &IconButton{Theme: fonts.DefaultTheme, Icon: icons.SettingsIcon, VGData: icons.ActionSettings, Enabled: true, OnClick: settings.ShowWithModal, Color: settingsColor}
+	filesButton := &IconButton{Theme: fonts.DefaultTheme, Icon: icons.FilesIcon, VGData: icons.FileFolder, Enabled: true, OnClick: ChooseAndSendFile(appendFile), Color: filesColor}
+	photoButton := &IconButton{Theme: fonts.DefaultTheme, Icon: icons.PhotoLibraryIcon, VGData: icons.ImagePhotoLibrary, Enabled: true, OnClick: ChooseAndSendPhoto, Color: photoColor}
+	videoButton := &IconButton{Theme: fonts.DefaultTheme, Icon: icons.VideoCallIcon, VGData: icons.AVVideoCall, Color: videoColor}
+	audioMakeButton.Color = audioColor
+	voiceMessageSwitch.Color = voiceColor
+
 	return &IconStack{
 		Sticky:              false,
 		Theme:               fonts.DefaultTheme,
 		VisibilityAnimation: &iconStackAnimation,
 		IconButtons: []*IconButton{
-			{Theme: fonts.DefaultTheme, Icon: icons.SettingsIcon, VGData: icons.ActionSettings, Enabled: true, OnClick: settings.ShowWithModal},
-			{Theme: fonts.DefaultTheme, Icon: icons.FilesIcon, VGData: icons.FileFolder, Enabled: true, OnClick: ChooseAndSendFile(appendFile)},
-			{Theme: fonts.DefaultTheme, Icon: icons.PhotoLibraryIcon, VGData: icons.ImagePhotoLibrary, Enabled: true, OnClick: ChooseAndSendPhoto},
-			{Theme: fonts.DefaultTheme, Icon: icons.VideoCallIcon, VGData: icons.AVVideoCall},
+			settingsButton,
+			filesButton,
+			photoButton,
+			videoButton,
 			audioMakeButton,
 			voiceMessageSwitch,
 		},

@@ -48,8 +48,10 @@ func (v *VoiceMode) SwitchBetweenTextAndVoice(voiceMessage *IconButton) func() {
 		*v = !*v
 		if *v {
 			voiceMessage.Icon = icons.ChatIcon
+			voiceMessage.VGData = icons.CommunicationChatBubble
 		} else {
 			voiceMessage.Icon = icons.VoiceMessageIcon
+			voiceMessage.VGData = icons.AVMic
 		}
 	}
 }
