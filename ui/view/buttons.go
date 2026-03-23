@@ -132,6 +132,7 @@ type GlitchIconButtonStyle struct {
 	Background  color.NRGBA
 	Color       color.NRGBA
 	Icon        *widget.Icon
+	VGData      []byte // IconVG data for glitch rendering
 	Size        unit.Dp
 	Inset       layout.Inset
 	Button      *widget.Clickable
@@ -151,8 +152,11 @@ func (b GlitchIconButtonStyle) Layout(gtx layout.Context) layout.Dimensions {
 		}
 
 		// Calculate glitch intensity based on progress
+		// Keep some glitch effect even after animation completes for cyberpunk style
 		glitchIntensity := float32(math.Max(0, float64((1-b.Progress)*12)))
-		useGlitch := b.Progress < 1.0 && glitchIntensity > 0.1
+		// Always use glitch for icon color layers, but reduce intensity after animation
+		useGlitchLayers := b.Progress < 1.0 && glitchIntensity > 0.1
+		useGlitchColor := true // Always apply glitch color effect
 
 		return layout.Background{}.Layout(gtx,
 			func(gtx layout.Context) layout.Dimensions {
@@ -174,14 +178,27 @@ func (b GlitchIconButtonStyle) Layout(gtx layout.Context) layout.Dimensions {
 			func(gtx layout.Context) layout.Dimensions {
 				return b.Inset.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					size := gtx.Dp(b.Size)
+					iconSize := size
+									
+					// Use glitch-rendered icon if VGData is provided
+					if b.VGData != nil && useGlitchColor {
+						// Render icon with ultra glitch effect
+						glitchImg := renderGlitchIcon(b.VGData, b.Color, iconSize)
+						if glitchImg != nil {
+							paint.NewImageOp(glitchImg).Add(gtx.Ops)
+							paint.PaintOp{}.Add(gtx.Ops)
+							return layout.Dimensions{Size: image.Point{X: size, Y: size}}
+						}
+					}
+									
 					if b.Icon != nil {
 						gtx.Constraints.Min = image.Point{X: size}
-
-						// Draw glitch layers if animating
-						if useGlitch {
+										
+						// Draw glitch layers if animating (RGB split with offset)
+						if useGlitchLayers {
 							buttonPhase := b.Phase
 							elapsed := b.ElapsedTime
-
+												
 							// RGB split layers
 							layerConfigs := []struct {
 								color   color.NRGBA
@@ -204,7 +221,7 @@ func (b GlitchIconButtonStyle) Layout(gtx layout.Context) layout.Dimensions {
 									offsetY: int(float32(gtx.Dp(3)) * float32(math.Cos(float64(elapsed*28+buttonPhase)))),
 								},
 							}
-
+												
 							for _, layer := range layerConfigs {
 								if layer.color.A > 20 {
 									op.Offset(image.Pt(layer.offsetX, layer.offsetY)).Add(gtx.Ops)
@@ -213,9 +230,31 @@ func (b GlitchIconButtonStyle) Layout(gtx layout.Context) layout.Dimensions {
 								}
 							}
 						}
-
-						// Draw main icon
-						b.Icon.Layout(gtx, b.Color)
+											
+						// Draw main icon with glitch color effect (cyberpunk style)
+						if useGlitchColor {
+							// Apply subtle RGB tint to icon for cyberpunk feel
+							glitchColor := b.Color
+							// Add slight cyan/magenta tint based on phase
+							if int(b.Phase)%2 == 0 {
+								glitchColor = color.NRGBA{
+									R: uint8(float32(b.Color.R) * 0.9),
+									G: uint8(float32(b.Color.G) * 1.05),
+									B: uint8(float32(b.Color.B) * 1.1),
+									A: b.Color.A,
+								}
+							} else {
+								glitchColor = color.NRGBA{
+									R: uint8(float32(b.Color.R) * 1.05),
+									G: uint8(float32(b.Color.G) * 0.95),
+									B: uint8(float32(b.Color.B) * 1.05),
+									A: b.Color.A,
+								}
+							}
+							b.Icon.Layout(gtx, glitchColor)
+						} else {
+							b.Icon.Layout(gtx, b.Color)
+						}
 					}
 					return layout.Dimensions{
 						Size: image.Point{X: size, Y: size},
@@ -290,6 +329,7 @@ const (
 type IconButton struct {
 	*material.Theme
 	Icon    *widget.Icon
+	VGData  []byte // IconVG data for glitch rendering
 	Enabled bool
 	Hidden  bool
 	Mode
@@ -316,6 +356,7 @@ func (b *IconButton) Layout(gtx layout.Context, progress float32, phase float32,
 		Background:  bg,
 		Color:       b.Theme.ContrastFg,
 		Icon:        b.Icon,
+		VGData:      b.VGData,
 		Size:        unit.Dp(24.0),
 		Button:      &b.button,
 		Inset:       layout.UniformInset(unit.Dp(9)),
@@ -464,10 +505,10 @@ func NewIconStack(modeSwitch func(*IconButton) func(), appendFile func(mapping *
 		Theme:               fonts.DefaultTheme,
 		VisibilityAnimation: &iconStackAnimation,
 		IconButtons: []*IconButton{
-			{Theme: fonts.DefaultTheme, Icon: icons.SettingsIcon, Enabled: true, OnClick: settings.ShowWithModal},
-			{Theme: fonts.DefaultTheme, Icon: icons.FilesIcon, Enabled: true, OnClick: ChooseAndSendFile(appendFile)},
-			{Theme: fonts.DefaultTheme, Icon: icons.PhotoLibraryIcon, Enabled: true, OnClick: ChooseAndSendPhoto},
-			{Theme: fonts.DefaultTheme, Icon: icons.VideoCallIcon},
+			{Theme: fonts.DefaultTheme, Icon: icons.SettingsIcon, VGData: icons.ActionSettings, Enabled: true, OnClick: settings.ShowWithModal},
+			{Theme: fonts.DefaultTheme, Icon: icons.FilesIcon, VGData: icons.FileFolder, Enabled: true, OnClick: ChooseAndSendFile(appendFile)},
+			{Theme: fonts.DefaultTheme, Icon: icons.PhotoLibraryIcon, VGData: icons.ImagePhotoLibrary, Enabled: true, OnClick: ChooseAndSendPhoto},
+			{Theme: fonts.DefaultTheme, Icon: icons.VideoCallIcon, VGData: icons.AVVideoCall},
 			audioMakeButton,
 			voiceMessageSwitch,
 		},

@@ -7,6 +7,43 @@ import (
 
 //go:generate go run main.go
 
+// IconVG data exports for glitch rendering
+var (
+	// Custom icons (already in data.go)
+	// Apk, Audio, Browse, FileExport, Video
+	
+	// Material Design Icons - export raw VGData
+	ActionDone           = icons.ActionDone
+	ActionDoneAll        = icons.ActionDoneAll
+	AlertErrorOutline    = icons.AlertErrorOutline
+	ContentSend          = icons.ContentSend
+	NavigationUnfoldMore = icons.NavigationUnfoldMore
+	NavigationUnfoldLess = icons.NavigationUnfoldLess
+	AVMic                = icons.AVMic
+	CommunicationPhone   = icons.CommunicationPhone
+	AVVideoCall          = icons.AVVideoCall
+	AVMicOff             = icons.AVMicOff
+	ActionSettings       = icons.ActionSettings
+	ImagePhotoLibrary    = icons.ImagePhotoLibrary
+	ImageBrokenImage     = icons.ImageBrokenImage
+	NavigationRefresh    = icons.NavigationRefresh
+	NotificationSync     = icons.NotificationSync
+	ContentContentCut    = icons.ContentContentCut
+	ContentContentCopy   = icons.ContentContentCopy
+	ContentContentPaste  = icons.ContentContentPaste
+	FileFileDownload     = icons.FileFileDownload
+	FileCloudDownload    = icons.FileCloudDownload
+	ContentAdd           = icons.ContentAdd
+	AVPlayArrow          = icons.AVPlayArrow
+	AVPause              = icons.AVPause
+	CommunicationChatBubble = icons.CommunicationChatBubble
+	FileFolder           = icons.FileFolder
+	ImageImage           = icons.ImageImage
+	FileAttachment       = icons.FileAttachment
+	ActionBook           = icons.ActionBook
+	ActionCheckCircle    = icons.ActionCheckCircle
+)
+
 var ActionDoneIcon, _ = widget.NewIcon(icons.ActionDone)
 var ActionDoneAllIcon, _ = widget.NewIcon(icons.ActionDoneAll)
 var AlertErrorIcon, _ = widget.NewIcon(icons.AlertErrorOutline)
