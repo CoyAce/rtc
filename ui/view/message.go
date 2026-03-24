@@ -24,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	"gioui.org/f32"
 	"gioui.org/font"
 	"gioui.org/gesture"
 	"gioui.org/io/clipboard"
@@ -1483,76 +1484,56 @@ func (m *Message) drawShadow(gtx layout.Context, size image.Point, sE, sW, nW, n
 }
 
 func (m *Message) drawGradientBackground(gtx layout.Context, size image.Point) {
-	// Get base color from theme
-	baseColor := m.Theme.ContrastBg
+	// Create gradient colors based on theme
+	var colorTop, colorBottom color.NRGBA
 
-	// For received messages, use neutral white as base for proper purple neon effect
-	if !m.isPrimary() {
-		baseColor = color.NRGBA{R: 255, G: 255, B: 255, A: baseColor.A}
+	if m.isPrimary() {
+		// Primary (sent by me): Cyan-blue holographic theme
+		// Enhanced saturation and brightness for better visual appeal
+		colorTop = color.NRGBA{
+			R: 0,
+			G: 140,   // Increased from 127 for richer cyan
+			B: 235,   // Increased from 220 for deeper blue
+			A: 180,
+		}
+		colorBottom = color.NRGBA{
+			R: 0,
+			G: 165,   // Increased from 147 for brighter cyan
+			B: 255,   // Maximum blue for vibrant highlight
+			A: 220,
+		}
+	} else {
+		// Secondary (received): Purple-magenta neon cyberpunk theme
+		// Base: RGB(255, 255, 255)
+		// Top: darker purple
+		colorTop = color.NRGBA{
+			R: 195,   // Increased from 188 for warmer purple
+			G: 105,   // Slightly decreased from 114 for richer tone
+			B: 205,   // Increased from 196 for vibrant magenta
+			A: 180,
+		}
+		// Bottom: brighter purple
+		colorBottom = color.NRGBA{
+			R: 225,   // Increased from 217 for brighter pink-purple
+			G: 125,   // Decreased from 132 for better contrast
+			B: 235,   // Increased from 226 for luminous highlight
+			A: 220,
+		}
 	}
 
-	// Create smooth vertical gradient using thin rectangles
-	// Fixed 2px height per step for smooth transitions regardless of message length
-	const stepHeight = 2
-	numSteps := (size.Y + stepHeight - 1) / stepHeight // Round up
-
-	for i := 0; i < numSteps; i++ {
-		// Calculate position ratio (0.0 at top, 1.0 at bottom)
-		ratio := float32(i) / float32(numSteps-1)
-
-		// Geek-style gradient with tech-inspired effects
-		// Features: Subtle scanline pattern and digital color shift
-
-		// Base linear brightness gradient - moderate range for smooth gradient
-		baseBrightness := 0.75 + ratio*0.25 // 0.75 -> 1.0 (subtle brightening)
-
-		// Add very subtle scanline effect (high frequency, very low amplitude)
-		scanlineFreq := float64(size.Y) / 2.0 // Frequency adapts to height
-		scanline := math.Sin(float64(i)*math.Pi*2.0/scanlineFreq) * 0.015
-
-		// Combined brightness with subtle effects
-		brightness := float32(baseBrightness + float32(scanline))
-
-		gradientColor := baseColor
-
-		if m.isPrimary() {
-			// Primary (sent by me): Cyan-blue holographic theme
-			// Strong RGB channel separation for holographic display effect
-			// Reduce red, boost blue for cyan glow
-			gradientColor.R = uint8(math.Max(0, math.Min(255, float64(gradientColor.R)*float64(brightness)*0.7)))
-			gradientColor.G = uint8(math.Max(0, math.Min(255, float64(gradientColor.G)*float64(brightness)*1.1)))
-			gradientColor.B = uint8(math.Max(0, math.Min(255, float64(gradientColor.B)*float64(brightness)*1.35)))
-		} else {
-			// Secondary (received): Purple-magenta neon cyberpunk theme
-			// Enhanced RGB separation for neon glow effect
-			// Boost red and blue, suppress green for purple-neon look
-			// Keep colors more balanced for aesthetics while maintaining readability
-			gradientColor.R = uint8(math.Max(0, math.Min(255, float64(gradientColor.R)*float64(brightness)*1.15)))
-			gradientColor.G = uint8(math.Max(0, math.Min(255, float64(gradientColor.G)*float64(brightness)*0.70)))
-			gradientColor.B = uint8(math.Max(0, math.Min(255, float64(gradientColor.B)*float64(brightness)*1.20)))
-		}
-
-		// Dynamic alpha with subtle variation
-		// Keep high opacity throughout for visible gradient
-		alphaBase := 180.0 + ratio*40.0
-		gradientColor.A = uint8(alphaBase)
-
-		yStart := i * stepHeight
-		yEnd := yStart + stepHeight
-		if yEnd > size.Y {
-			yEnd = size.Y
-		}
-
-		rect := clip.Rect{
-			Min: image.Point{Y: yStart},
-			Max: image.Point{X: size.X, Y: yEnd},
-		}.Push(gtx.Ops)
-		paint.FillShape(gtx.Ops, gradientColor, clip.Rect{
-			Min: image.Point{Y: yStart},
-			Max: image.Point{X: size.X, Y: yEnd},
-		}.Op())
-		rect.Pop()
+	// Use LinearGradientOp for efficient vertical gradient
+	// Define gradient from top (0,0) to bottom (0, size.Y)
+	gradient := paint.LinearGradientOp{
+		Stop1:  f32.Point{X: 0, Y: 0},
+		Color1: colorTop,
+		Stop2:  f32.Point{X: 0, Y: float32(size.Y)},
+		Color2: colorBottom,
 	}
+	gradient.Add(gtx.Ops)
+
+	// Fill the clipped rectangle with the gradient brush using PaintOp
+	defer clip.Rect{Max: size}.Push(gtx.Ops).Pop()
+	paint.PaintOp{}.Add(gtx.Ops)
 }
 
 func (m *Message) drawState(gtx layout.Context) layout.Dimensions {
