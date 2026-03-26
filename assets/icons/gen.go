@@ -115,24 +115,24 @@ type SVG struct {
 	Width   string `xml:"where,attr"`
 	Height  string `xml:"height,attr"`
 	ViewBox string `xml:"viewBox,attr"`
-	Paths   []Path `xml:"path"`
+	Paths   []path `xml:"path"`
 	// Some of the SVG files contain <circle> elements, not just <path>
 	// elements. IconVG doesn't have circles per se. Instead, we convert such
 	// circles to be paired arcTo commands, tacked on to the first path.
 	//
 	// In general, this isn't correct if the circles and the path overlap, but
 	// that doesn't happen in the specific case of the Material Design icons.
-	Circles []Circle `xml:"circle"`
+	Circles []circle `xml:"circle"`
 }
 
-type Path struct {
+type path struct {
 	D           string   `xml:"d,attr"`
 	Fill        string   `xml:"fill,attr"`
 	FillOpacity *float32 `xml:"fill-opacity,attr"`
 	Opacity     *float32 `xml:"opacity,attr"`
 }
 
-type Circle struct {
+type circle struct {
 	Cx float32 `xml:"cx,attr"`
 	Cy float32 `xml:"cy,attr"`
 	R  float32 `xml:"r,attr"`
@@ -225,7 +225,7 @@ func genFile(baseName, fileName string) error {
 	}
 
 	if len(g.Circles) != 0 {
-		if err := genPath(&enc, &Path{}, adjs, size, offset, g.Circles); err != nil {
+		if err := genPath(&enc, &path{}, adjs, size, offset, g.Circles); err != nil {
 			return err
 		}
 		g.Circles = nil
@@ -245,7 +245,7 @@ func genFile(baseName, fileName string) error {
 	return nil
 }
 
-func genPath(enc *iconvg.Encoder, p *Path, adjs map[float32]uint8, size float32, offset f32.Vec2, circles []Circle) error {
+func genPath(enc *iconvg.Encoder, p *path, adjs map[float32]uint8, size float32, offset f32.Vec2, circles []circle) error {
 	adj := uint8(0)
 	opacity := float32(1)
 	if p.Opacity != nil {

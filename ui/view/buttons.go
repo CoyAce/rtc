@@ -303,7 +303,7 @@ const (
 
 type IconButton struct {
 	*material.Theme
-	VGData  []byte      // IconVG data for glitch rendering
+	Icon    []byte      // IconVG data for glitch rendering
 	Color   color.NRGBA // Custom icon color for glitch effects
 	Enabled bool
 	Hidden  bool
@@ -337,7 +337,7 @@ func (b *IconButton) Layout(gtx layout.Context, progress float32, phase float32,
 	return GlitchIconButtonStyle{
 		Background:  bg,
 		Color:       iconColor,
-		Icon:        b.VGData,
+		Icon:        b.Icon,
 		Size:        unit.Dp(24.0),
 		Button:      &b.button,
 		Inset:       layout.UniformInset(unit.Dp(9)),
@@ -355,7 +355,7 @@ type IconStack struct {
 }
 
 func (s *IconStack) drawIconStackItemsWithGlitch(gtx layout.Context, progress float32) layout.Dimensions {
-	elapsed := float32(time.Now().UnixNano()%1e9) / 1e9
+	elapsed := float32(s.Duration/time.Millisecond) * progress
 
 	// IconButton size is fixed: 24dp icon + 9dp inset * 2 = 42dp
 	buttonSize := gtx.Dp(42)
@@ -516,7 +516,7 @@ var iconStackAnimation = component.VisibilityAnimation{
 func NewIconStack(modeSwitch func(*IconButton) func(), appendFile func(mapping *FileDescription)) *IconStack {
 	settings := NewSettingsForm(OnSettingsSubmit)
 	audioMakeButton.OnClick = MakeAudioCall(audioMakeButton)
-	voiceMessageSwitch := &IconButton{Theme: fonts.DefaultTheme, VGData: icons.AVMic, Enabled: true}
+	voiceMessageSwitch := &IconButton{Theme: fonts.DefaultTheme, Icon: icons.AVMic, Enabled: true}
 	voiceMessageSwitch.OnClick = modeSwitch(voiceMessageSwitch)
 
 	// Macaron-inspired cyberpunk color palette for glitch effects
@@ -528,10 +528,10 @@ func NewIconStack(modeSwitch func(*IconButton) func(), appendFile func(mapping *
 	videoColor := color.NRGBA{R: 171, G: 183, B: 183, A: 255}    // Cool Gray - connection & professionalism (Video Call)
 
 	// Create buttons with custom colors
-	settingsButton := &IconButton{Theme: fonts.DefaultTheme, VGData: icons.ActionSettings, Enabled: true, OnClick: settings.ShowWithModal, Color: settingsColor}
-	filesButton := &IconButton{Theme: fonts.DefaultTheme, VGData: icons.FileFolder, Enabled: true, OnClick: ChooseAndSendFile(appendFile), Color: filesColor}
-	photoButton := &IconButton{Theme: fonts.DefaultTheme, VGData: icons.ImagePhotoLibrary, Enabled: true, OnClick: ChooseAndSendPhoto, Color: photoColor}
-	videoButton := &IconButton{Theme: fonts.DefaultTheme, VGData: icons.AVVideoCall, Color: videoColor}
+	settingsButton := &IconButton{Theme: fonts.DefaultTheme, Icon: icons.ActionSettings, Enabled: true, OnClick: settings.ShowWithModal, Color: settingsColor}
+	filesButton := &IconButton{Theme: fonts.DefaultTheme, Icon: icons.FileFolder, Enabled: true, OnClick: ChooseAndSendFile(appendFile), Color: filesColor}
+	photoButton := &IconButton{Theme: fonts.DefaultTheme, Icon: icons.ImagePhotoLibrary, Enabled: true, OnClick: ChooseAndSendPhoto, Color: photoColor}
+	videoButton := &IconButton{Theme: fonts.DefaultTheme, Icon: icons.AVVideoCall, Color: videoColor}
 	audioMakeButton.Color = audioColor
 	voiceMessageSwitch.Color = voiceColor
 
@@ -556,31 +556,25 @@ type ExpandButton struct {
 }
 
 func (e *ExpandButton) Layout(gtx layout.Context) layout.Dimensions {
-	margins := layout.Inset{Left: unit.Dp(8.0)}
-	return margins.Layout(
-		gtx,
-		func(gtx layout.Context) layout.Dimensions {
-			btn := &e.expandButton
-			vgData := icons.NavigationUnfoldMore
-			if e.collapseButton.Clicked(gtx) {
-				iconStackAnimation.Disappear(gtx.Now)
-			}
-			if e.expandButton.Clicked(gtx) {
-				iconStackAnimation.Appear(gtx.Now)
-			}
-			if iconStackAnimation.Revealed(gtx) != 0 {
-				btn = &e.collapseButton
-				vgData = icons.NavigationUnfoldLess
-			}
-			return GlitchIconButtonStyle{
-				Background: fonts.DefaultTheme.ContrastBg,
-				Color:      fonts.DefaultTheme.ContrastFg,
-				Icon:       vgData,
-				Size:       unit.Dp(24.0),
-				Button:     btn,
-				Inset:      layout.UniformInset(unit.Dp(9)),
-				Progress:   1.0,
-			}.Layout(gtx)
-		},
-	)
+	btn := &e.expandButton
+	if e.collapseButton.Clicked(gtx) {
+		iconStackAnimation.Disappear(gtx.Now)
+	}
+	if e.expandButton.Clicked(gtx) {
+		iconStackAnimation.Appear(gtx.Now)
+	}
+	progress := iconStackAnimation.Revealed(gtx)
+	if progress != 0 {
+		btn = &e.collapseButton
+	}
+	return GlitchIconButtonStyle{
+		Background:  fonts.DefaultTheme.Bg,
+		Color:       fonts.DefaultTheme.ContrastFg,
+		Icon:        icons.Circle,
+		Size:        unit.Dp(24.0),
+		Button:      btn,
+		Inset:       layout.UniformInset(unit.Dp(9)),
+		Progress:    progress,
+		ElapsedTime: float32(iconStackAnimation.Duration/time.Millisecond) * progress,
+	}.Layout(gtx)
 }

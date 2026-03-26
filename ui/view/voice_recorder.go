@@ -96,7 +96,6 @@ func (v *VoiceRecorder) Layout(gtx layout.Context) layout.Dimensions {
 				if v.longPressing && v.click.Hovered() {
 					v.drawWaveform(gtx)
 				} else if v.longPressing && !v.click.Hovered() {
-					op.Offset(image.Pt(gtx.Dp(50/2), 0)).Add(gtx.Ops)
 					// Show cancellation feedback
 					v.drawCancelledIndicator(gtx)
 				} else {
@@ -108,7 +107,12 @@ func (v *VoiceRecorder) Layout(gtx layout.Context) layout.Dimensions {
 				return layout.Dimensions{Size: gtx.Constraints.Max}
 			}),
 			// expand button
-			layout.Rigid(v.ExpandButton.Layout),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				if v.longPressing {
+					return layout.Dimensions{}
+				}
+				return v.ExpandButton.Layout(gtx)
+			}),
 		)
 	})
 	call := macro.Stop()

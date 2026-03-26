@@ -9,6 +9,7 @@ var list = []struct {
 	{"Apk", Apk},
 	{"Audio", Audio},
 	{"Browse", Browse},
+	{"Circle", Circle},
 	{"FileExport", FileExport},
 	{"Video", Video},
 }

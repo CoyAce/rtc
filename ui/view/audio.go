@@ -31,9 +31,9 @@ var (
 	audioId                   uint16
 	timestamp                 uint16
 	mute                      bool
-	micOffButton              = &IconButton{Theme: fonts.DefaultTheme, VGData: icons.AVMicOff, Enabled: true, Hidden: true}
-	audioMakeButton           = &IconButton{Theme: fonts.DefaultTheme, VGData: icons.CommunicationPhone, Enabled: true}
-	audioAcceptButton         = &IconButton{Theme: fonts.DefaultTheme, VGData: icons.CommunicationPhone, Enabled: true, Mode: Accept}
+	micOffButton              = &IconButton{Theme: fonts.DefaultTheme, Icon: icons.AVMicOff, Enabled: true, Hidden: true}
+	audioMakeButton           = &IconButton{Theme: fonts.DefaultTheme, Icon: icons.CommunicationPhone, Enabled: true}
+	audioAcceptButton         = &IconButton{Theme: fonts.DefaultTheme, Icon: icons.CommunicationPhone, Enabled: true, Mode: Accept}
 	captureCtx, captureCancel = context.WithCancel(context.Background())
 	playbackCancels           []context.CancelFunc
 	players                   = make(map[uint16]chan *bytes.Buffer)
@@ -62,7 +62,7 @@ func generateAudioId() uint32 {
 
 func NewAudioIconStack(streamConfig audio.StreamConfig) *IconStack {
 	audioAcceptButton.OnClick = acceptAudioCall(streamConfig)
-	var audioDeclineButton = &IconButton{Theme: fonts.DefaultTheme, VGData: icons.CommunicationPhone, Enabled: true, Mode: Decline}
+	var audioDeclineButton = &IconButton{Theme: fonts.DefaultTheme, Icon: icons.CommunicationPhone, Enabled: true, Mode: Decline}
 	audioDeclineButton.OnClick = func() {
 		audioMakeButton.Hidden = false
 		resetMuteButton()

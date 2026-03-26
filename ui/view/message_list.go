@@ -10,6 +10,7 @@ import (
 	"mushin/internal/audio"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -47,9 +48,9 @@ func (v *VoiceMode) SwitchBetweenTextAndVoice(voiceMessage *IconButton) func() {
 	return func() {
 		*v = !*v
 		if *v {
-			voiceMessage.VGData = icons.CommunicationChatBubble
+			voiceMessage.Icon = icons.CommunicationChatBubble
 		} else {
-			voiceMessage.VGData = icons.AVMic
+			voiceMessage.Icon = icons.AVMic
 		}
 	}
 }
@@ -240,7 +241,8 @@ func NewMessageManager(streamConfig audio.StreamConfig) MessageManager {
 		Theme: fonts.DefaultTheme,
 	}
 	messageList.Messages.Store(new(messageKeeper.Messages(streamConfig)))
-	messageEditor := &MessageEditor{Editor: widget.Editor{Submit: true, LineHeight: fonts.DefaultLineHeight}, Theme: fonts.DefaultTheme}
+	submit := runtime.GOOS != "ios" && runtime.GOOS != "android"
+	messageEditor := &MessageEditor{Editor: widget.Editor{Submit: submit, LineHeight: fonts.DefaultLineHeight}, Theme: fonts.DefaultTheme}
 	return MessageManager{
 		audioStack:    NewAudioIconStack(streamConfig),
 		iconStack:     NewIconStack(mode.SwitchBetweenTextAndVoice, messageKeeper.AppendPublish),

@@ -45,24 +45,26 @@ func (e *MessageEditor) Layout(gtx layout.Context) layout.Dimensions {
 	// Draw rounded background with geek-style gradient border effect at outer layer
 	macro := op.Record(gtx.Ops)
 	margins := layout.Inset{Top: unit.Dp(8.0), Left: unit.Dp(8.0), Right: unit.Dp(8), Bottom: unit.Dp(15)}
+	contents := []layout.FlexChild{
+		// text input
+		layout.Flexed(1.0, func(gtx layout.Context) layout.Dimensions {
+			innerMargins := layout.Inset{Left: unit.Dp(8)}
+			return innerMargins.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return material.Editor(e.Theme, &e.Editor, "").Layout(gtx)
+			})
+		}),
+	}
+	if e.Editor.Len() > 0 {
+		contents = append(contents, layout.Rigid(e.drawSubmitButton))
+	} else {
+		contents = append(contents, layout.Rigid(e.ExpandButton.Layout))
+	}
 	dimensions := margins.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{
 			Axis:      layout.Horizontal,
 			Spacing:   layout.SpaceBetween,
 			Alignment: layout.Middle,
-		}.Layout(gtx,
-			// text input
-			layout.Flexed(1.0, func(gtx layout.Context) layout.Dimensions {
-				innerMargins := layout.Inset{Left: unit.Dp(20), Right: unit.Dp(12)}
-				return innerMargins.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return material.Editor(e.Theme, &e.Editor, "Messages").Layout(gtx)
-				})
-			}),
-			// submit button
-			layout.Rigid(e.drawSubmitButton),
-			// expand button
-			layout.Rigid(e.ExpandButton.Layout),
-		)
+		}.Layout(gtx, contents...)
 	})
 	call := macro.Stop()
 
@@ -117,7 +119,7 @@ func (e *MessageEditor) update(gtx layout.Context) {
 }
 
 func (e *MessageEditor) operationBarNeeded(gtx layout.Context) bool {
-	return e.longPressed && gtx.Focused(&e.Editor) || e.Editor.SelectionLen() > 0
+	return gtx.Focused(&e.Editor) && (e.longPressed || e.Editor.SelectionLen() > 0)
 }
 
 func (e *MessageEditor) processCut(gtx layout.Context) {
@@ -160,7 +162,7 @@ func (e *MessageEditor) hideOperationBar() {
 }
 func (e *MessageEditor) drawSubmitButton(gtx layout.Context) layout.Dimensions {
 	return GlitchIconButtonStyle{
-		Background: e.Theme.ContrastBg,
+		Background: e.Theme.Bg,
 		Color:      e.Theme.ContrastFg,
 		Icon:       icons.ContentSend,
 		Size:       unit.Dp(24.0),
@@ -229,27 +231,25 @@ type EditorOperator struct {
 }
 
 func (e *EditorOperator) Layout(gtx layout.Context) {
-	centerOffset, iconSize, margin := 54, 28, 8
+	iconSize, margin := 28, 8
 	defer op.Offset(image.Point{Y: -gtx.Dp(unit.Dp(iconSize + 24))}).Push(gtx.Ops).Pop()
 	macro := op.Record(gtx.Ops)
 	icons := layout.UniformInset(unit.Dp(margin)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Stack{Alignment: layout.Center}.Layout(gtx,
 			layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-				offset := image.Pt(-gtx.Dp(unit.Dp(centerOffset+iconSize+margin)), 0)
+				offset := image.Pt(-gtx.Dp(unit.Dp(iconSize+margin)), 0)
 				op.Offset(offset).Add(gtx.Ops)
 				return e.cutButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					return icons.ContentCutIcon.Layout(gtx, fonts.DefaultTheme.ContrastFg)
 				})
 			}),
 			layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-				offset := image.Pt(-gtx.Dp(unit.Dp(centerOffset)), 0)
-				op.Offset(offset).Add(gtx.Ops)
 				return e.copyButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					return icons.ContentCopyIcon.Layout(gtx, fonts.DefaultTheme.ContrastFg)
 				})
 			}),
 			layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-				offset := image.Pt(-gtx.Dp(unit.Dp(centerOffset-iconSize-margin)), 0)
+				offset := image.Pt(-gtx.Dp(unit.Dp(-iconSize-margin)), 0)
 				op.Offset(offset).Add(gtx.Ops)
 				return e.pasteButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					return icons.ContentPasteIcon.Layout(gtx, fonts.DefaultTheme.ContrastFg)
@@ -262,7 +262,7 @@ func (e *EditorOperator) Layout(gtx layout.Context) {
 }
 
 func (e *EditorOperator) drawBorder(gtx layout.Context, icons layout.Dimensions, call op.CallOp) {
-	centerOffset, iconSize, margin := gtx.Dp(54), gtx.Dp(28), gtx.Dp(8)
+	iconSize, margin := gtx.Dp(28), gtx.Dp(8)
 	bgColor := fonts.DefaultTheme.ContrastBg
 	bgColor.A = 220
 
@@ -274,7 +274,7 @@ func (e *EditorOperator) drawBorder(gtx layout.Context, icons layout.Dimensions,
 	// https://pomax.github.io/bezierinfo/#circles_cubic.
 	const q = 4 * (math.Sqrt2 - 1) / 3
 	const iq = 1 - q
-	midX := float32(icons.Size.X)/2 - float32(centerOffset)
+	midX := float32(icons.Size.X) / 2
 	minX := midX - float32(iconSize)*float32(1.5) - float32(margin)*2
 	maxX := midX + float32(iconSize)*float32(1.5) + float32(margin)*2
 	minY := float32(0)
@@ -286,11 +286,11 @@ func (e *EditorOperator) drawBorder(gtx layout.Context, icons layout.Dimensions,
 	p := clip.Path{}
 	p.Begin(gtx.Ops)
 	p.MoveTo(f32.Point{X: minX + nw, Y: minY})
-	p.LineTo(f32.Point{X: maxX - ne, Y: minY})    // N
+	p.LineTo(f32.Point{X: maxX - ne, Y: minY}) // N
 	p.CubeTo(f32.Point{X: maxX - ne*iq, Y: minY}, // NE
 		f32.Point{X: maxX, Y: minY + ne*iq},
 		f32.Point{X: maxX, Y: minY + ne})
-	p.LineTo(f32.Point{X: maxX, Y: maxY - se})    // E
+	p.LineTo(f32.Point{X: maxX, Y: maxY - se}) // E
 	p.CubeTo(f32.Point{X: maxX, Y: maxY - se*iq}, // SE
 		f32.Point{X: maxX - se*iq, Y: maxY},
 		f32.Point{X: maxX - se, Y: maxY})
@@ -298,10 +298,10 @@ func (e *EditorOperator) drawBorder(gtx layout.Context, icons layout.Dimensions,
 	p.LineTo(f32.Point{X: midX, Y: maxY + perpendicular})       // S
 	p.LineTo(f32.Point{X: midX - triangleLegHalfSize, Y: maxY}) // S
 	p.LineTo(f32.Point{X: minX + sw, Y: maxY})                  // S
-	p.CubeTo(f32.Point{X: minX + sw*iq, Y: maxY},               // SW
+	p.CubeTo(f32.Point{X: minX + sw*iq, Y: maxY}, // SW
 		f32.Point{X: minX, Y: maxY - sw*iq},
 		f32.Point{X: minX, Y: maxY - sw})
-	p.LineTo(f32.Point{X: minX, Y: minY + nw})    // W
+	p.LineTo(f32.Point{X: minX, Y: minY + nw}) // W
 	p.CubeTo(f32.Point{X: minX, Y: minY + nw*iq}, // NW
 		f32.Point{X: minX + nw*iq, Y: minY},
 		f32.Point{X: minX + nw, Y: minY})
@@ -317,11 +317,10 @@ func (e *EditorOperator) drawBorder(gtx layout.Context, icons layout.Dimensions,
 func (e *EditorOperator) drawShadowPath(gtx layout.Context, icons layout.Dimensions, shadowColor color.NRGBA, shadowRadius int) {
 	margin := gtx.Dp(8)
 	iconSize := gtx.Dp(28)
-	centerOffset := gtx.Dp(54)
 
 	const q = 4 * (math.Sqrt2 - 1) / 3
 	const iq = 1 - q
-	midX := float32(icons.Size.X)/2 - float32(centerOffset)
+	midX := float32(icons.Size.X) / 2
 	minX := midX - float32(iconSize)*float32(1.5) - float32(margin)*2
 	maxX := midX + float32(iconSize)*float32(1.5) + float32(margin)*2
 	minY := float32(shadowRadius)
