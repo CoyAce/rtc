@@ -351,6 +351,7 @@ type IconStack struct {
 	*material.Theme
 	*component.VisibilityAnimation
 	Sticky      bool
+	focused     bool
 	IconButtons []*IconButton
 }
 
@@ -487,7 +488,8 @@ func (s *IconStack) Layout(gtx layout.Context) (layout.Dimensions, layout.Dimens
 }
 
 func (s *IconStack) update(gtx layout.Context) {
-	if !s.Sticky && s.State == component.Visible && !gtx.Focused(s) {
+	if !s.Sticky && s.State == component.Visible && !gtx.Focused(s) && !s.focused {
+		s.focused = true
 		gtx.Execute(key.FocusCmd{Tag: s})
 		gtx.Execute(op.InvalidateCmd{})
 	}
@@ -502,6 +504,7 @@ func (s *IconStack) update(gtx layout.Context) {
 		case key.FocusEvent:
 			if !e.Focus && !s.Sticky {
 				s.VisibilityAnimation.Disappear(gtx.Now)
+				s.focused = false
 			}
 		}
 	}
