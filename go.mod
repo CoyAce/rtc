@@ -4,7 +4,7 @@ go 1.26
 
 replace gioui.org/x v0.9.0 => github.com/CoyAce/gio-x v0.9.15
 
-replace gioui.org => github.com/CoyAce/gio v0.9.4
+replace gioui.org => github.com/CoyAce/gio v0.0.0-20260327101516-1df73b8c0d92
 
 require (
 	gioui.org v0.9.1-0.20260107121033-99647591f6b9
@@ -12,7 +12,7 @@ require (
 	git.wow.st/gmp/jni v0.0.0-20260127013417-d142949d346a
 	github.com/CoyAce/apm v0.1.4
 	github.com/CoyAce/opus v0.1.8
-	github.com/CoyAce/wi v0.2.20
+	github.com/CoyAce/wi v0.2.21-0.20260328091608-9d23ce5e16ac
 	github.com/gen2brain/malgo v0.11.24
 	golang.org/x/exp/shiny v0.0.0-20260312153236-7ab1446f8b90
 	golang.org/x/image v0.37.0
